@@ -81,8 +81,8 @@ public class SqlGenerator {
                 {"AECO 11", "Emilian Culture", "1"}
             };
             for (String[] ge : genEds) {
-                out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, department_id, active_status) VALUES ('%s', '%s', %s, 1, 1);%n",
-                        ge[0], ge[1].replace("'", "''"), ge[2]);
+                out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) VALUES ('%s', '%s', %s, %s, 0, 1, 1);%n",
+                        ge[0], ge[1].replace("'", "''"), ge[2], ge[2]);
             }
             out.println();
 
@@ -175,8 +175,8 @@ public class SqlGenerator {
     }
 
     private static void saveCourseAndMapping(String programCode, String courseCode, String courseTitle, int units, String preReqCode, int yearLevel, int semester, PrintWriter out) {
-        out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, department_id, active_status) VALUES ('%s', '%s', %d, 1, 1);%n",
-                courseCode.replace("'", "''"), courseTitle, units);
+        out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) VALUES ('%s', '%s', %d, %d, 0, 1, 1);%n",
+                courseCode.replace("'", "''"), courseTitle, units, units);
 
         out.printf("INSERT IGNORE INTO curriculum_courses (curriculum_id, course_id, year_level, semester_number, is_required) " +
                 "SELECT ct.curriculum_id, c.course_id, %d, %d, 1 FROM courses c CROSS JOIN curriculum_templates ct " +
@@ -188,7 +188,7 @@ public class SqlGenerator {
             String[] preReqs = preReqCode.split(",");
             for (String pr : preReqs) {
                 pr = pr.trim();
-                out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, department_id, description, active_status) VALUES ('%s', '%s', 3, 1, 'Prerequisite placeholder', 1);%n",
+                out.printf("INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, description, active_status) VALUES ('%s', '%s', 3, 3, 0, 1, 'Prerequisite placeholder', 1);%n",
                         pr.replace("'", "''"), pr.replace("'", "''"));
                 
                 out.printf("INSERT IGNORE INTO course_prerequisites (course_id, prerequisite_course_id) " +

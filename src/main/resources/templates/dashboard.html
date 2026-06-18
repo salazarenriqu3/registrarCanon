@@ -18,7 +18,13 @@
             <div class="page-header">
                 <div>
                     <h1 class="page-title">Good morning, Admin</h1>
-                    <p class="page-subtitle">Academic Year 2025–2026 · Second Semester</p>
+                    <p class="page-subtitle"
+                       th:text="${activeTerm != null
+                           ? 'Academic Year ' + activeTerm.academic_year + ' | '
+                               + (activeTerm.semester_number == 1 ? 'First Semester'
+                                   : (activeTerm.semester_number == 2 ? 'Second Semester'
+                                       : 'Semester ' + activeTerm.semester_number))
+                           : 'No active academic term'}">Active academic term</p>
                 </div>
                 <div class="header-actions">
                     <button class="btn btn-ghost">

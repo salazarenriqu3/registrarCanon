@@ -35,6 +35,8 @@ To perfectly demonstrate the new Term Fees logic and Admissions pipeline in abso
    [http://localhost:8083/registrar](http://localhost:8083/registrar)
    **(Login: admin / 1234)**
 
+For the admission-profile bridge to show applicant documents correctly, the Registrar app should be pointed at the same admission upload root as the Admission system. If the files live in a custom folder, set `APP_UPLOAD_DIR` before starting Registrar so the Student Profile page can resolve the linked uploads.
+
 ---
 
 ## 3. Demo Walkthroughs
@@ -70,9 +72,20 @@ This demonstrates how the system protects itself if an admin forgets to run the 
 3. Observe the base figures (e.g., Tuition: `1500`, Library: `2000`). These are universally mapped as `term_id = NULL` in the database.
 4. If an admin ever clicks "Prepare selected term" on an empty future term, the system automatically hunts down these exact fallback figures to ensure the cashiering module never crashes during enrollment.
 
+### Demo D: Admission snapshot and applicant documents
+This demonstrates the registrar-side read-only bridge to the Admission system.
+
+1. Open `/admin/student-manager` and search for a student number that is linked to an applicant record in Admission.
+2. Open the profile and confirm the new **Admission Snapshot** card appears above the editable registrar profile.
+3. Confirm the new **Applicant Documents** card shows the submitted files and their current status.
+4. Click a document with a **View** action and confirm it opens inline without exposing registrar write controls.
+5. Confirm the editable registrar profile still only changes registrar-owned fields and does not mutate admission-owned applicant data.
+6. If the page redirects to `/login`, sign in again and return to Student Profile. A redirect here usually means the session expired, not that the feature is broken.
+
 ---
 
 ## 4. Troubleshooting on a Fresh PC
 
 - **MySQL Connection Errors**: If `run_sandbox_demo.ps1` fails with connection refused, ensure your MySQL service is running on `localhost:3306`. If your root user has a password, edit lines 25, 28, and 31 in `run_sandbox_demo.ps1` to include it (`--password=yourpassword`).
 - **Port Conflicts**: If the app fails to start because port `8083` is in use, kill the blocking process or alter `server.port` in `src/main/resources/application.properties`.
+- **Login redirect on admin pages**: The browser session may have expired. Sign in again with the local demo account and retry the page instead of assuming the route is missing.

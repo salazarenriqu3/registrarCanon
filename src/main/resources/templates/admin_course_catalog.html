@@ -154,6 +154,12 @@
             padding: .75rem .9rem;
             font-size: .86rem;
         }
+        .usage-section { margin-bottom: 1.25rem; }
+        .usage-section h4 { margin: 0 0 .55rem; font-size: .95rem; }
+        .usage-list { display: grid; gap: .45rem; }
+        .usage-item { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: .65rem .75rem; background: var(--bg-tertiary); }
+        .usage-empty { color: var(--text-muted); font-size: .86rem; }
+        .unit-breakdown { display:block; color:var(--text-muted); font-size:.72rem; margin-top:.2rem; white-space:nowrap; }
         @media (max-width: 760px) {
             .form-grid {
                 grid-template-columns: 1fr;
@@ -258,7 +264,7 @@
                         <tr>
                             <th style="width: 14%; padding-left: 1.25rem;">Code</th>
                             <th style="width: 28%;">Title</th>
-                            <th style="width: 9%; text-align: center;">Units</th>
+                            <th style="width: 11%; text-align: center;">Units</th>
                             <th style="width: 20%;">Department</th>
                             <th style="width: 10%; text-align: center;">Status</th>
                             <th style="width: 22%;">Usage</th>
@@ -271,6 +277,7 @@
                             <td th:text="${c.course_title}">Title</td>
                             <td style="text-align: center;">
                                 <span style="background: var(--bg-tertiary); padding: .2rem .6rem; border-radius: 4px; font-weight: 700;" th:text="${c.credit_units}">3</span>
+                                <span class="unit-breakdown" th:text="${c.lec_units + ' lec + ' + c.lab_units + ' lab'}">3 lec + 0 lab</span>
                             </td>
                             <td style="color: var(--text-muted); font-size: .86rem;" th:text="${c.department_name}">Department</td>
                             <td style="text-align: center;">
@@ -298,8 +305,11 @@
                             </td>
                             <td style="padding-right: 1.25rem;">
                                 <div class="row-actions">
+                                    <button type="button" class="btn btn-outline" style="padding: .3rem .55rem;" th:attr="data-course-id=${c.course_id},data-usage-url=@{/admin/courses/usage}" onclick="openUsageModal(this)" title="View where this course is used">
+                                        <i class="ti ti-map-pin" aria-hidden="true"></i>
+                                    </button>
                                     <button type="button" class="btn btn-outline" style="padding: .3rem .55rem;"
-                                            th:attr="data-course-id=${c.course_id},data-course-code=${c.course_code},data-course-title=${c.course_title},data-department-id=${c.department_id},data-credit-units=${c.credit_units},data-active=${c.active_status}"
+                                            th:attr="data-course-id=${c.course_id},data-course-code=${c.course_code},data-course-title=${c.course_title},data-department-id=${c.department_id},data-lecture-units=${c.lec_units},data-laboratory-units=${c.lab_units},data-active=${c.active_status}"
                                             onclick="openCourseModal(this)">
                                         <i class="ti ti-pencil" aria-hidden="true"></i>
                                     </button>
@@ -362,8 +372,12 @@
                         <input name="courseCode" id="courseCode" class="form-control" required placeholder="COURSE 101">
                     </div>
                     <div>
-                        <label class="form-label">Credit Units</label>
-                        <input name="creditUnits" id="creditUnits" type="number" min="1" max="12" class="form-control" value="3" required>
+                        <label class="form-label">Lecture Units</label>
+                        <input name="lectureUnits" id="lectureUnits" type="number" min="0" max="12" class="form-control" value="3" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Laboratory Units</label>
+                        <input name="laboratoryUnits" id="laboratoryUnits" type="number" min="0" max="12" class="form-control" value="0" required>
                     </div>
                     <div class="wide">
                         <label class="form-label">Course Title</label>
@@ -385,7 +399,7 @@
                     </div>
                 </div>
                 <div class="hint-box">
-                    Editing a course changes the shared catalog record. If it is already used by curricula or schedules, prefer careful edits and use deactivate instead of deleting.
+                    Total credit units are calculated as lecture plus laboratory units. Editing this shared record updates how the course is shown in every curriculum and scheduling workspace; use the location button in the table to inspect its current usage first.
                 </div>
             </div>
             <div class="modal-footer">
@@ -395,6 +409,19 @@
                 </button>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="modal" id="usageModal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <div>
+                <h3 id="usageModalTitle" style="margin:0;">Course Usage</h3>
+                <p id="usageModalSubtitle" style="margin:.25rem 0 0; color:var(--text-muted); font-size:.88rem;"></p>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="closeUsageModal()">Close</button>
+        </div>
+        <div class="modal-body" id="usageModalBody"><div class="usage-empty">Loading usage...</div></div>
     </div>
 </div>
 
@@ -413,7 +440,8 @@
             document.getElementById('courseCode').value = button.dataset.courseCode || '';
             document.getElementById('courseTitle').value = button.dataset.courseTitle || '';
             document.getElementById('departmentId').value = button.dataset.departmentId || '';
-            document.getElementById('creditUnits').value = button.dataset.creditUnits || 3;
+            document.getElementById('lectureUnits').value = button.dataset.lectureUnits || 0;
+            document.getElementById('laboratoryUnits').value = button.dataset.laboratoryUnits || 0;
             document.getElementById('active').value = button.dataset.active === '0' ? 'false' : 'true';
         }
 
@@ -424,6 +452,45 @@
 
     function closeCourseModal() {
         const modal = document.getElementById('courseModal');
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
+    function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+    }
+
+    function renderUsageItems(items, formatter, emptyText) {
+        if (!items || items.length === 0) return `<div class="usage-empty">${escapeHtml(emptyText)}</div>`;
+        return `<div class="usage-list">${items.map(item => `<div class="usage-item">${formatter(item)}</div>`).join('')}</div>`;
+    }
+
+    async function openUsageModal(button) {
+        const modal = document.getElementById('usageModal');
+        const body = document.getElementById('usageModalBody');
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        body.innerHTML = '<div class="usage-empty">Loading usage...</div>';
+        try {
+            const response = await fetch(`${button.dataset.usageUrl}?courseId=${encodeURIComponent(button.dataset.courseId)}`);
+            if (!response.ok) throw new Error(await response.text() || 'Unable to load course usage.');
+            const data = await response.json();
+            const course = data.course || {};
+            document.getElementById('usageModalTitle').textContent = `${course.course_code || ''} - ${course.course_title || ''}`;
+            document.getElementById('usageModalSubtitle').textContent = `${course.credit_units || 0} total units (${course.lec_units || 0} lecture + ${course.lab_units || 0} laboratory) | ${course.department_name || 'Unassigned'}`;
+            const records = data.records || {};
+            body.innerHTML = `
+                <section class="usage-section"><h4>Curriculum placements</h4>${renderUsageItems(data.curricula, item => `<strong>${escapeHtml(item.program_code)} - ${escapeHtml(item.curriculum_name)}</strong><br><small>A.Y. ${escapeHtml(item.academic_year)} | Year ${escapeHtml(item.year_level)}, Semester ${escapeHtml(item.semester_number)} | ${escapeHtml(item.approval_status)}${Number(item.is_active) === 1 ? ' | Active' : ''}</small>`, 'Not placed in any curriculum.')}</section>
+                <section class="usage-section"><h4>Class sections</h4>${renderUsageItems(data.sections, item => `<strong>${escapeHtml(item.section_code)}</strong><br><small>Term #${escapeHtml(item.term_id)} | ${escapeHtml(item.section_status || 'No status')} | Faculty #${escapeHtml(item.faculty_id || 'Unassigned')}</small>`, 'No class sections use this course.')}</section>
+                <section class="usage-section"><h4>Student and academic records</h4><div class="usage-item">${escapeHtml(records.enlistments || 0)} enlistments | ${escapeHtml(records.grades || 0)} grades | ${escapeHtml(records.waitlists || 0)} waitlist entries | ${escapeHtml(records.requests || 0)} requests</div></section>
+                <section class="usage-section"><h4>Prerequisite relationships</h4>${renderUsageItems(data.prerequisites, item => `<strong>${escapeHtml(item.course_code)}</strong> requires <strong>${escapeHtml(item.prerequisite_code)}</strong>`, 'No prerequisite relationships.')}</section>`;
+        } catch (error) {
+            body.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+        }
+    }
+
+    function closeUsageModal() {
+        const modal = document.getElementById('usageModal');
         modal.classList.remove('show');
         modal.setAttribute('aria-hidden', 'true');
     }

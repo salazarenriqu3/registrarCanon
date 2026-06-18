@@ -1,8 +1,8 @@
 # Human UAT & Demo Checklist
 
-Last updated: 2026-06-10  
+Last updated: 2026-06-17
 **Print-friendly sign-off sheet** for panel demos and QA. Full reference: `MASTER_DEMO_UAT_MANUAL.md`.  
-**Status:** `PROJECT_STATUS_AND_ROADMAP.md` — UAT in progress; user re-tested 0/A/B areas positively (2026-06-10).
+**Status:** `PROJECT_STATUS_AND_ROADMAP.md` — UAT in progress; user re-tested 0/A/B areas positively (2026-06-10). Dean / Faculty irregular new-enrollee advising in Registrar is dormant and not part of active sign-off.
 
 ---
 
@@ -22,6 +22,17 @@ Last updated: 2026-06-10
 | Faculty (grading) | `prof.cruz` | `1234` |
 
 **Test data rule:** Use new applicants or prefixes `DREG-*`, `TTRNS-*`, `TSHFT-*`, `HTEST-*`. Do not use production student records.
+
+## Execution checkpoint - 2026-06-18
+
+- Registrar focused regression: **33/33 PASS** for grading windows, term transition, grade outcomes, and term-fee behavior.
+- Full registrar suite: **42 PASS, 1 skipped, 1 structural error**. The remaining error is the existing Spring Modulith package-cycle check; functional tests pass.
+- Live Registrar: active-term readiness is **Ready** for `1120242025`; fee scopes `192`, missing/fallback/incomplete `0/0/0`.
+- Enrollment `http://localhost:8082` was started and `admin` login passed. Session C remains pending for transactional sign-off: `WDRW-UAT-2026-001` loaded, but its active enrollment term is `SL_1120262026` while Registrar open term is `1120242025`, and no current assessment exists.
+- Enrollment startup logged `Unknown column 'RESERVED' in 'WHERE'`; the application still started, but this schema warning needs separate Enrollment-side analysis before hard finance testing.
+- Session D remains pending because the documented `prof.cruz` / `1234` account was rejected by the live database. Admin Grade Records loaded with no pending submissions.
+- Session E remains pending for transactional sign-off. Student Profile, TOR crediting, curriculum assignment, and program-shift controls loaded successfully in read-only inspection.
+- No term transition, payment, grade, TOR credit, or program shift was posted during this checkpoint.
 
 ---
 
@@ -200,12 +211,12 @@ AECO 11,1.75,Prior College,TOR 2024
 
 ---
 
-## A8 — Print COR
+## A8 — Print Registration Form
 
 | | |
 |---|---|
-| **URL** | Student Manager → **Print COR** (enrolled demo student) |
-| **Pass** | COR PDF/view lists committed subjects |
+| **URL** | Student Manager → **Print Registration Form** (enrolled demo student) |
+| **Pass** | Registration Form print view lists committed subjects |
 
 ☐ A8
 
@@ -217,7 +228,7 @@ AECO 11,1.75,Prior College,TOR 2024
 |---|---|
 | **URL** | External Admission/Cashier flow; registrar URL is no longer canonical for regular Y1 admission |
 | **Do** | Regular applicants are admitted, pre-registered, sectioned, paid, enrolled, and assigned student numbers outside Registrar |
-| **Pass** | Registrar is not required for regular Y1 admission; use Registrar only for irregular Dean / Faculty pre-registration handoff validation |
+| **Pass** | Registrar is not required for regular Y1 admission; regular applicant intake remains external to Registrar |
 
 Quick applicant SQL: see `THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md` Part 1A.
 
@@ -225,14 +236,36 @@ Quick applicant SQL: see `THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md` Part 1A.
 
 ---
 
-## A10 — Admission Y2+ transferee
+## A10 — External Y2+ transferee intake (informational)
 
 | | |
 |---|---|
-| **Do** | Accept applicant as **Year 2** BSCPE |
-| **Pass** | `student_type = Transferee`, `enrollment_status_type = Irregular`, curriculum assignment `TRANSFEREE` |
+| **Do** | Use a student already created by the external Admission / Cashier flow as **Year 2** BSCPE transferee, then verify Registrar reads it correctly |
+| **Pass** | Existing student opens in Registrar with `student_type = Transferee`, `enrollment_status_type = Irregular`, curriculum assignment `TRANSFEREE` |
 
 ☐ A10
+
+---
+
+## A11 — Scholarship eligibility demo
+
+Seed once if the demo rows are not present yet:
+
+```sql
+SOURCE registrar/handoffNew/sql_manual/08_scholarship_demo_seed.sql;
+```
+
+| | |
+|---|---|
+| **URL** | http://localhost:8083/registrar/admin/scholarships |
+| **Do** | Confirm Academic Scholarship Policy shows **Minimum Completed Units = 27** |
+| **Pass 1** | `SCH-UAT-ELIGIBLE` / Sofia Scholar shows **27** units and **Eligible** |
+| **Pass 2** | `SCH-UAT-LOWUNITS` / Liam Low Units shows **24** units and **Not eligible** with reason `Needs at least 27 completed unit(s)` |
+| **Workflow** | Sofia: **Submit for Review** → confirm `PENDING` → **Approve** → confirm no discount is active yet → **Post** |
+| **Pass 3** | Sofia shows `POSTED`, the scholarship is active, and **Revoke** is available |
+| **Guardrail** | Liam has no submission action because the configured 27-unit requirement is not met |
+
+☐ A11
 
 ---
 
@@ -303,9 +336,11 @@ Bootstrap assigns all sections to **`prof.cruz`** (`setup/sql/03_assign_prof_cru
 
 Detail: `MASTER_DEMO_UAT_MANUAL.md` Part 10 · Full story: `THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md` Tracks 2 & 3.
 
+Current scope note: this session starts from an already-created student record. It does not include dormant Registrar Dean / Faculty new-enrollee advising.
+
 | ID | Pass when | ☐ |
 |----|-----------|---|
-| TRANS-T01 | Y2+ admit → Transferee / Irregular / TRANSFEREE | ☐ |
+| TRANS-T01 | Existing Y2+ transferee student resolves as Transferee / Irregular / TRANSFEREE in Registrar | ☐ |
 | TRANS-T02 | Single TOR credit | ☐ |
 | TRANS-T03 | Bulk TOR CSV | ☐ |
 | TRANS-T04 | Irregular offerings match assigned curriculum | ☐ |
@@ -340,10 +375,11 @@ For a **single sitting** showing what works today:
 |-------|------|------|
 | 1 | **Session 0** smoke | 15 min |
 | 2 | **A2 + A2b + A7** — finance + scheduling | 10 min |
-| 3 | **A9 + B1–B7** — admit → enroll → pay → COR | 25 min |
-| 4 | **D1–D5** — grade one class live | 15 min |
-| 5 | **A10 + B9** or **E** — irregular / transferee | 15 min |
-| 6 | *(Optional)* **THREE_TRACK** lifecycle | 2+ hr |
+| 3 | **A11** — scholarship eligibility without full grading-finalization buildout | 10 min |
+| 4 | **A9 + B1–B7** — admit → enroll → pay → COR | 25 min |
+| 5 | **D1–D5** — grade one class live | 15 min |
+| 6 | **A10 + B9** or **E** — transferee follow-up without dormant dean advising | 15 min |
+| 7 | *(Optional)* **THREE_TRACK** lifecycle | 2+ hr |
 
 ---
 
@@ -370,8 +406,9 @@ For a **single sitting** showing what works today:
 | Finance policy | http://localhost:8083/registrar/admin/finance-policy |
 | Class scheduling | http://localhost:8083/registrar/admin/class-scheduling?termId=1 |
 | Student Manager | http://localhost:8083/registrar/admin/student-manager |
-| Admission | http://localhost:8083/registrar/admin/admission-acceptance |
+| Admission review (dormant registrar path) | http://localhost:8083/registrar/admin/admission-acceptance |
 | Cashier | http://localhost:8082/admin/cashier |
 | Walk-in pay | http://localhost:8082/admin/walkin-payment |
 | Faculty grades | http://localhost:8083/registrar/grades |
 | Grade approvals | http://localhost:8083/registrar/admin/approvals |
+| Scholarships | http://localhost:8083/registrar/admin/scholarships |

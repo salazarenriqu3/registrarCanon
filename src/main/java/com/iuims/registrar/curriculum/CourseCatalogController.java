@@ -7,6 +7,8 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 @Controller
@@ -41,7 +43,8 @@ public class CourseCatalogController {
                              @RequestParam String courseCode,
                              @RequestParam String courseTitle,
                              @RequestParam Integer departmentId,
-                             @RequestParam(required = false) Integer creditUnits,
+                             @RequestParam(required = false) Integer lectureUnits,
+                             @RequestParam(required = false) Integer laboratoryUnits,
                              @RequestParam(required = false) Boolean active,
                              @RequestParam(required = false) String returnSearch,
                              @RequestParam(required = false) Integer returnDepartmentId,
@@ -50,7 +53,7 @@ public class CourseCatalogController {
                              RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         try {
-            Integer savedId = courseCatalogService.saveCourse(courseId, courseCode, courseTitle, departmentId, creditUnits, active);
+            Integer savedId = courseCatalogService.saveCourse(courseId, courseCode, courseTitle, departmentId, lectureUnits, laboratoryUnits, active);
             ra.addAttribute("msg", "Course saved.");
             ra.addAttribute("focusCourseId", savedId);
         } catch (Exception e) {
@@ -58,6 +61,19 @@ public class CourseCatalogController {
         }
         addReturnFilters(ra, returnSearch, returnDepartmentId, returnStatus);
         return "redirect:/admin/courses";
+    }
+
+    @GetMapping("/admin/courses/usage")
+    @ResponseBody
+    public ResponseEntity<?> courseUsage(@RequestParam int courseId, HttpSession session) {
+        if (session.getAttribute("currentUser") == null) {
+            return ResponseEntity.status(401).body("Login required.");
+        }
+        try {
+            return ResponseEntity.ok(courseCatalogService.usageDetails(courseId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
     }
 
     @PostMapping("/admin/courses/status")

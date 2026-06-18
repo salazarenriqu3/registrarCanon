@@ -1,6 +1,6 @@
 # Complete Fresh Setup & Demo Guide
 
-Last updated: 2026-06-10  
+Last updated: 2026-06-17
 **One document** for new PC setup, agent handoff, directory map, commands, and demo instructions.
 
 **Status / roadmap:** **`PROJECT_STATUS_AND_ROADMAP.md`** — read for done vs pending.  
@@ -14,8 +14,8 @@ Copy the **entire** folder containing `registrar/` and `enrollment3/`.
 
 | Path | Status |
 |------|--------|
-| **`C:\Users\sune\Downloads\new`** | **Primary** — has `registrar\setup\` (recommended) |
-| `C:\Users\sune\Downloads\new-20260606T044759Z-3-001\new` | Zip copy — older; use `registrar\db\run_full_uat_bootstrap.cmd` if `setup\` is missing |
+| **`C:\newer\new`** | **Primary** — has `registrar\setup\` (recommended) |
+| `C:\newer` | Workspace root for the current machine |
 
 All commands below assume you are at **project root** (the folder that contains `registrar`).
 
@@ -134,7 +134,7 @@ If root password is not empty, edit:
 ```text
 Fresh machine setup + demo prep for EAC Registrar + Enrollment.
 
-Project root: C:\Users\sune\Downloads\new
+Project root: C:\newer\new
 (Open the folder that contains registrar/ and enrollment3/)
 
 Read and follow:
@@ -302,7 +302,7 @@ Login **`admin` / `1234`** on both apps.
 | Course catalog | http://localhost:8083/registrar/admin/courses |
 | Curriculum | http://localhost:8083/registrar/admin/curriculum |
 | Student Manager | http://localhost:8083/registrar/admin/student-manager |
-| Admission | http://localhost:8083/registrar/admin/admission-acceptance |
+| Admission review (dormant registrar path) | http://localhost:8083/registrar/admin/admission-acceptance |
 | Cashier | http://localhost:8082/admin/cashier |
 | Walk-in payment | http://localhost:8082/admin/walkin-payment |
 | Faculty grades | http://localhost:8083/registrar/grades |
@@ -325,7 +325,7 @@ Do **not** use production student records.
 | 2 | **Finance + scheduling** — Settings, term fees, class scheduling | 10 min |
 | 3 | **Admit → enroll → pay → COR** — A9 + B1–B7 | 25 min |
 | 4 | **Grade one class live** — prof.cruz → admin approvals | 15 min |
-| 5 | **Irregular / transferee** — A10 + B9 or Session E | 15 min |
+| 5 | **Transferee follow-up** — A10 + B9 or Session E (without dormant dean advising) | 15 min |
 | 6 | *(Optional)* **Three-track lifecycle** | 2+ hr |
 
 Full sign-off sheet: **`HUMAN_UAT_CHECKLIST.md`**
@@ -351,8 +351,8 @@ Already covered in **Fresh setup** above. Mark complete when all smoke URLs pass
 | A6 | Student Manager → TOR | Credit one course | `remarks = Passed` |
 | A7 | `/admin/class-scheduling?termId=1` | Expand BSCPE block; Add Slot | Times show; IRREG-A visible |
 | A8 | Student Manager → Print COR | Enrolled student | COR lists subjects |
-| A9 | `/admin/admission-acceptance` | Walk-in ≥ ₱1,000 → Accept BSCPE Y1 → Generate ID | Student number created |
-| A10 | Admission | Accept as **Year 2** BSCPE | Transferee / Irregular / TRANSFEREE |
+| A9 | External Admission / Cashier | Admit BSCPE Y1 and issue student ID outside Registrar | Student number created |
+| A10 | External Admission / Cashier + Registrar | Start from a created Year 2 BSCPE transferee student and verify Registrar flags | Transferee / Irregular / TRANSFEREE |
 
 ---
 
@@ -414,7 +414,7 @@ Bootstrap assigns all active sections to **`prof.cruz`**.
 
 | ID | Pass when |
 |----|-----------|
-| TRANS-T01 | Y2+ admit → Transferee / Irregular / TRANSFEREE |
+| TRANS-T01 | Existing Y2+ transferee student resolves as Transferee / Irregular / TRANSFEREE in Registrar |
 | TRANS-T02 | Single TOR credit |
 | TRANS-T03 | Bulk TOR CSV |
 | TRANS-T04 | Irregular offerings match curriculum |
@@ -453,11 +453,10 @@ Fees for future terms are pre-seeded by bootstrap.
 ### Shared workflow (every track)
 
 1. **Create applicant** (SQL) — see THREE_TRACK Part 1A  
-2. **Walk-in pay** ≥ ₱1,000 — http://localhost:8082/admin/walkin-payment  
-3. **Admission** — http://localhost:8083/registrar/admin/admission-acceptance  
-4. **Cashier loop** — enlist block or IRREG-A → pay ≥ ₱8,000 → finalize  
-5. **Grade loop** — prof.cruz encodes → admin approves at `/admin/approvals`  
-6. **Advance year** — Cashier → **Update Semester** → next SL code  
+2. **External Admission / Cashier** — complete applicant intake and note the issued student number
+3. **Cashier loop** — enlist block or IRREG-A → pay ≥ ₱8,000 → finalize
+4. **Grade loop** — prof.cruz encodes → admin approves at `/admin/approvals`
+5. **Advance year** — Cashier → **Update Semester** → next SL code
 
 ### Quick applicant SQL
 

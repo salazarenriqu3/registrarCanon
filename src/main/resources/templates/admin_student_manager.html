@@ -33,7 +33,7 @@
                         <i class="ti ti-history" aria-hidden="true"></i> Reg Form History
                     </a>
                     <a th:href="@{/admin/print-cor(username=${student.username})}" class="btn btn-ghost" style="border: 1px solid var(--success-color); color: var(--success-color);">
-                        <i class="ti ti-printer" aria-hidden="true"></i> Print COR
+                        <i class="ti ti-printer" aria-hidden="true"></i> Print Registration Form
                     </a>
                     <a th:href="@{/admin/print-cog(username=${student.username})}" class="btn btn-ghost" style="border: 1px solid var(--primary-color); color: var(--primary-color);">
                         <i class="ti ti-printer" aria-hidden="true"></i> Print COG
@@ -126,6 +126,34 @@
                                 <div style="font-weight: 700; color: var(--text-primary); margin-top: 0.25rem;" th:text="${student.admission_status != null ? student.admission_status : 'No admission status'}"></div>
                                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;" th:text="${student.term_year != null ? 'Term year ' + student.term_year : 'No term year listed'}"></div>
                             </div>
+                            <div th:style="${hasAccountingBlock or (curriculumDeficiencyCount != null and curriculumDeficiencyCount > 0)} ? 'background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 4px solid #DC2626; border-radius: var(--radius-md); padding: 0.75rem;' : 'background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A; border-radius: var(--radius-md); padding: 0.75rem;'">
+                                <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Registrar Alerts</div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.4rem;">
+                                    <span th:if="${hasAccountingBlock}" class="status-badge inactive" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;">
+                                        <div class="status-dot"></div> Accounting hold
+                                    </span>
+                                    <span th:if="${!hasAccountingBlock}" class="status-badge enrolled" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;">
+                                        <div class="status-dot"></div> Finance clear
+                                    </span>
+                                    <span th:if="${curriculumDeficiencyCount != null and curriculumDeficiencyCount > 0}" class="status-badge waitlist" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;">
+                                        <div class="status-dot"></div>
+                                        <span th:if="${curriculumDeficiencyCount == 1}" th:text="${curriculumDeficiencyCount + ' deficiency'}"></span>
+                                        <span th:if="${curriculumDeficiencyCount != 1}" th:text="${curriculumDeficiencyCount + ' deficiencies'}"></span>
+                                    </span>
+                                    <span th:if="${curriculumDeficiencyCount == null or curriculumDeficiencyCount == 0}" class="status-badge enrolled" style="font-size: 0.72rem; padding: 0.15rem 0.45rem;">
+                                        <div class="status-dot"></div> Curriculum clear
+                                    </span>
+                                </div>
+                                <div th:if="${hasAccountingBlock}" style="font-size: 0.8rem; color: #991B1B; margin-top: 0.45rem; line-height: 1.35;">
+                                    Prior balance PHP <span th:text="${forwardedBalanceFmt}">0.00</span> meets the PHP <span th:text="${accountingBlockThresholdFmt}">0.00</span> hold threshold.
+                                </div>
+                                <div th:if="${!hasAccountingBlock}" style="font-size: 0.8rem; color: #166534; margin-top: 0.45rem; line-height: 1.35;">
+                                    Forwarded balance PHP <span th:text="${forwardedBalanceFmt}">0.00</span>; outstanding PHP <span th:text="${outstandingBalanceFmt}">0.00</span>.
+                                </div>
+                                <div th:if="${curriculumDeficiencyCount != null and curriculumDeficiencyCount > 0}" style="font-size: 0.8rem; color: #92400E; margin-top: 0.35rem; line-height: 1.35;">
+                                    Review missing courses in TOR &amp; Transfer Crediting below.
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -183,6 +211,100 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <div th:if="${student != null}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="card" style="border-left: 4px solid #2563EB; margin: 0;">
+                    <div class="card-header">
+                        <div>
+                            <h5 class="card-title" style="margin: 0; color: #1D4ED8;">
+                                <i class="ti ti-file-description" aria-hidden="true"></i> Admission Snapshot
+                            </h5>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Original application context, shown read-only.</div>
+                        </div>
+                    </div>
+                    <div th:if="${admissionSnapshot != null and !admissionSnapshot.isEmpty()}" style="padding: 1.25rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 0.85rem;">
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Reference Number</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['reference_number'] ?: 'Not recorded'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Application Status</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['applicant_status'] ?: 'Not recorded'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Application Track</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['application_track'] ?: 'Regular / legacy'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Applied Term</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['term_year'] ?: 'Not recorded'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Program Choices</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;">
+                                <span th:text="${admissionSnapshot['program1'] ?: 'None'}"></span>
+                                <span th:if="${admissionSnapshot['program2'] != null and admissionSnapshot['program2'] != ''}" th:text="${' / ' + admissionSnapshot['program2']}"></span>
+                            </div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Email Verification</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['email_verified'] == true or admissionSnapshot['email_verified'] == 1 ? 'Verified' : 'Not verified'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Landline</div>
+                            <div style="font-weight: 700; margin-top: 0.2rem;" th:text="${admissionSnapshot['landline'] ?: 'Not recorded'}"></div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Applicant Flags</div>
+                            <div style="font-size: 0.82rem; margin-top: 0.2rem; line-height: 1.45;">
+                                <span th:if="${admissionSnapshot['four_ps'] == true or admissionSnapshot['four_ps'] == 1}">4Ps</span>
+                                <span th:if="${admissionSnapshot['indigenous'] == true or admissionSnapshot['indigenous'] == 1}"> Indigenous</span>
+                                <span th:if="${admissionSnapshot['international_student'] == true or admissionSnapshot['international_student'] == 1}"> International</span>
+                                <span th:if="${(admissionSnapshot['four_ps'] == null or admissionSnapshot['four_ps'] == false or admissionSnapshot['four_ps'] == 0) and (admissionSnapshot['indigenous'] == null or admissionSnapshot['indigenous'] == false or admissionSnapshot['indigenous'] == 0) and (admissionSnapshot['international_student'] == null or admissionSnapshot['international_student'] == false or admissionSnapshot['international_student'] == 0)}">None recorded</span>
+                            </div>
+                        </div>
+                        <div th:if="${admissionSnapshot['remarks'] != null and admissionSnapshot['remarks'] != ''}" style="grid-column: 1 / -1; background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 0.75rem;">
+                            <div style="font-size: 0.7rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Admission Remarks</div>
+                            <div style="margin-top: 0.25rem; white-space: pre-wrap;" th:text="${admissionSnapshot['remarks']}"></div>
+                        </div>
+                    </div>
+                    <div th:if="${admissionSnapshot == null or admissionSnapshot.isEmpty()}" style="padding: 1.25rem; color: var(--text-muted);">
+                        No linked admission application was found for this student profile.
+                    </div>
+                </div>
+
+                <div class="card" style="border-left: 4px solid #D97706; margin: 0;">
+                    <div class="card-header">
+                        <div>
+                            <h5 class="card-title" style="margin: 0; color: #B45309;">
+                                <i class="ti ti-folders" aria-hidden="true"></i> Applicant Documents
+                            </h5>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Admission-owned files; registrar access is read-only.</div>
+                        </div>
+                    </div>
+                    <div th:if="${applicantDocuments != null and !applicantDocuments.isEmpty()}" style="padding: 0.5rem 1.25rem 1.25rem;">
+                        <div th:each="document : ${applicantDocuments}" style="display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
+                            <div style="min-width: 0;">
+                                <div style="font-weight: 700;" th:text="${document['label']}"></div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.3rem; font-size: 0.72rem;">
+                                    <span th:if="${document['required']}" class="status-badge waitlist" style="padding: 0.12rem 0.4rem;">Required</span>
+                                    <span th:if="${document['submitted'] and document['verified']}" class="status-badge enrolled" style="padding: 0.12rem 0.4rem;">Verified</span>
+                                    <span th:if="${document['submitted'] and !document['verified']}" class="status-badge waitlist" style="padding: 0.12rem 0.4rem;">Submitted, pending verification</span>
+                                    <span th:if="${!document['submitted']}" class="status-badge inactive" style="padding: 0.12rem 0.4rem;">Not submitted</span>
+                                </div>
+                            </div>
+                            <a th:if="${document['document_key'] != null}"
+                               th:href="@{/admin/student-manager/admission-document(studentNumber=${student.username},documentKey=${document['document_key']})}"
+                               target="_blank" rel="noopener" class="btn btn-ghost" style="white-space: nowrap; border: 1px solid #D97706; color: #B45309;">
+                                <i class="ti ti-eye" aria-hidden="true"></i> View
+                            </a>
+                        </div>
+                    </div>
+                    <div th:if="${applicantDocuments == null or applicantDocuments.isEmpty()}" style="padding: 1.25rem; color: var(--text-muted);">
+                        No admission document metadata is available for this student.
                     </div>
                 </div>
             </div>
@@ -755,11 +877,11 @@
                         </div>
                     </div>
                     
-                    <!-- Reg Form / COR transaction history -->
+                    <!-- Registration form transaction history -->
                     <div class="card" th:if="${regFormEvents != null and !#lists.isEmpty(regFormEvents)}" style="border-left: 4px solid #2563EB;">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h5 class="card-title" style="margin: 0; color: #2563EB;"><i class="ti ti-file-description" aria-hidden="true"></i> Reg Form History</h5>
-                            <a th:href="@{/admin/print-cor(username=${student.username})}" target="_blank" class="btn btn-outline" style="font-size: 0.8rem;">Print Current COR</a>
+                            <a th:href="@{/admin/print-cor(username=${student.username})}" target="_blank" class="btn btn-outline" style="font-size: 0.8rem;">Print Current Registration Form</a>
                         </div>
                         <div style="max-height: 320px; overflow-y: auto;">
                             <table class="table-eac" style="margin: 0;">
@@ -977,7 +1099,7 @@
                     <!-- Scholarship Management -->
                     <div class="card" style="border-left: 4px solid var(--primary-color);">
                         <div class="card-header">
-                            <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-award" aria-hidden="true"></i> Scholarship Control</h5>
+                            <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-award" aria-hidden="true"></i> Manual Scholarship Control</h5>
                         </div>
                         <div style="padding: 1.5rem;">
                             <form th:action="@{/admin/scholarships/grant}" method="post">
@@ -1000,7 +1122,7 @@
                                         <input type="number" name="scholarshipAmount" id="scholarshipAmount" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" min="0" step="0.01" value="0" required>
                                     </div>
                                 </div>
-                                <div id="scholarshipModeHelp" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Choose a scholarship type to load its configured default.</div>
+                                <div id="scholarshipModeHelp" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Manual scholarships can be maintained here. Academic scholarships use the Scholarship Eligibility review workflow.</div>
                                 <div style="margin-bottom: 1rem;">
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Toggle Status</label>
                                     <select name="status" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" required>

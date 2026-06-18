@@ -62,6 +62,10 @@
             window.location.href = '/admin/approvals';
         } else if (query.includes('course') || query.includes('catalog') || query.includes('subject')) {
             window.location.href = '/admin/courses';
+        } else if (query.includes('program')) {
+            window.location.href = '/admin/programs';
+        } else if (query.includes('slot') || query.includes('capacity')) {
+            window.location.href = '/admin/slot-monitoring';
         } else if (query.includes('curriculum')) {
             window.location.href = '/admin/curriculum';
         } else if (query.includes('setting')) {
@@ -91,6 +95,9 @@
     </a>
 
     <div class="nav-section-label">Academics</div>
+    <a th:href="@{/admin/programs}" class="nav-item" th:classappend="${activeLink == 'programs' ? 'active' : ''}">
+        <i class="ti ti-building-bank" aria-hidden="true"></i> <span>Program Builder</span>
+    </a>
     <a th:href="@{/admin/curriculum}" class="nav-item" th:classappend="${activeLink == 'curriculum' ? 'active' : ''}">
         <i class="ti ti-book" aria-hidden="true"></i> <span>Curriculum</span>
     </a>
@@ -102,6 +109,9 @@
     </a>
     <a th:href="@{/admin/class-scheduling}" class="nav-item" th:classappend="${activeLink == 'scheduling' ? 'active' : ''}">
         <i class="ti ti-calendar-time" aria-hidden="true"></i> <span>Class Scheduling</span>
+    </a>
+    <a th:href="@{/admin/slot-monitoring}" class="nav-item" th:classappend="${activeLink == 'slot-monitoring' ? 'active' : ''}">
+        <i class="ti ti-chart-dots-3" aria-hidden="true"></i> <span>Slot Monitoring</span>
     </a>
     <a th:href="@{/admin/faculty-load}" class="nav-item" th:classappend="${activeLink == 'faculty' ? 'active' : ''}">
         <i class="ti ti-chalkboard" aria-hidden="true"></i> <span>Faculty Load</span>

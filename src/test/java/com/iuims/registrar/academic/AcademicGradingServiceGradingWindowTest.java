@@ -6,6 +6,7 @@ import com.iuims.registrar.admission.FinanceAdmissionService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
 import com.iuims.registrar.core.EnlistmentSchemaService;
+import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.TermFeeAdminService;
@@ -28,6 +29,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import com.iuims.registrar.finance.TermFeeAdminService;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -36,8 +38,12 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 @DataJpaTest
 @DirtiesContext(classMode = ClassMode.AFTER_CLASS)
-@Import({AcademicGradingService.class, AcademicGradingRepository.class, TermFeeAdminService.class})
+@Import({AcademicGradingService.class, AcademicGradingRepository.class, TermFeeAdminService.class,
+    EnlistmentSchemaService.class})
 class AcademicGradingServiceGradingWindowTest {
+
+    @MockBean
+    private StudentDocumentTrailService studentDocumentTrailService;
 
     @Autowired
     private JdbcTemplate db;
@@ -92,6 +98,7 @@ class AcademicGradingServiceGradingWindowTest {
                 faculty_id INT NULL,
                 max_capacity INT DEFAULT 50,
                 semester_number INT NULL,
+                block_id INT NULL,
                 section_status VARCHAR(30) NULL
             )
             """);

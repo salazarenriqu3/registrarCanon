@@ -3,6 +3,7 @@ import com.iuims.registrar.academic.AcademicGradingService;
 import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.admission.ApplicantStatusSyncService;
 import com.iuims.registrar.admission.FinanceAdmissionService;
+import com.iuims.registrar.admission.ApplicantDocumentReadService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
 import com.iuims.registrar.curriculum.CreditGradeService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
@@ -32,6 +33,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +45,8 @@ import org.springframework.web.util.UriUtils;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +67,7 @@ public class EnrollmentController {
     private final RegFormEventService regFormEventService;
     private final StudentDocumentTrailService documentTrailService;
     private final StudentProfileService studentProfileService;
+    private final ApplicantDocumentReadService applicantDocumentReadService;
 
     public EnrollmentController(AcademicGradingService academicService, JaypeeIntegrationService jaypeeService,
                                 FinanceAdmissionService financeService, ScholarEnrollmentService scholarEnrollmentService,
@@ -71,7 +77,8 @@ public class EnrollmentController {
                                 WithdrawalService withdrawalService,
                                 RegFormEventService regFormEventService,
                                 StudentDocumentTrailService documentTrailService,
-                                StudentProfileService studentProfileService) {
+                                StudentProfileService studentProfileService,
+                                ApplicantDocumentReadService applicantDocumentReadService) {
         this.academicService = academicService;
         this.jaypeeService = jaypeeService;
         this.financeService = financeService;
@@ -85,6 +92,7 @@ public class EnrollmentController {
         this.regFormEventService = regFormEventService;
         this.documentTrailService = documentTrailService;
         this.studentProfileService = studentProfileService;
+        this.applicantDocumentReadService = applicantDocumentReadService;
     }
 
 
@@ -108,6 +116,10 @@ public class EnrollmentController {
                 
                 model.addAttribute("student", s);
                 model.addAttribute("studentProfile", studentProfileService.getEditableProfile(actualStudentNumber));
+                model.addAttribute("admissionSnapshot",
+                    applicantDocumentReadService.getAdmissionSnapshot(actualStudentNumber));
+                model.addAttribute("applicantDocuments",
+                    applicantDocumentReadService.listDocuments(actualStudentNumber));
                 model.addAttribute("enrollmentCashierUrl",
                     "/enrollment/admin/cashier?keyword=" +
                         UriUtils.encodeQueryParam(actualStudentNumber, StandardCharsets.UTF_8));
@@ -139,8 +151,10 @@ public class EnrollmentController {
                     .filter(curr -> studentProgramCode.equalsIgnoreCase(
                         String.valueOf(curr.getOrDefault("program_code", "")).trim()))
                     .toList());
-                model.addAttribute("curriculumDeficiencies",
-                    studentCurriculumService.listCurriculumDeficiencies(actualStudentNumber));
+                List<Map<String, Object>> curriculumDeficiencies =
+                    studentCurriculumService.listCurriculumDeficiencies(actualStudentNumber);
+                model.addAttribute("curriculumDeficiencies", curriculumDeficiencies);
+                model.addAttribute("curriculumDeficiencyCount", curriculumDeficiencies.size());
                 model.addAttribute("shiftCarryOver",
                     studentCurriculumService.getShiftCarryOverSummary(actualStudentNumber));
                 model.addAttribute("scholarshipTypes", scholarEnrollmentService.getActiveScholarshipTypes());
@@ -168,7 +182,12 @@ public class EnrollmentController {
                 financeNode.put("pending_term_credit", finSummary.getOrDefault("pending_term_credit", 0.0));
                 financeNode.put("pending_term_credit_fmt", finSummary.getOrDefault("pending_term_credit_fmt", "0.00"));
                 financeNode.put("has_pending_overpay", finSummary.getOrDefault("has_pending_overpay", false));
+                financeNode.put("has_accounting_block", finSummary.getOrDefault("has_accounting_block", false));
                 model.addAttribute("finance", financeNode);
+                model.addAttribute("hasAccountingBlock", Boolean.TRUE.equals(finSummary.get("has_accounting_block")));
+                model.addAttribute("accountingBlockThresholdFmt", finSummary.getOrDefault("accounting_block_threshold_fmt", "0.00"));
+                model.addAttribute("forwardedBalanceFmt", finSummary.getOrDefault("balance_forwarded_fmt", "0.00"));
+                model.addAttribute("outstandingBalanceFmt", finSummary.getOrDefault("balance_fmt", "0.00"));
                 model.addAttribute("hasPendingOverpay", Boolean.TRUE.equals(finSummary.get("has_pending_overpay")));
                 model.addAttribute("pendingTermCreditFmt", finSummary.getOrDefault("pending_term_credit_fmt", "0.00"));
                 
@@ -385,6 +404,35 @@ public class EnrollmentController {
             redir.addFlashAttribute("errorMessage", "Profile update failed: " + e.getMessage());
         }
         return "redirect:/admin/student-manager?username=" + studentNumber;
+    }
+
+    @GetMapping("/admin/student-manager/admission-document")
+    public ResponseEntity<Resource> viewAdmissionDocument(@RequestParam String studentNumber,
+                                                          @RequestParam String documentKey,
+                                                          HttpSession session) {
+        if (session.getAttribute("currentUser") == null) {
+            return ResponseEntity.status(401).build();
+        }
+        try {
+            Path path = applicantDocumentReadService.resolveDocumentPath(studentNumber, documentKey);
+            if (path == null || !Files.isRegularFile(path) || !Files.isReadable(path)) {
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(path);
+            MediaType mediaType = contentType != null
+                ? MediaType.parseMediaType(contentType)
+                : MediaType.APPLICATION_OCTET_STREAM;
+            Resource resource = new UrlResource(path.toUri());
+            return ResponseEntity.ok()
+                .contentType(mediaType)
+                .header(HttpHeaders.CONTENT_DISPOSITION,
+                    "inline; filename=\"" + path.getFileName().toString().replace("\"", "") + "\"")
+                .header("X-Content-Type-Options", "nosniff")
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .body(resource);
+        } catch (Exception ignored) {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PostMapping("/admin/student-manager/overpay-disposition")
@@ -628,7 +676,7 @@ public class EnrollmentController {
                             @RequestParam int scheduleId,
                             RedirectAttributes redir) {
         redir.addFlashAttribute("errorMessage",
-            "Direct drop is retired. Submit a formal withdrawal request from Student Profile.");
+            "Direct subject removal is retired. Submit a formal withdrawal request from Student Profile.");
         return "redirect:/admin/student-manager?username=" + studentId;
     }
 
@@ -715,7 +763,7 @@ public class EnrollmentController {
     @PostMapping("/admin/enrollment-drop")
     public String adminEnrollmentDrop(@RequestParam String studentId, @RequestParam int scheduleId, RedirectAttributes redir) {
         redir.addFlashAttribute("errorMsg",
-            "Direct drop is retired. Open Student Profile and submit a formal withdrawal request.");
+            "Direct subject removal is retired. Open Student Profile and submit a formal withdrawal request.");
         redir.addAttribute("username", studentId);
         return "redirect:/admin/enrollment";
     }
@@ -736,10 +784,10 @@ public class EnrollmentController {
             documentTrailService.recordStudentEvent(
                 String.valueOf(student.get("username")),
                 "STUDENT",
-                "COR",
+                "REGISTRATION_FORM",
                 "PRINTED",
-                "Certificate of Registration printed",
-                "Registrar generated COR print output.",
+                "Registration Form printed",
+                "Registrar generated Registration Form print output.",
                 currentUsername(session),
                 null,
                 "print_cor",

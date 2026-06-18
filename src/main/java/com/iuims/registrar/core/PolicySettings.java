@@ -26,6 +26,7 @@ public final class PolicySettings {
     public static final String SCHOLARSHIP_MAX_INDIVIDUAL_GRADE = "SCHOLARSHIP_MAX_INDIVIDUAL_GRADE";
     public static final String SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT = "SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT";
     public static final String SCHOLARSHIP_MIN_COMPLETED_SUBJECTS = "SCHOLARSHIP_MIN_COMPLETED_SUBJECTS";
+    public static final String SCHOLARSHIP_MIN_COMPLETED_UNITS = "SCHOLARSHIP_MIN_COMPLETED_UNITS";
     public static final String SCHOLARSHIP_DISQUALIFY_INC = "SCHOLARSHIP_DISQUALIFY_INC";
     public static final String SCHOLARSHIP_DISQUALIFY_FAILED = "SCHOLARSHIP_DISQUALIFY_FAILED";
 
@@ -61,6 +62,10 @@ public final class PolicySettings {
 
     public static int scholarshipMinCompletedSubjects(JdbcTemplate db) {
         return (int) Math.round(decimal(db, SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, 1.0));
+    }
+
+    public static int scholarshipMinCompletedUnits(JdbcTemplate db) {
+        return (int) Math.round(decimal(db, SCHOLARSHIP_MIN_COMPLETED_UNITS, 27.0));
     }
 
     public static boolean scholarshipDisqualifyInc(JdbcTemplate db) {

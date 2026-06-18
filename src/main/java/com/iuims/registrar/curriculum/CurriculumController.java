@@ -210,7 +210,8 @@ public class CurriculumController {
     public String addManualCourse(@RequestParam int curriculumId,
                                   @RequestParam String courseCode,
                                   @RequestParam String courseTitle,
-                                  @RequestParam(required = false) Integer units,
+                                  @RequestParam(required = false) Integer lectureUnits,
+                                  @RequestParam(required = false) Integer laboratoryUnits,
                                   @RequestParam(required = false) Integer yearLevel,
                                   @RequestParam(required = false) Integer semesterNumber,
                                   @RequestParam(required = false) String prerequisites,
@@ -218,7 +219,7 @@ public class CurriculumController {
                                   RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         try {
-            seederService.addManualCourse(curriculumId, courseCode, courseTitle, units, yearLevel, semesterNumber, prerequisites);
+            seederService.addManualCourse(curriculumId, courseCode, courseTitle, lectureUnits, laboratoryUnits, yearLevel, semesterNumber, prerequisites);
             ra.addAttribute("msg", "Course row added.");
         } catch (Exception e) {
             ra.addAttribute("error", "Add course failed: " + e.getMessage());

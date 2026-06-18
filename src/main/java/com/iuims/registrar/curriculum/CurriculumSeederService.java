@@ -304,6 +304,8 @@ public class CurriculumSeederService {
         List<Object> args = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
             "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
+                "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
+                "COALESCE(c.lab_units, 0) AS lab_units, " +
                 "d.department_id, COALESCE(d.department_name, 'Unassigned') AS department_name " +
                 "FROM courses c " +
                 "LEFT JOIN departments d ON d.department_id = c.department_id " +
@@ -331,6 +333,8 @@ public class CurriculumSeederService {
     public List<Map<String, Object>> listCurriculumCourses(int curriculumId) {
         return db.queryForList(
             "SELECT cc.curriculum_course_id, cc.year_level, cc.semester_number, c.course_code, c.course_title, c.credit_units, " +
+                "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
+                "COALESCE(c.lab_units, 0) AS lab_units, " +
                 "GROUP_CONCAT(pc.course_code ORDER BY pc.course_code SEPARATOR ', ') AS prerequisites " +
                 "FROM curriculum_courses cc " +
                 "JOIN courses c ON c.course_id = cc.course_id " +
@@ -338,7 +342,7 @@ public class CurriculumSeederService {
                 "LEFT JOIN courses pc ON pc.course_id = cp.prerequisite_course_id " +
                 "WHERE cc.curriculum_id = ? " +
                 "GROUP BY cc.curriculum_course_id, cc.year_level, cc.semester_number, " +
-                "c.course_code, c.course_title, c.credit_units " +
+                "c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units " +
                 "ORDER BY cc.year_level, cc.semester_number, c.course_code",
             curriculumId);
     }
@@ -471,14 +475,23 @@ public class CurriculumSeederService {
     public void addManualCourse(int curriculumId,
                                 String courseCode,
                                 String courseTitle,
-                                Integer units,
+                                Integer lectureUnits,
+                                Integer laboratoryUnits,
                                 Integer yearLevel,
                                 Integer semesterNumber,
                                 String prerequisites) {
         Map<String, Object> summary = getCurriculumSummary(curriculumId);
         requireEditableDraft(summary);
         String programCode = String.valueOf(summary.get("program_code"));
-        int safeUnits = units != null && units > 0 ? units : 3;
+        int safeLectureUnits = lectureUnits != null ? lectureUnits : 3;
+        int safeLaboratoryUnits = laboratoryUnits != null ? laboratoryUnits : 0;
+        if (safeLectureUnits < 0 || safeLaboratoryUnits < 0) {
+            throw new IllegalArgumentException("Lecture and laboratory units cannot be negative.");
+        }
+        int safeUnits = safeLectureUnits + safeLaboratoryUnits;
+        if (safeUnits <= 0 || safeUnits > 12) {
+            throw new IllegalArgumentException("Total credit units must be between 1 and 12.");
+        }
         int safeYear = yearLevel != null && yearLevel > 0 ? yearLevel : 1;
         int safeSem = semesterNumber != null && semesterNumber > 0 ? semesterNumber : 1;
         if (courseCode == null || courseCode.isBlank()) {
@@ -493,7 +506,7 @@ public class CurriculumSeederService {
             throw new IllegalStateException("This course already exists in the catalog. Select it from the picker to attach it without changing catalog details.");
         }
         deactivateEditablePlaceholder(summary);
-        saveCourseAndMapping(programCode, normalizedCourseCode, courseTitle.trim(), safeUnits,
+        saveCourseAndMapping(programCode, normalizedCourseCode, courseTitle.trim(), safeUnits, safeLectureUnits, safeLaboratoryUnits,
             prerequisites, curriculumId, safeYear, safeSem);
     }
 
@@ -920,11 +933,26 @@ public class CurriculumSeederService {
                                       int curriculumId,
                                       int yearLevel,
                                       int semester) {
+        saveCourseAndMapping(programCode, courseCode, courseTitle, units, units, 0,
+            preReqRaw, curriculumId, yearLevel, semester);
+    }
+
+    private void saveCourseAndMapping(String programCode,
+                                      String courseCode,
+                                      String courseTitle,
+                                      int units,
+                                      int lectureUnits,
+                                      int laboratoryUnits,
+                                      String preReqRaw,
+                                      int curriculumId,
+                                      int yearLevel,
+                                      int semester) {
         db.update(
-            "INSERT INTO courses (course_code, course_title, credit_units, department_id, active_status) " +
-                "VALUES (?, ?, ?, 1, 1) " +
-                "ON DUPLICATE KEY UPDATE course_title = VALUES(course_title), credit_units = VALUES(credit_units), active_status = 1",
-            courseCode, courseTitle, units);
+            "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) " +
+                "VALUES (?, ?, ?, ?, ?, 1, 1) " +
+                "ON DUPLICATE KEY UPDATE course_title = VALUES(course_title), credit_units = VALUES(credit_units), " +
+                "lec_units = VALUES(lec_units), lab_units = VALUES(lab_units), active_status = 1",
+            courseCode, courseTitle, units, lectureUnits, laboratoryUnits);
 
         Integer courseId = null;
         try {
@@ -970,8 +998,8 @@ public class CurriculumSeederService {
 
             if (prereqId == null) {
                 db.update(
-                    "INSERT IGNORE INTO courses (course_code, course_title, credit_units, department_id, description, active_status) " +
-                        "VALUES (?, ?, 3, 1, 'Prerequisite placeholder - update when course is seeded', 1)",
+                    "INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, description, active_status) " +
+                        "VALUES (?, ?, 3, 3, 0, 1, 'Prerequisite placeholder - update when course is seeded', 1)",
                     prereqCode, prereqCode);
                 try {
                     prereqId = db.queryForObject(
@@ -1007,9 +1035,9 @@ public class CurriculumSeederService {
         };
         for (String[] ge : genEds) {
             db.update(
-                "INSERT INTO courses (course_code, course_title, credit_units, department_id, active_status) " +
-                    "VALUES (?, ?, ?, 1, 1) ON DUPLICATE KEY UPDATE active_status = 1",
-                ge[0], ge[1], Integer.parseInt(ge[2]));
+                "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) " +
+                    "VALUES (?, ?, ?, ?, 0, 1, 1) ON DUPLICATE KEY UPDATE active_status = 1",
+                ge[0], ge[1], Integer.parseInt(ge[2]), Integer.parseInt(ge[2]));
             try {
                 Integer id = db.queryForObject(
                     "SELECT course_id FROM courses WHERE course_code = ? LIMIT 1",
@@ -1082,7 +1110,9 @@ public class CurriculumSeederService {
     private Map<String, Object> getActiveCourse(int courseId) {
         try {
             return db.queryForMap(
-                "SELECT course_id, course_code, course_title, credit_units " +
+                "SELECT course_id, course_code, course_title, credit_units, " +
+                    "CASE WHEN COALESCE(lec_units, 0) + COALESCE(lab_units, 0) = 0 THEN credit_units ELSE lec_units END AS lec_units, " +
+                    "COALESCE(lab_units, 0) AS lab_units " +
                     "FROM courses WHERE course_id = ? AND COALESCE(active_status, 1) = 1 LIMIT 1",
                 courseId);
         } catch (Exception e) {

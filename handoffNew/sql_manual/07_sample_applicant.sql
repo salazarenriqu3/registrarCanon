@@ -1,5 +1,5 @@
--- Manual configuration: one applicant + payment for live admission demo (Session A9/A10)
--- UI: Enrollment walk-in pay → Registrar admission acceptance
+-- Manual configuration: one applicant + payment seed for external admission demo (Session A9/A10)
+-- Canon: applicant intake and student-number issuance are external to Registrar
 USE eacdb;
 
 SET @ref = 'DEMO-APP-001';
@@ -16,5 +16,5 @@ VALUES ('DEMO-PAY-001', @ref, 5000, 'Cash', 'COMPLETED', NOW());
 SELECT reference_number, first_name, last_name, program1, applicant_status FROM applicants WHERE reference_number = @ref;
 SELECT reference_number, amount, status FROM payments WHERE reference_number = @ref;
 
--- Y1 admit URL: /admin/admission-acceptance?refNo=DEMO-APP-001
--- For Y2+ demo: create DEMO-APP-Y2 with year level 2 in UI
+-- Y1 admit: continue in the external Admission / Cashier system
+-- For Y2+ demo: create the student externally, then verify Registrar reads the flags correctly

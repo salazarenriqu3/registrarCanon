@@ -210,7 +210,7 @@ public class PortalController {
         String username = (String) u.get("username");
         Map<String, Object> financeInfo = financeService.calculateAssessment(username);
         if (Boolean.TRUE.equals(financeInfo.get("has_accounting_block"))) {
-            return "redirect:/student/finance?errorMsg=ACCOUNTING HOLD: Needs DP for Official COR.";
+            return "redirect:/student/finance?errorMsg=ACCOUNTING HOLD: Required downpayment is needed for the official Registration Form.";
         }
         
         m.addAttribute("student", u);

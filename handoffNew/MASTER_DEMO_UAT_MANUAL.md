@@ -3,7 +3,7 @@
 **Start on a new PC?** Read **`PROJECT_STATUS_AND_ROADMAP.md`** → **`COMPLETE_FRESH_SETUP_AND_DEMO_GUIDE.md`**, then return here.
 
 **Single-file edition** — setup, configuration, automated tests, human UAT, balance, lifecycle, transferee, and term transition.  
-Last updated: 2026-06-10  
+Last updated: 2026-06-17
 **Active test term:** `1120242025` (A.Y. 2024–25, 1st sem, `term_id = 1`)
 
 > **SQL only for bootstrap.** Run seeds in MySQL Workbench or via `run_full_uat_bootstrap.cmd` / `mysql` CLI. No Python or PowerShell required for database setup.
@@ -120,7 +120,8 @@ cd C:\Users\<you>\Downloads\new-20260606T044759Z-3-001\new
 | 7 | `sql_manual/04_manual_bscpe_block_sections.sql` **or** UI `/admin/classes` |
 | 8 | `sql_manual/05_manual_schedule_one_section.sql` **or** UI schedule row |
 | 9 | `registrar/db/seed_faculty_professors_and_grading.sql` **or** UI faculty assign |
-| 10 | `sql_manual/07_sample_applicant.sql` → UI admission accept |
+| 10 | `sql_manual/07_sample_applicant.sql` → external admission intake seed |
+| 11 | `sql_manual/08_scholarship_demo_seed.sql` → scholarship eligibility demo seed |
 
 Verify after each manual step: open `registrar/handoffNew/sql_manual/02_verify_readiness.sql` in Workbench → Execute.
 
@@ -202,7 +203,8 @@ For **2nd sem** testing only: replace `1120242025` with `2120242025` and use `te
 | `sql_manual/04_manual_bscpe_block_sections.sql` | MANUAL | BSCPE block sections only |
 | `sql_manual/05_manual_schedule_one_section.sql` | MANUAL | One schedule slot |
 | `sql_manual/06_retire_empty_programs.sql` | MANUAL/BATCH | Retire 6 empty programs |
-| `sql_manual/07_sample_applicant.sql` | MANUAL | Applicant + payment |
+| `sql_manual/07_sample_applicant.sql` | MANUAL | Applicant + payment seed for external admission flow |
+| `sql_manual/08_scholarship_demo_seed.sql` | MANUAL | Scholarship eligibility candidates using completed units |
 
 ### Batch seeds (Part 2B)
 
@@ -212,7 +214,7 @@ For **2nd sem** testing only: replace `1120242025` with `2120242025` and use `te
 | `04_seed_full_curriculum.sql` | All programs + curricula |
 | `03_seed_program_fees_full_lifecycle.sql` | Demo fee rows (legacy tables) |
 | `schema_migration_001.sql` | Migrate → `program_fee_settings` |
-| `11_bootstrap_materialize_active_term_fees.sql` | Materialize active term 2 fees |
+| `11_bootstrap_materialize_active_term_fees.sql` | Materialize active demo-term fees |
 | `seed_all_program_block_sections_calendar.sql` | Block sections all programs |
 | `seed_all_class_schedules.sql` | Full schedule refresh |
 | `seed_schedules_unscheduled_only.sql` | Append schedules only (safe) |
@@ -225,11 +227,11 @@ For **2nd sem** testing only: replace `1120242025` with `2120242025` and use `te
 |------|---------|
 | Courses | `/admin/courses` |
 | Curriculum | `/admin/curriculum` → builder; **Seed All from Manifest** |
-| Term fees | `/admin/term-fees?termId=2` — **Zone 1** global import or CSV; **Zone 2** scoped edit |
+| Term fees | `/admin/term-fees?termId=1` — **Zone 1** global import or CSV; **Zone 2** scoped edit |
 | Finance policy | `/admin/finance-policy` — admission, downpayment, installments, drop penalties |
 | Course fees (Enrollment) | http://localhost:8082/admin/course-fees — per-subject lab/computer add-ons |
 | Classes | `/admin/classes` → open section, assign faculty, add schedule |
-| Admission | `/admin/admission-acceptance` |
+| Admission | External Admission / Cashier flow (Registrar path is dormant for intake) |
 
 Fee CSV template: `registrar/handoffNew/fee_import/`
 
@@ -270,12 +272,12 @@ Health check: open both `/login` pages, or `python _runtime_logs/uat_common.py`
 | 2 | `06_retire_empty_programs.sql` | — |
 | 3 | `03_manual_add_course.sql` | `/admin/courses` |
 | 4 | — | `/admin/curriculum` builder |
-| 5 | — | `/admin/term-fees?termId=2` |
-| 6 | — | Import term 1 → term 2 (all scopes) |
+| 5 | — | `/admin/term-fees?termId=1` |
+| 6 | — | Import active-term fee scopes if needed |
 | 7 | `04_manual_bscpe_block_sections.sql` | `/admin/classes` |
 | 8 | `05_manual_schedule_one_section.sql` | Section → schedule row |
 | 9 | — or faculty seed SQL | Assign faculty; grading windows |
-| 10 | `07_sample_applicant.sql` | `/admin/admission-acceptance` |
+| 10 | `07_sample_applicant.sql` | External admission intake seed |
 
 ### 5 — Batch track verify (after Part 2B)
 
@@ -296,11 +298,19 @@ Retired (no curriculum): BSBA, BSCE, BSCS, BSECE, BSED, BSMATH
 
 **5.5 Classes** — `/admin/classes` → schedules not TBA; assign faculty if blank
 
-**5.6 Admissions** — `/admin/admission-acceptance` → Y1 admit; Y2+ → Transferee/Irregular
+**5.6 Admissions** — external Admission / Cashier owns Y1 and Y2+ intake. Registrar should only be used afterward to validate downstream academic data on existing students.
 
-**5.7 Student Manager** — profile, TOR workspace, Print COR, Program Shift, **Installment Plan Override** (per-student cashier split; falls back to Finance Policy term/default)
+**5.7 Student Manager** — profile, TOR workspace, Print Registration Form, Program Shift, **Installment Plan Override** (per-student cashier split; falls back to Finance Policy term/default)
 
 **5.8 Grading** — `prof.cruz` at Registrar `/grades` → encode → submit → admin approve
+
+**5.8a Scholarship eligibility** — run `sql_manual/08_scholarship_demo_seed.sql`, then open `/admin/scholarships`.
+
+- Policy should show **Minimum Completed Units = 27**.
+- `SCH-UAT-ELIGIBLE` / Sofia Scholar should show **27** units and **Eligible**.
+- `SCH-UAT-LOWUNITS` / Liam Low Units should show **24** units and **Not eligible** with reason `Needs at least 27 completed unit(s)`.
+- Sofia: **Submit for Review** → **Approve** → verify the discount is still inactive → **Post** → verify `POSTED` and active scholarship state.
+- Liam remains blocked from submission by the 27-unit policy.
 
 **5.9 Enrollment cashier** — `/admin/cashier`, `/admin/walkin-payment`, `/admin/ledger`
 
@@ -367,9 +377,10 @@ Individual suites: see Part 17 quick reference.
 | A5b | Per-student installments | Student Manager → **Installment Plan Override** → save 4 rows → Enrollment cashier shows 4-way split; **Clear override** restores term plan | ☐ |
 | A6 | TOR credit | **TOR & Transfer Crediting** → single + bulk CSV | ☐ |
 | A7 | Class scheduling | `/admin/class-scheduling?termId=1` → search blocks (e.g. `BSIT`); expand block → **Add Slot** sets day/time/room per course; schedules show as tags (not just a count). **Course Sections** below is alternate view + `IRREG-A`. | ☐ |
-| A8 | Print COR | Student Manager → Print COR | ☐ |
-| A9 | Admission Y1 | Accept applicant → student ID created | ☐ |
-| A10 | Admission Y2+ | Accept Y2 → `Transferee` + `Irregular` | ☐ |
+| A8 | Print Registration Form | Student Manager → Print Registration Form | ☐ |
+| A9 | Admission Y1 | External Admission / Cashier admits applicant and issues student ID; Registrar not required | ☐ |
+| A10 | External Y2+ intake | Existing Y2+ transferee student opens in Registrar with expected flags | ☐ |
+| A11 | Scholarship workflow | Minimum Completed Units = 27; Sofia Pending → Approved → Posted; Liam blocked by units | ☐ |
 
 TOR bulk CSV:
 
@@ -428,7 +439,7 @@ Full steps: **Part 10**. Summary:
 
 | ID | Pass when | ☐ |
 |----|-----------|---|
-| TRANS-T01 | Y2+ admit → Transferee/Irregular/TRANSFEREE | ☐ |
+| TRANS-T01 | Existing Y2+ transferee student resolves as Transferee/Irregular/TRANSFEREE in Registrar | ☐ |
 | TRANS-T02 | Single TOR credit | ☐ |
 | TRANS-T03 | Bulk TOR CSV | ☐ |
 | TRANS-T04 | Irregular offerings match assigned curriculum | ☐ |
@@ -483,7 +494,7 @@ VALUES (@ref, 'Life', 'Cycle', 'lcycl@test.eac.edu.ph', 'BSCPE',
 ```
 
 1. External Admission/Cashier -> complete regular applicant admission, payment, enrollment, and student-number issuance.
-2. Registrar is not part of the regular Y1 lifecycle in the current canon. Use Registrar Admission Acceptance only to validate an irregular Dean / Faculty pre-registration handoff.
+2. Registrar is not part of the regular Y1 lifecycle in the current canon. Do not use Registrar Admission Acceptance as a live intake gate; the prior irregular Dean / Faculty bridge is dormant.
 3. Note the student number issued by Admission/Cashier -> use as `@sn` below (e.g. `26-2-xxxxx`).
 
 ### Step 2 — Per year loop (repeat for Y1, Y2, Y3, Y4)
@@ -693,9 +704,9 @@ Enrollment Ledger → set ACADEMIC scholarship → re-run term close; forward re
 
 Automated: `python _runtime_logs/run_transferee_uat.py`
 
-### TRANS-T01 — Transferee admission (Y2+)
+### TRANS-T01 — Existing transferee student state (Y2+)
 
-Registrar → Admissions → accept **Year 2+**. Assert:
+Start from a student already created by the external Admission / Cashier flow. In Registrar, assert:
 
 - `sys_users.student_type = 'Transferee'`
 - `sys_users.enrollment_status_type = 'Irregular'`

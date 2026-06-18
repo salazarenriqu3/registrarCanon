@@ -1,6 +1,6 @@
 # Three-Track Student Lifecycle Demo Manual
 
-Last updated: 2026-06-09  
+Last updated: 2026-06-17
 Companion to **`HUMAN_UAT_CHECKLIST.md`** and **`MASTER_DEMO_UAT_MANUAL.md`** — three end-to-end stories with **manual grade encoding** by one professor.
 
 ---
@@ -18,6 +18,8 @@ Companion to **`HUMAN_UAT_CHECKLIST.md`** and **`MASTER_DEMO_UAT_MANUAL.md`** �
 **Active term:** `1120242025` (A.Y. 2024–25, **1st Semester**). Y1 golden-path block: **`BSCPE-1-1-A`**.
 
 **Demo compression:** Tracks 1 and 2 can advance through Y2–Y4 by bumping SL codes on the same calendar term (see Part 1E). For real S1→S2 progression within Y1, use Track 3 or cashier **Update Semester**.
+
+Scope note: the old Registrar Dean / Faculty irregular new-enrollee advising bridge is dormant. Track 2 now starts only after the external Admission / Cashier flow has already created the transferee student record.
 
 ---
 
@@ -110,8 +112,9 @@ VALUES (@ref, 'Demo', 'Student', 'demo@test.eac.edu.ph', 'BSCPE',
 Current canon:
 
 1. Track 1 & 3 regular applicants continue through external Admission/Cashier. Registrar does not generate their pre-registration, section assignment, enrollment, or student number.
-2. Track 2 irregular/transferee applicants go through Dean / Faculty advising in Registrar first. Registrar finalizes the irregular pre-registration handoff only.
-3. Admission/Cashier then continues payment, enrollment, and student-number issuance. Note that student number and use it as `@sn` below.
+2. Track 2 transferee / irregular intake also starts outside Registrar in the current canon. Use the student number already issued by the external Admission / Cashier flow.
+3. Registrar starts once the student record exists and staff needs academic follow-up such as TOR crediting, program shift, grading, approvals, or reporting.
+4. Note that student number and use it as `@sn` below.
 
 ### 1C. Enrollment cashier loop
 
@@ -245,12 +248,12 @@ ON DUPLICATE KEY UPDATE remarks='Passed', status='SUBMITTED';
 | Item | Value |
 |------|--------|
 | Applicant ref | `TTRNS-REF-001` |
-| Admit | BSCPE **Year 2** after Registrar irregular handoff validation; Admission/Cashier issues the student number |
+| Admit | BSCPE **Year 2** through the external Admission / Cashier flow; use the issued student number in Registrar |
 | Prefix | `TTRNS%` |
 
 ### Steps
 
-#### 3.1 Admit + confirm transferee flags
+#### 3.1 Confirm transferee flags on the existing student
 
 After Admission/Cashier issues the student number, verify:
 
@@ -325,7 +328,7 @@ Per year: pay forward if needed → enlist subjects → pay ≥ ₱8,000 → fin
 
 ### Phase A — Y1 1st semester (regular BSCPE)
 
-Active registrar term is **2nd sem** (`2120242025`). For a clean **S1** story, set the student to 1st sem SL before first enlist:
+This doc pack assumes the active demo term is **1st sem** (`1120242025`). If your database is already on a later term, restore/bootstrap or set the student to the 1st sem SL before first enlist:
 
 ```sql
 SET @sn = '<student_number>';
@@ -489,12 +492,12 @@ registrar/db/seed_faculty_professors_and_grading.sql
 |--------|-----|
 | Cashier | http://localhost:8082/admin/cashier?keyword=`@sn` |
 | Walk-in pay | http://localhost:8082/admin/walkin-payment?keyword=`@ref` or `@sn` |
-| Admission | http://localhost:8083/registrar/admin/admission-acceptance?refNo=`@ref` |
+| Admission | External Admission / Cashier flow (not Registrar canonical path) |
 | Student Manager | http://localhost:8083/registrar/admin/student-manager?username=`@sn` |
 | Prof. grades | http://localhost:8083/registrar/grades |
 | Admin approvals | http://localhost:8083/registrar/admin/approvals |
 | Finance policy | http://localhost:8083/registrar/admin/finance-policy |
-| Class scheduling | http://localhost:8083/registrar/admin/class-scheduling?termId=2 |
+| Class scheduling | http://localhost:8083/registrar/admin/class-scheduling?termId=1 |
 
 ---
 

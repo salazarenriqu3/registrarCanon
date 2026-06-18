@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>My Study Load (COR)</title>
+    <title>My Study Load (Registration Form)</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" th:href="@{/css/modern-style.css}">
@@ -19,7 +19,7 @@
                 <li><a th:href="@{/}"><i class="fas fa-home sidebar-icon"></i> Dashboard</a></li>
                 <li><a th:href="@{/enrollment}"><i class="fas fa-book-open sidebar-icon"></i> Enrollment</a></li>
                 <li><a th:href="@{/my-grades}"><i class="fas fa-star sidebar-icon"></i> My Grades</a></li>
-                <li class="active"><a th:href="@{/my-load}"><i class="fas fa-file-invoice sidebar-icon"></i> My COR</a></li>
+                <li class="active"><a th:href="@{/my-load}"><i class="fas fa-file-invoice sidebar-icon"></i> My Registration Form</a></li>
                 <li>
                     <form th:action="@{/logout}" method="post" style="margin: 0;">
                         <button type="submit" class="nav-item" style="width: 100%; text-align: left; background: none; border: 0; padding: 0;">
@@ -31,7 +31,7 @@
         </nav>
 
         <div id="content">
-            <nav class="top-navbar"><button id="sidebarCollapse" class="btn-toggle"><i class="fas fa-bars"></i></button><span class="fw-bold fs-5">Certificate of Registration</span></nav>
+            <nav class="top-navbar"><button id="sidebarCollapse" class="btn-toggle"><i class="fas fa-bars"></i></button><span class="fw-bold fs-5">Registration Form</span></nav>
             <div class="container-fluid p-4">
                 
                 <div class="card card-modern p-5">

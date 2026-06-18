@@ -1,5 +1,8 @@
 target/
 
+# Generated handoff archives; commit their unpacked, reviewable contents instead.
+/handoffNew/*.zip
+
 # IDE / local workspace metadata
 .classpath
 .project

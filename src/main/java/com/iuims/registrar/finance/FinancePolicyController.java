@@ -1,5 +1,6 @@
 package com.iuims.registrar.finance;
 
+import com.iuims.registrar.core.YearLevelLoadPolicyService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -17,9 +18,12 @@ import java.util.Map;
 public class FinancePolicyController {
 
     private final FinancePolicyService financePolicyService;
+    private final YearLevelLoadPolicyService yearLevelLoadPolicyService;
 
-    public FinancePolicyController(FinancePolicyService financePolicyService) {
+    public FinancePolicyController(FinancePolicyService financePolicyService,
+                                   YearLevelLoadPolicyService yearLevelLoadPolicyService) {
         this.financePolicyService = financePolicyService;
+        this.yearLevelLoadPolicyService = yearLevelLoadPolicyService;
     }
 
     @GetMapping
@@ -29,7 +33,23 @@ public class FinancePolicyController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         Map<String, Object> view = financePolicyService.buildPolicyView(installmentTermId);
         model.addAllAttributes(view);
+        model.addAttribute("yearLevelLoadPolicies", yearLevelLoadPolicyService.listPolicies());
         return "admin_finance_policy";
+    }
+
+    @PostMapping("/save-year-level-loads")
+    public String saveYearLevelLoads(@RequestParam Map<String, String> params,
+                                     @RequestParam(required = false) Integer installmentTermId,
+                                     HttpSession session,
+                                     RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        try {
+            yearLevelLoadPolicyService.savePolicies(params);
+            ra.addFlashAttribute("successMessage", "Year-level unit load policy saved.");
+        } catch (IllegalArgumentException e) {
+            ra.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return redirect(installmentTermId);
     }
 
     @PostMapping("/save-gates")

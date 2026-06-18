@@ -67,7 +67,7 @@
                                             <i class="fas fa-eye"></i> View Receipt
                                         </button>
                                         
-                                        <form th:action="@{/admin/verify-payment}" method="post" class="d-inline" onsubmit="return confirm('Verify this payment? This will deduct the balance on their COR.');">
+                                        <form th:action="@{/admin/verify-payment}" method="post" class="d-inline" onsubmit="return confirm('Verify this payment? This will deduct the balance on their registration form.');">
                                             <input type="hidden" name="paymentId" th:value="${p.payment_id}">
                                             <button class="btn btn-sm btn-success fw-bold shadow-sm me-1"><i class="fas fa-check"></i> Verify</button>
                                         </form>

@@ -92,10 +92,11 @@ class GradeOutcomeSemanticsTest {
     void gradeBasedRenewalRevokesScholarshipUsingFailedRemarks() {
         createScholarshipTables();
         db.execute("""
-            CREATE TABLE courses (
-                course_id INT PRIMARY KEY,
+            CREATE TABLE curriculum_courses (
+                curriculum_course_id INT AUTO_INCREMENT PRIMARY KEY,
+                course_id INT NOT NULL,
                 year_level INT NULL,
-                semester INT NULL
+                semester_number INT NULL
             )
             """);
         db.update("""
@@ -105,7 +106,7 @@ class GradeOutcomeSemanticsTest {
                 ('2026-0001', TRUE, 'ACADEMIC', 0, 100),
                 ('2026-0002', TRUE, 'ACADEMIC', 0, 100)
             """);
-        db.update("INSERT INTO courses (course_id, year_level, semester) VALUES (100, 1, 1)");
+        db.update("INSERT INTO curriculum_courses (course_id, year_level, semester_number) VALUES (100, 1, 1)");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0001', 100, 'SUBMITTED', 'Failed')");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0002', 100, 'FAILED', 'Passed')");
 
@@ -128,10 +129,11 @@ class GradeOutcomeSemanticsTest {
     void scholarshipChecksUseRegistrarFinalRemarksBeforeRawRemarks() {
         createScholarshipTables();
         db.execute("""
-            CREATE TABLE courses (
-                course_id INT PRIMARY KEY,
+            CREATE TABLE curriculum_courses (
+                curriculum_course_id INT AUTO_INCREMENT PRIMARY KEY,
+                course_id INT NOT NULL,
                 year_level INT NULL,
-                semester INT NULL
+                semester_number INT NULL
             )
             """);
         db.update("""
@@ -141,7 +143,7 @@ class GradeOutcomeSemanticsTest {
                 ('2026-0001', 1, 'ACADEMIC', 0, 100),
                 ('2026-0002', 1, 'ACADEMIC', 0, 100)
             """);
-        db.update("INSERT INTO courses (course_id, year_level, semester) VALUES (100, 1, 1)");
+        db.update("INSERT INTO curriculum_courses (course_id, year_level, semester_number) VALUES (100, 1, 1)");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks, registrar_final_remarks) VALUES ('2026-0001', 100, 'SUBMITTED', 'Failed', 'Passed')");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks, registrar_final_remarks) VALUES ('2026-0002', 100, 'SUBMITTED', 'Passed', 'Failed')");
 
@@ -244,11 +246,19 @@ class GradeOutcomeSemanticsTest {
         db.execute("""
             CREATE TABLE class_sections (
                 section_id INT PRIMARY KEY,
-                term_id INT NOT NULL
+                term_id INT NOT NULL,
+                course_id INT NULL
+            )
+            """);
+        db.execute("""
+            CREATE TABLE courses (
+                course_id INT PRIMARY KEY,
+                credit_units DECIMAL(5,2) NOT NULL
             )
             """);
         db.update("INSERT INTO academic_terms (term_id, term_name, status, is_active) VALUES (15, 'A.Y. 2027-2028 - 2nd Semester', 'ACTIVE', 1)");
         db.update("INSERT INTO class_sections (section_id, term_id) VALUES (501, 15)");
+        db.update("INSERT INTO courses (course_id, credit_units) VALUES (100, 15), (101, 12)");
         db.update("""
             INSERT INTO students
                 (student_number, real_name, program_code, scholarship_approved, scholarship_type, scholarship_amount, discount_percentage)

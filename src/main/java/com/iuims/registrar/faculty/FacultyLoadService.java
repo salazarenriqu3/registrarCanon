@@ -13,6 +13,7 @@ import com.iuims.registrar.core.DatabaseSetupService;
 import com.iuims.registrar.jaypee.JaypeeIntegrationService;
 import com.iuims.registrar.core.PolicySettings;
 import com.iuims.registrar.core.SqlGenerator;
+import com.iuims.registrar.academic.ScheduleConflictValidator;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -269,6 +270,10 @@ public class FacultyLoadService {
      * Returns the number of rows updated.
      */
     public int assignFacultyToSection(int sectionId, int facultyId) {
+        String conflict = new ScheduleConflictValidator(db).validateFacultyAssignment(sectionId, facultyId);
+        if (conflict != null) {
+            throw new IllegalArgumentException(conflict);
+        }
         int rows = db.update(
             "UPDATE class_sections SET faculty_id = ? WHERE section_id = ?",
             facultyId, sectionId);

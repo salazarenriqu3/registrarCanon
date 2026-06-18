@@ -93,6 +93,13 @@ public class ScholarshipController {
             @RequestParam(value = "returnTo", required = false) String returnTo,
             RedirectAttributes ra) {
         String resolvedRef = studentNumber != null && !studentNumber.isBlank() ? studentNumber : sysUserId;
+        if (!scholarEnrollmentService.isManualExternalScholarshipType(classification)) {
+            ra.addFlashAttribute("message", "ERROR: Internal academic scholarships must use the review and posting workflow.");
+            if ("student-manager".equals(returnTo) && studentNumber != null && !studentNumber.isBlank()) {
+                return "redirect:/admin/student-manager?username=" + URLEncoder.encode(studentNumber, StandardCharsets.UTF_8);
+            }
+            return "redirect:/admin/scholarships";
+        }
         String result = scholarEnrollmentService.grantExternalScholarship(
             resolvedRef, classification, discountPct, scholarshipAmount, status);
         if (result != null && result.startsWith("SUCCESS")) {
@@ -107,20 +114,46 @@ public class ScholarshipController {
     }
 
     @PostMapping("/admin/scholarships/grant-academic")
-    public String grantAcademicScholarship(@RequestParam String studentNumber,
+    public String requestAcademicScholarship(@RequestParam String studentNumber,
                                            @RequestParam Integer termId,
                                            HttpSession session,
                                            RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        double discount = ((Number) scholarEnrollmentService.getScholarshipPolicySettings()
-            .get("SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT")).doubleValue();
-        String result = scholarEnrollmentService.grantExternalScholarship(studentNumber, "ACADEMIC", discount, "ACTIVE");
-        if (result != null && result.startsWith("SUCCESS")) {
-            ra.addAttribute("success", "Academic scholarship granted to " + studentNumber + ".");
-        } else {
-            ra.addAttribute("error", result != null ? result : "Unable to grant academic scholarship.");
-        }
+        String result = scholarEnrollmentService.requestAcademicScholarship(studentNumber, termId, currentUsername(session));
+        addWorkflowResult(ra, result, "Scholarship submitted for review for " + studentNumber + ".");
         appendTermId(ra, termId != null ? String.valueOf(termId) : null);
+        return "redirect:/admin/scholarships";
+    }
+
+    @PostMapping("/admin/scholarships/approve-academic")
+    public String approveAcademicScholarship(@RequestParam String studentNumber, @RequestParam Integer termId,
+                                             @RequestParam(required = false) String note, HttpSession session,
+                                             RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        String result = scholarEnrollmentService.approveAcademicScholarship(studentNumber, termId, currentUsername(session), note);
+        addWorkflowResult(ra, result, "Scholarship approved and ready for posting.");
+        appendTermId(ra, String.valueOf(termId));
+        return "redirect:/admin/scholarships";
+    }
+
+    @PostMapping("/admin/scholarships/reject-academic")
+    public String rejectAcademicScholarship(@RequestParam String studentNumber, @RequestParam Integer termId,
+                                            @RequestParam(required = false) String note, HttpSession session,
+                                            RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        String result = scholarEnrollmentService.rejectAcademicScholarship(studentNumber, termId, currentUsername(session), note);
+        addWorkflowResult(ra, result, "Scholarship review rejected.");
+        appendTermId(ra, String.valueOf(termId));
+        return "redirect:/admin/scholarships";
+    }
+
+    @PostMapping("/admin/scholarships/post-academic")
+    public String postAcademicScholarship(@RequestParam String studentNumber, @RequestParam Integer termId,
+                                          HttpSession session, RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        String result = scholarEnrollmentService.postAcademicScholarship(studentNumber, termId, currentUsername(session));
+        addWorkflowResult(ra, result, "Scholarship posted. The approved discount is now active.");
+        appendTermId(ra, String.valueOf(termId));
         return "redirect:/admin/scholarships";
     }
 
@@ -132,6 +165,7 @@ public class ScholarshipController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String result = scholarEnrollmentService.grantExternalScholarship(studentNumber, "NONE", 0.0, "REVOKED");
         if (result != null && result.startsWith("SUCCESS")) {
+            scholarEnrollmentService.markAcademicScholarshipRevoked(studentNumber, termId, currentUsername(session));
             ra.addAttribute("success", "Scholarship revoked for " + studentNumber + ".");
         } else {
             ra.addAttribute("error", result != null ? result : "Unable to revoke scholarship.");
@@ -153,6 +187,22 @@ public class ScholarshipController {
         if (rawTermId != null && !rawTermId.isBlank()) {
             ra.addAttribute("termId", rawTermId);
         }
+    }
+
+    private void addWorkflowResult(RedirectAttributes ra, String result, String successMessage) {
+        if (result != null && result.startsWith("SUCCESS")) {
+            ra.addAttribute("success", successMessage);
+        } else {
+            ra.addAttribute("error", result != null ? result : "Unable to update scholarship review.");
+        }
+    }
+
+    private String currentUsername(HttpSession session) {
+        Object raw = session.getAttribute("currentUser");
+        if (raw instanceof Map<?, ?> user && user.get("username") != null) {
+            return user.get("username").toString();
+        }
+        return "SYSTEM";
     }
 
     private double parseDouble(String raw) {

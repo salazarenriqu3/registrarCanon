@@ -6,6 +6,7 @@ import com.iuims.registrar.admission.FinanceAdmissionService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
 import com.iuims.registrar.core.EnlistmentSchemaService;
+import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.TermFeeAdminService;
@@ -25,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import com.iuims.registrar.finance.TermFeeAdminService;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -33,8 +35,12 @@ import org.springframework.test.annotation.DirtiesContext.ClassMode;
 
 @DataJpaTest
 @DirtiesContext(classMode = ClassMode.AFTER_CLASS)
-@Import({AcademicGradingService.class, AcademicGradingRepository.class, TermFeeAdminService.class})
+@Import({AcademicGradingService.class, AcademicGradingRepository.class, TermFeeAdminService.class,
+    EnlistmentSchemaService.class})
 class AcademicGradingServiceTermTransitionTest {
+
+    @MockBean
+    private StudentDocumentTrailService studentDocumentTrailService;
 
     @Autowired
     private JdbcTemplate db;
@@ -122,6 +128,15 @@ class AcademicGradingServiceTermTransitionTest {
                 program_id INT NOT NULL,
                 curriculum_name VARCHAR(100) NULL,
                 is_active TINYINT NOT NULL DEFAULT 0
+            )
+            """);
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS curriculum_courses (
+                curriculum_course_id INT AUTO_INCREMENT PRIMARY KEY,
+                curriculum_id INT NULL,
+                course_id INT NULL,
+                year_level INT NULL,
+                semester_number INT NULL
             )
             """);
         db.execute("""
@@ -234,6 +249,8 @@ class AcademicGradingServiceTermTransitionTest {
     private void seedReadyProgramForTerm(int termId) {
         db.update("INSERT INTO programs (program_id, program_code, program_name, active_status) VALUES (1, 'BSIT', 'BSIT Program', 1)");
         db.update("INSERT INTO curriculum_templates (program_id, curriculum_name, is_active) VALUES (1, 'Active Curriculum', 1)");
+        db.update("INSERT INTO curriculum_courses (curriculum_id, course_id, year_level, semester_number) " +
+            "SELECT curriculum_id, 100, 1, 1 FROM curriculum_templates WHERE program_id = 1 AND is_active = 1");
         for (int yearLevel = 1; yearLevel <= 4; yearLevel++) {
             for (int semester = 1; semester <= 2; semester++) {
                 db.update(

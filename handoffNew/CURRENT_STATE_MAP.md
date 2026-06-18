@@ -1,6 +1,6 @@
 # Current State Map
 
-Last updated: 2026-06-15
+Last updated: 2026-06-19
 
 > **For current status, roadmap, and UAT progress read `PROJECT_STATUS_AND_ROADMAP.md` first.**  
 > Changelog: **`HANDOFF_UPDATES_20260609.md`** (§13–15 = UI contrast, doc sync, UAT decisions).  
@@ -12,9 +12,12 @@ Last updated: 2026-06-15
 |------|--------|
 | Active term | **`1120242025`** (term_id **1**, 1st sem AY 2024–2025) |
 | Bootstrap | `registrar/setup/RUN_FRESH_SETUP.cmd` |
-| Irregular new enrollee bridge | Registrar owns Dean / Faculty irregular evaluation and `REGISTRAR` pre-reg snapshots only; regular admission/payment/student-number issuance remains outside registrar scope |
+| Irregular new enrollee bridge | Dormant / retired from active registrar scope; do not treat Dean / Faculty irregular advising or registrar pre-reg snapshots as current acceptance targets |
 | Fee readiness | Clean for active term after bootstrap |
+| Program Builder | Live; Registrar owns core program master data separately from curriculum mapping |
+| Course Catalog | Live; lecture/laboratory units and usage drilldown are exposed in the Registrar UI |
 | Curriculum readiness | 18 active programs; 6 soft-retired (no source curriculum) |
+| Slot Monitoring | Live; committed counts, staged pre-registration counts, capacity edits, and close actions are visible per section |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
 | Registrar Spring Security | **Deferred** — proposal only |
 | UI | Higher-contrast alerts/cards (2026-06-10) |
@@ -22,15 +25,15 @@ Last updated: 2026-06-15
 
 **Handoff implementation scope: complete.** Remaining work is UAT sign-off, user refinements, then production backlog — not stabilization coding.
 
-## 2026-06-15 Registrar Scope Overlay
+## 2026-06-17 Registrar Scope Overlay
 
-Registrar is the canonical home for the current Dean / Faculty irregular new-enrollee bridge:
+Registrar is not the canonical home for new-enrollee intake flows:
 
-- Dean / Faculty evaluates the irregular applicant in `/faculty/irregular-advising`.
-- Registrar writes `applicant_pre_reg_snapshots` and `applicant_pre_reg_subject_lines` with `snapshot_source = 'REGISTRAR'`.
-- Registrar handoff readiness is blocked unless the irregular snapshot is finalized, has subject lines, and matches the selected program.
 - Registrar does not own regular applicant pre-registration, automated regular section assignment, cashier payment processing, or normal student-number issuance.
-- Registrar guards against duplicate student-number creation when `students.reference_number` already exists.
+- The prior Dean / Faculty irregular applicant advising bridge in Registrar is now dormant and intentionally outside active acceptance scope.
+- Existing dean/faculty irregular-advising routes, snapshot tables, and handoff notes should be treated as historical implementation remnants, not live workflow canon.
+- Active registrar canon centers on academic master data and downstream student records: programs, courses, curriculum, schedules, sections, slot monitoring, Student Manager, TOR / transfer crediting, program shift, grading, approvals, and reporting.
+- Registrar still guards against duplicate student-number creation when `students.reference_number` already exists.
 
 ## Purpose
 
@@ -51,8 +54,9 @@ The old handoff paths point to `D:\new`.
 
 The real project roots for this workspace are:
 
-- `C:\Users\sune\Downloads\new-20260606T044759Z-3-001\new\registrar`
-- `C:\Users\sune\Downloads\new-20260606T044759Z-3-001\new\enrollment3`
+- `C:\newer\new\registrar`
+- `C:\newer\new\enrollment3`
+- `C:\newer\new\admission`
 
 The apps still share one MySQL schema and communicate through shared tables, not HTTP APIs.
 
@@ -316,7 +320,7 @@ These are the best current watchpoints before making new changes:
 - deprecated registrar enrollment/payment screens still contain old paths and should remain out of scope unless deliberately reactivated
 - legacy `jp_*` mirror writes are retired from active Java source; remaining legacy fixtures should be treated as archive/cleanup work
 - app baselines differ: registrar is Java 17/Spring Boot 3.x, enrollment is Java 21/Spring Boot 4.0.0
-- DB is on term 2 after transition — restore from backup to return to term 1
+- older notes still mention term 2 after a transition run; the current doc-pack canon for demos/UAT is term `1120242025` unless staff intentionally advances the term
 - six programs (`BSBA`, `BSCE`, `BSCS`, `BSECE`, `BSED`, `BSMATH`) are soft-retired until official curriculum exists
 - future AY terms (`1120252026`+) need fee copy + section seeding before use
 
@@ -326,13 +330,13 @@ These are the best current watchpoints before making new changes:
 - treat deprecated registrar walk-in/payment and registrar-side enrollment screens as out of active scope
 - Batches 2–7 active paths: **complete and runtime-verified through term 2**
 - term transition: **done** on live DB — do not re-run without backup/approval
-- next work: UAT, official curriculum content, future AY operational prep — not batch stabilization code
+- next work: UAT, doc alignment, official curriculum content, future AY operational prep — not batch stabilization code
 
 ## Recommended Near-Term Baseline
 
 - Batch 1: mostly done; duplicate term-fallback cleanup remains non-blocking
 - Batches 2–7: **complete** for active scope including term-2 edge verification
-- Production UAT: ready to start with staff on term `2120242025`
+- Production UAT: ready to continue with staff on term `1120242025`
 
 ## Verification Note
 

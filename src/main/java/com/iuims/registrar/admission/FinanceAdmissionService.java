@@ -383,11 +383,13 @@ public class FinanceAdmissionService {
         } catch (Exception ignored) {}
 
         double balance = Math.max(0, totalAssessment - (totalPaid + scholarDiscount));
-        boolean enlistBlocked = balanceForwarded >= PolicySettings.accountingBlockThreshold(db);
+        double accountingBlockThreshold = PolicySettings.accountingBlockThreshold(db);
+        boolean enlistBlocked = balanceForwarded >= accountingBlockThreshold;
 
         m.put("enrollment_status", (totalPaid >= PolicySettings.admissionMinPayment(db)) ? "Officially Enrolled" : "Pending (Needs DP)");
         m.put("has_accounting_block", enlistBlocked);
         m.put("accountingBlocked", enlistBlocked);
+        m.put("accounting_block_threshold", accountingBlockThreshold);
         m.put("outstandingBalance", balance);
         m.put("tuition_fee", tuition);
         m.put("misc_fee", misc);
@@ -403,6 +405,7 @@ public class FinanceAdmissionService {
         m.put("tuition_fee_fmt", String.format("%,.2f", Math.max(0, tuition)));
         m.put("misc_fee_fmt", String.format("%,.2f", misc + other));
         m.put("balance_forwarded_fmt", String.format("%,.2f", balanceForwarded));
+        m.put("accounting_block_threshold_fmt", String.format("%,.2f", accountingBlockThreshold));
         m.put("pending_term_credit_fmt", String.format("%,.2f", pendingTermCredit));
         m.put("total_assessment_fmt", String.format("%,.2f", totalAssessment));
         m.put("total_paid_fmt", String.format("%,.2f", totalPaid));

@@ -1,7 +1,9 @@
 # Project Status & Roadmap
 
-Last updated: **2026-06-10**  
-**Canonical project root:** `C:\Users\sune\Downloads\new`
+> **Final handover notice (2026-06-18):** Use `START_HERE_NEW_PC_HANDOFF.md` and the three `FINAL_*_20260618.md` documents as the current authority. This roadmap remains useful history, but the final pack takes precedence for scope, demo instructions, test evidence, and readiness.
+
+Last updated: **2026-06-18**
+**Canonical project root:** `C:\newer`
 
 This is the **single status page** for what was built, sidetracks, UAT progress, and what is still pending. Read this before starting new work.
 
@@ -84,6 +86,8 @@ SQL: `registrar/setup/sql/01_activate_term_2425_s1.sql`
 | **`PROJECT_STATUS_AND_ROADMAP.md`** | This file — status + roadmap |
 | **`COMPLETE_FRESH_SETUP_AND_DEMO_GUIDE.md`** | All-in-one setup + demo |
 | **`HUMAN_UAT_CHECKLIST.md`** | Sessions 0–F sign-off |
+| **`DOC_TO_CODE_STARTER_MAP.md`** | Interview/spec-to-current-state starter map |
+| **`IMPLEMENTATION_PLAN_REGISTRAR_ACADEMIC_REFINEMENT_20260617.md`** | Registrar academic refinement plan from interview/spec inputs |
 | **`THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md`** | DREG / TTRNS / TSHFT |
 | **`MASTER_DEMO_UAT_MANUAL.md`** | Full reference |
 | **`HANDOFF_UPDATES_20260609.md`** | Changelog by date |
@@ -114,6 +118,7 @@ Work that was not in the original stabilization scope but was delivered:
 | **Fees on all calendar terms** | 2425–2728 pre-seeded for term transition | `sql/05_materialize_all_calendar_term_fees.sql` |
 | **061026 manual bundle** | Offline copy for hard testing | `061026/README.md` |
 | **Registrar Spring Security proposal** | Full design written; **implementation deferred** | `PROPOSAL_REGISTRAR_SPRING_SECURITY.md` |
+| **Registrar Dean / Faculty irregular advising bridge** | Retired to dormant scope; no longer active acceptance target | `ADMISSION_HANDOFF_IRREGULAR_PRE_REG_REGISTRAR_20260614.md` |
 | **UI contrast pass** | Alerts, cards, page background — both apps | `HANDOFF_UPDATES` §13 |
 
 ---
@@ -133,6 +138,8 @@ Work that was not in the original stabilization scope but was delivered:
 | **F** | Term transition | Optional — **pending** |
 
 **User note (2026-06-10):** Re-ran tests; glad with results on completed flows. Remaining sessions + any new inputs before production.
+
+**Execution note (2026-06-18):** Registrar functional regression is clean (42 passed, 1 skipped). The full Maven command still reports the pre-existing Modulith package-cycle violation as one structural error. Live readiness for `1120242025` is green. Enrollment was started and admin login passed, but Session C remains pending because the available withdrawal UAT record points to `SL_1120262026` while Registrar is open on `1120242025`, has no current assessment, and Enrollment logs an `Unknown column 'RESERVED'` schema warning. Session D is waiting for a working faculty test login, and Session E still needs transactional UAT data/sign-off. The dashboard active-term subtitle was realigned to the canonical active-term model instead of a hardcoded term.
 
 **Long-form demos (optional):**
 
@@ -203,7 +210,8 @@ Work that was not in the original stabilization scope but was delivered:
 3. Active term must be **`1120242025`** (`term_id=1`).
 4. Do **not** resurrect pre-retirement “248 fee scopes” or term-2-as-default language.
 5. Append new changes to `HANDOFF_UPDATES_YYYYMMDD.md` or §13+ of `HANDOFF_UPDATES_20260609.md`.
-6. User has **more inputs coming** — treat as refinements on top of current stable demo build.
+6. Dean / Faculty irregular new-enrollee advising in Registrar is dormant; do not treat old pre-reg bridge notes as current canon.
+7. User has **more inputs coming** — treat as refinements on top of current stable demo build.
 
 ---
 

@@ -9,10 +9,21 @@ import java.util.Optional;
 @Repository
 public interface ProgramFeeSettingRepository extends JpaRepository<ProgramFeeSetting, Integer> {
 
-    @Query(value = "SELECT * FROM program_fee_settings WHERE program_id = ?1 AND year_level = ?2 AND semester_number = ?3 AND is_active = 1 " +
-           "AND term_id <=> ?4 " +
-           "ORDER BY fee_setting_id DESC LIMIT 1", nativeQuery = true)
-    Optional<ProgramFeeSetting> findActiveForExactScope(int programId, int yearLevel, int semester, Integer termId);
+    Optional<ProgramFeeSetting> findFirstByProgramIdAndYearLevelAndSemesterNumberAndTermIdAndIsActiveTrueOrderByFeeSettingIdDesc(
+        int programId, int yearLevel, int semester, Integer termId);
+
+    Optional<ProgramFeeSetting> findFirstByProgramIdAndYearLevelAndSemesterNumberAndTermIdIsNullAndIsActiveTrueOrderByFeeSettingIdDesc(
+        int programId, int yearLevel, int semester);
+
+    default Optional<ProgramFeeSetting> findActiveForExactScope(
+            int programId, int yearLevel, int semester, Integer termId) {
+        if (termId == null) {
+            return findFirstByProgramIdAndYearLevelAndSemesterNumberAndTermIdIsNullAndIsActiveTrueOrderByFeeSettingIdDesc(
+                programId, yearLevel, semester);
+        }
+        return findFirstByProgramIdAndYearLevelAndSemesterNumberAndTermIdAndIsActiveTrueOrderByFeeSettingIdDesc(
+            programId, yearLevel, semester, termId);
+    }
 
     @Query(value = "SELECT * FROM program_fee_settings WHERE program_id = ?1 AND year_level = ?2 AND semester_number = ?3 AND is_active = 1 " +
            "AND (term_id = ?4 OR term_id IS NULL) " +

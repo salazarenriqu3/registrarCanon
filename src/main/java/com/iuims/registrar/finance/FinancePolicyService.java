@@ -14,8 +14,6 @@ import java.util.Map;
 public class FinancePolicyService {
 
     private static final List<String> ENROLLMENT_RULE_KEYS = List.of(
-        "max_units_regular",
-        "max_units_graduating_bonus",
         "enrollment_session_minutes",
         "drop_penalty_days_half",
         "drop_penalty_days_full",
@@ -61,12 +59,12 @@ public class FinancePolicyService {
         db.update("INSERT IGNORE INTO enrollment_settings (setting_key, setting_value, description) VALUES " +
             "('downpayment_amount', '3000', 'Fixed downpayment (legacy mirror)'), " +
             "('downpayment_percent', '0', 'Percent of assessment (legacy mirror)'), " +
-            "('max_units_regular', '24', 'Max units'), " +
+            "('max_units_regular', '27', 'Legacy max units; year-level policy is authoritative in Registrar'), " +
             "('max_units_graduating_bonus', '6', 'Graduating bonus'), " +
             "('enrollment_session_minutes', '15', 'Session timeout'), " +
-            "('drop_penalty_days_half', '7', 'Half penalty after days'), " +
-            "('drop_penalty_days_full', '14', 'Full penalty after days'), " +
-            "('drop_penalty_half_percent', '50', 'Half penalty percent'), " +
+            "('drop_penalty_days_half', '7', 'Half withdrawal charge after days'), " +
+            "('drop_penalty_days_full', '14', 'Full withdrawal charge after days'), " +
+            "('drop_penalty_half_percent', '50', 'Half withdrawal charge percent'), " +
             "('rle_hours_per_unit', '51', 'RLE hours per unit')");
     }
 
@@ -116,7 +114,7 @@ public class FinancePolicyService {
 
     private String defaultFor(String key) {
         return switch (key) {
-            case "max_units_regular" -> "24";
+            case "max_units_regular" -> "27";
             case "max_units_graduating_bonus" -> "6";
             case "enrollment_session_minutes" -> "15";
             case "drop_penalty_days_half" -> "7";

@@ -29,6 +29,8 @@ public class CourseCatalogService {
         List<Object> args = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
             "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
+                "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
+                "COALESCE(c.lab_units, 0) AS lab_units, " +
                 "c.department_id, COALESCE(c.active_status, 1) AS active_status, " +
                 "COALESCE(d.department_name, 'Unassigned') AS department_name, " +
                 usageSubquery("curriculum_courses", "cc", "cc.course_id = c.course_id") + " AS curriculum_usage, " +
@@ -96,7 +98,8 @@ public class CourseCatalogService {
                               String courseCode,
                               String courseTitle,
                               Integer departmentId,
-                              Integer creditUnits,
+                              Integer lectureUnits,
+                              Integer laboratoryUnits,
                               Boolean active) {
         String normalizedCode = normalizeCourseCode(courseCode);
         if (normalizedCode == null) {
@@ -106,7 +109,15 @@ public class CourseCatalogService {
             throw new IllegalArgumentException("Course title is required.");
         }
         int safeDepartmentId = requireDepartment(departmentId);
-        int safeUnits = creditUnits != null && creditUnits > 0 ? creditUnits : 3;
+        int safeLectureUnits = lectureUnits != null ? lectureUnits : 3;
+        int safeLaboratoryUnits = laboratoryUnits != null ? laboratoryUnits : 0;
+        if (safeLectureUnits < 0 || safeLaboratoryUnits < 0) {
+            throw new IllegalArgumentException("Lecture and laboratory units cannot be negative.");
+        }
+        int safeUnits = safeLectureUnits + safeLaboratoryUnits;
+        if (safeUnits <= 0 || safeUnits > 12) {
+            throw new IllegalArgumentException("Total credit units must be between 1 and 12.");
+        }
         int activeStatus = Boolean.FALSE.equals(active) ? 0 : 1;
 
         Integer existingId = findCourseIdByCode(normalizedCode);
@@ -115,9 +126,9 @@ public class CourseCatalogService {
                 throw new IllegalStateException("A course with this code already exists.");
             }
             db.update(
-                "INSERT INTO courses (course_code, course_title, department_id, credit_units, active_status) " +
-                    "VALUES (?, ?, ?, ?, ?)",
-                normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, activeStatus);
+                "INSERT INTO courses (course_code, course_title, department_id, credit_units, lec_units, lab_units, active_status) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits, activeStatus);
             Integer created = findCourseIdByCode(normalizedCode);
             if (created == null) {
                 throw new IllegalStateException("Course was saved but could not be reopened.");
@@ -129,13 +140,60 @@ public class CourseCatalogService {
             throw new IllegalStateException("Another course already uses this code.");
         }
         int changed = db.update(
-            "UPDATE courses SET course_code = ?, course_title = ?, department_id = ?, credit_units = ?, active_status = ? " +
+            "UPDATE courses SET course_code = ?, course_title = ?, department_id = ?, credit_units = ?, lec_units = ?, lab_units = ?, active_status = ? " +
                 "WHERE course_id = ?",
-            normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, activeStatus, courseId);
+            normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits, activeStatus, courseId);
         if (changed == 0) {
             throw new IllegalArgumentException("Course was not found.");
         }
         return courseId;
+    }
+
+    public Map<String, Object> usageDetails(int courseId) {
+        List<Map<String, Object>> courses = db.queryForList(
+            "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
+                "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
+                "COALESCE(c.lab_units, 0) AS lab_units, " +
+                "COALESCE(d.department_name, 'Unassigned') AS department_name " +
+                "FROM courses c LEFT JOIN departments d ON d.department_id = c.department_id WHERE c.course_id = ?",
+            courseId);
+        if (courses.isEmpty()) {
+            throw new IllegalArgumentException("Course was not found.");
+        }
+
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("course", courses.get(0));
+        result.put("curricula", tableExists("curriculum_courses")
+            ? db.queryForList(
+                "SELECT ct.curriculum_id, p.program_code, p.program_name, ct.curriculum_name, ct.academic_year, " +
+                    "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, cc.year_level, cc.semester_number " +
+                    "FROM curriculum_courses cc JOIN curriculum_templates ct ON ct.curriculum_id = cc.curriculum_id " +
+                    "JOIN programs p ON p.program_id = ct.program_id WHERE cc.course_id = ? " +
+                    "ORDER BY COALESCE(ct.is_active, 0) DESC, p.program_code, ct.academic_year DESC",
+                courseId)
+            : List.of());
+        result.put("sections", tableExists("class_sections")
+            ? db.queryForList(
+                "SELECT section_id, section_code, term_id, semester_number, section_status, faculty_id " +
+                    "FROM class_sections WHERE course_id = ? ORDER BY term_id DESC, section_code LIMIT 100",
+                courseId)
+            : List.of());
+
+        Map<String, Object> records = new LinkedHashMap<>();
+        records.put("enlistments", tableUsageCount("student_enlistments", "course_id = ?", courseId));
+        records.put("grades", tableUsageCount("grades", "course_id = ?", courseId));
+        records.put("waitlists", tableUsageCount("waitlists", "course_id = ?", courseId));
+        records.put("requests", tableUsageCount("student_requests", "course_id = ?", courseId));
+        result.put("records", records);
+        result.put("prerequisites", tableExists("course_prerequisites")
+            ? db.queryForList(
+                "SELECT c.course_code, c.course_title, pc.course_code AS prerequisite_code, pc.course_title AS prerequisite_title " +
+                    "FROM course_prerequisites cp JOIN courses c ON c.course_id = cp.course_id " +
+                    "JOIN courses pc ON pc.course_id = cp.prerequisite_course_id " +
+                    "WHERE cp.course_id = ? OR cp.prerequisite_course_id = ? ORDER BY c.course_code, pc.course_code",
+                courseId, courseId)
+            : List.of());
+        return result;
     }
 
     @Transactional
@@ -191,7 +249,7 @@ public class CourseCatalogService {
     private boolean tableExists(String table) {
         Integer count = db.queryForObject(
             "SELECT COUNT(*) FROM information_schema.tables " +
-                "WHERE table_schema = DATABASE() AND table_name = ?",
+                "WHERE LOWER(table_schema) = LOWER(SCHEMA()) AND LOWER(table_name) = LOWER(?)",
             Integer.class,
             table);
         return count != null && count > 0;

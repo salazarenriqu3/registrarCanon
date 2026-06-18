@@ -22,7 +22,7 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
                 <div>
                     <h1 class="page-title">Scholarship Eligibility</h1>
-                    <p class="page-subtitle">Manage scholarship policies, types, and eligible students.</p>
+                    <p class="page-subtitle">Evaluate, review, approve, and post registrar-managed scholarships.</p>
                 </div>
             </div>
 
@@ -42,14 +42,14 @@
                                             th:text="${term.term_name + ' #' + term.term_id + (term.current_term == 1 ? ' (Active)' : '')}"
                                             th:selected="${term.term_id == selectedTermId}"></option>
                                 </select>
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Eligibility is evaluated from official grades in this term.</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Eligibility is evaluated from official grade records and completed course units in this term.</div>
                             </div>
                             <div>
-                                <label class="form-label">Max GWA</label>
+                                <label class="form-label">Maximum Allowed GWA</label>
                                 <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_GWA" th:value="${policy.get('SCHOLARSHIP_MAX_GWA')}">
                             </div>
                             <div>
-                                <label class="form-label">Max Grade</label>
+                                <label class="form-label">Maximum Allowed Individual Grade</label>
                                 <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_INDIVIDUAL_GRADE" th:value="${policy.get('SCHOLARSHIP_MAX_INDIVIDUAL_GRADE')}">
                             </div>
                             <div>
@@ -57,8 +57,8 @@
                                 <input type="number" min="0" max="100" step="0.01" class="form-control" name="SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT" th:value="${policy.get('SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT')}">
                             </div>
                             <div>
-                                <label class="form-label">Min Subjects</label>
-                                <input type="number" min="1" step="1" class="form-control" name="SCHOLARSHIP_MIN_COMPLETED_SUBJECTS" th:value="${policy.get('SCHOLARSHIP_MIN_COMPLETED_SUBJECTS')}">
+                                <label class="form-label">Minimum Completed Units</label>
+                                <input type="number" min="1" step="1" class="form-control" name="SCHOLARSHIP_MIN_COMPLETED_UNITS" th:value="${policy.get('SCHOLARSHIP_MIN_COMPLETED_UNITS')}">
                             </div>
                         </div>
                         <div style="display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
@@ -160,7 +160,7 @@
                             <tr>
                                 <th style="padding-left: 1.5rem;">Student</th>
                                 <th>Program</th>
-                                <th style="text-align: center;">Subjects</th>
+                                <th style="text-align: center;">Units</th>
                                 <th style="text-align: center;">GWA</th>
                                 <th style="text-align: center;">Worst Grade</th>
                                 <th>Status</th>
@@ -178,7 +178,7 @@
                                     <div style="font-size: 0.8rem; color: var(--text-muted); font-weight: 600;" th:text="${c.student_number}"></div>
                                 </td>
                                 <td style="font-weight: 500;" th:text="${c.program_code}"></td>
-                                <td style="text-align: center; font-weight: 600;" th:text="${c.subject_count}"></td>
+                                <td style="text-align: center; font-weight: 600;" th:text="${c.completed_units_fmt}"></td>
                                 <td style="text-align: center; font-weight: 800; color: var(--primary-color);" th:text="${c.gwa_fmt}"></td>
                                 <td style="text-align: center; font-weight: 600;" th:text="${c.highest_grade_fmt}"></td>
                                 <td>
@@ -188,16 +188,42 @@
                                     </span>
                                     <span class="status-badge pending" th:if="${c.scholarship_granted}" style="margin-left: 0.5rem; background: rgba(59, 130, 246, 0.1); color: #2563eb; border-color: rgba(59, 130, 246, 0.2);">
                                         <div class="status-dot" style="background: #2563eb;"></div>
-                                        <span>Granted</span>
+                                        <span>Posted</span>
+                                    </span>
+                                    <span class="status-badge pending" th:if="${!c.scholarship_granted and c.review_status != 'NONE'}" style="margin-left: 0.5rem;">
+                                        <div class="status-dot"></div>
+                                        <span th:text="${c.review_status}"></span>
                                     </span>
                                 </td>
-                                <td style="color: var(--text-muted); font-size: 0.85rem;" th:text="${c.reason}"></td>
+                                <td style="color: var(--text-muted); font-size: 0.85rem;">
+                                    <div th:text="${c.reason}"></div>
+                                    <div th:if="${c.decision_note != null}" style="margin-top: 0.25rem; font-style: italic;" th:text="${'Review note: ' + c.decision_note}"></div>
+                                </td>
                                 <td style="padding-right: 1.5rem; text-align: right; white-space: nowrap;">
-                                    <form th:if="${c.eligible and !c.scholarship_granted}" th:action="@{/admin/scholarships/grant-academic}" method="post" style="display: inline-block; margin: 0;">
+                                    <form th:if="${c.eligible and !c.scholarship_granted and (c.review_status == 'NONE' or c.review_status == 'REJECTED' or c.review_status == 'REVOKED')}" th:action="@{/admin/scholarships/grant-academic}" method="post" style="display: inline-block; margin: 0;">
                                         <input type="hidden" name="studentNumber" th:value="${c.student_number}">
                                         <input type="hidden" name="termId" th:value="${selectedTermId}">
                                         <button type="submit" class="btn btn-primary" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;">
-                                            <i class="ti ti-award" aria-hidden="true"></i> Grant
+                                            <i class="ti ti-send" aria-hidden="true"></i> Submit for Review
+                                        </button>
+                                    </form>
+                                    <form th:if="${c.review_status == 'PENDING'}" th:action="@{/admin/scholarships/approve-academic}" method="post" style="display: inline-flex; gap: 0.35rem; margin: 0; align-items: center;">
+                                        <input type="hidden" name="studentNumber" th:value="${c.student_number}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <input type="text" name="note" class="form-control" placeholder="Review note" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.8rem;">
+                                        <button type="submit" class="btn btn-primary" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;">Approve</button>
+                                    </form>
+                                    <form th:if="${c.review_status == 'PENDING' or c.review_status == 'APPROVED'}" th:action="@{/admin/scholarships/reject-academic}" method="post" style="display: inline-block; margin: 0;">
+                                        <input type="hidden" name="studentNumber" th:value="${c.student_number}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <input type="hidden" name="note" value="Rejected during registrar review">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.8rem; font-size: 0.85rem; color: var(--danger-color);">Reject</button>
+                                    </form>
+                                    <form th:if="${c.review_status == 'APPROVED' and !c.scholarship_granted}" th:action="@{/admin/scholarships/post-academic}" method="post" style="display: inline-block; margin: 0;">
+                                        <input type="hidden" name="studentNumber" th:value="${c.student_number}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <button type="submit" class="btn btn-primary" style="padding: 0.3rem 0.8rem; font-size: 0.85rem; background: var(--success-color); border-color: var(--success-color);">
+                                            <i class="ti ti-file-check" aria-hidden="true"></i> Post
                                         </button>
                                     </form>
                                     <form th:if="${c.scholarship_granted}" th:action="@{/admin/scholarships/revoke}" method="post" style="display: inline-block; margin: 0;">
@@ -207,7 +233,7 @@
                                             <i class="ti ti-x" aria-hidden="true"></i> Revoke
                                         </button>
                                     </form>
-                                    <span th:if="${!c.eligible and !c.scholarship_granted}" style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No action</span>
+                                    <span th:if="${!c.eligible and !c.scholarship_granted and c.review_status == 'NONE'}" style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No action</span>
                                 </td>
                             </tr>
                         </tbody>

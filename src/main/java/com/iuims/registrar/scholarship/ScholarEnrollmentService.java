@@ -11,6 +11,7 @@ import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.LedgerTransactionTypes;
 import com.iuims.registrar.finance.TermFeeAdminService;
+import com.iuims.registrar.core.YearLevelLoadPolicyService;
 import com.iuims.registrar.core.DatabaseSetupService;
 import com.iuims.registrar.jaypee.JaypeeIntegrationService;
 import com.iuims.registrar.core.PolicySettings;
@@ -56,14 +57,22 @@ public class ScholarEnrollmentService {
 
     private final StudentCurriculumService studentCurriculumService;
     private final TermFeeAdminService termFeeAdminService;
+    private final YearLevelLoadPolicyService yearLevelLoadPolicyService;
 
-    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService) {
+    @Autowired
+    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService, YearLevelLoadPolicyService yearLevelLoadPolicyService) {
         this.db = db;
         this.academicService = academicService;
         this.globalTermService = globalTermService;
         this.enlistmentSchemaService = enlistmentSchemaService;
         this.studentCurriculumService = studentCurriculumService;
         this.termFeeAdminService = termFeeAdminService;
+        this.yearLevelLoadPolicyService = yearLevelLoadPolicyService;
+    }
+
+    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService) {
+        this(db, academicService, globalTermService, enlistmentSchemaService, studentCurriculumService,
+            termFeeAdminService, null);
     }
 
 
@@ -638,8 +647,11 @@ public class ScholarEnrollmentService {
         return computeCurrentTermFees(studentNumber).rate;
     }
 
-    /** Configurable max units (enrollment_settings), with graduating-year bonus. */
+    /** Registrar-owned year-level cap, with the legacy global rule retained as a fallback. */
     public double getMaxAllowedUnits(String programCode, int studentYearLevel) {
+        if (yearLevelLoadPolicyService != null) {
+            return yearLevelLoadPolicyService.resolve(studentYearLevel).maximumUnits().doubleValue();
+        }
         double max = readEnrollmentSettingInt("max_units_regular", 24);
         try {
             Integer maxYear = db.queryForObject(
@@ -657,6 +669,9 @@ public class ScholarEnrollmentService {
     }
 
     public double getMaxAllowedUnitsForStudent(String studentNumber, String programCode, int studentYearLevel) {
+        if (yearLevelLoadPolicyService != null) {
+            return yearLevelLoadPolicyService.resolve(studentYearLevel).maximumUnits().doubleValue();
+        }
         double max = readEnrollmentSettingInt("max_units_regular", 24);
         try {
             Integer curriculumId = studentCurriculumService.findCurrentCurriculumId(studentNumber);
@@ -691,7 +706,7 @@ public class ScholarEnrollmentService {
     }
 
     /**
-     * Same-term drop after enlistment row is removed: resync assess, penalty, conditional REFUND.
+     * Same-term withdrawal after enlistment row is removed: resync assess, charge, conditional REFUND.
      * Never posts FORWARDED_BALANCE.
      */
     @Transactional
@@ -723,7 +738,7 @@ public class ScholarEnrollmentService {
             chargeOverride, policyNote);
     }
 
-    /** Drop by enlistment_id — staging removals skip ledger adjustments. */
+    /** Withdrawal by enlistment_id. Staging removals skip ledger adjustments. */
     @Transactional
     public void dropSubjectByEnlistmentId(long enlistmentId) {
         dropSubjectByEnlistmentId(enlistmentId, null, null);
@@ -752,7 +767,7 @@ public class ScholarEnrollmentService {
     }
 
     /**
-     * After enlistment removal and assess resync: late-drop penalty + conditional ledger REFUND only
+     * After enlistment removal and assess resync: withdrawal charge + conditional ledger REFUND only
      * when term payments exceed post-drop amount still owed. Never posts FORWARDED_BALANCE.
      */
     @Transactional
@@ -780,14 +795,14 @@ public class ScholarEnrollmentService {
                 "INSERT INTO student_ledger (student_id, transaction_type, description, debit, credit) " +
                     "VALUES (?, 'DROP_PENALTY', ?, ?, 0)",
                 studentNumber.trim(),
-                (chargeOverride != null ? "Formal Withdrawal Charge: " : "Drop Penalty: ")
+                (chargeOverride != null ? "Formal Withdrawal Charge: " : "Withdrawal Charge: ")
                     + courseCode + penaltyMsg,
                 penaltyAmount);
         }
 
         double refundCredit = computeDropRefundCredit(studentNumber, originalCost, penaltyAmount);
         if (refundCredit > 0.01) {
-            String dropDesc = String.format("Dropped Subject: %s (%.1f units) [-₱%,.2f]",
+            String dropDesc = String.format("Withdrawn Subject: %s (%.1f units) [-PHP %,.2f]",
                 courseCode, units, refundCredit);
             db.update(
                 "INSERT INTO student_ledger (student_id, transaction_type, description, debit, credit) " +
@@ -933,7 +948,19 @@ public class ScholarEnrollmentService {
             "SELECT classification, COALESCE(display_name, classification) AS display_name, discount_mode, " +
                 "default_discount_percentage, default_scholarship_amount, COALESCE(is_internal, 0) AS is_internal, " +
                 "COALESCE(is_active, 1) AS is_active " +
-                "FROM scholarship_types WHERE COALESCE(is_active, 1) = 1 ORDER BY display_name, classification");
+                "FROM scholarship_types WHERE COALESCE(is_active, 1) = 1 AND classification <> 'ACADEMIC' " +
+                "ORDER BY display_name, classification");
+    }
+
+    public boolean isManualExternalScholarshipType(String classification) {
+        if (classification == null || classification.isBlank()) return false;
+        if ("NONE".equalsIgnoreCase(classification.trim())) return true;
+        ensureScholarshipTypeCatalog();
+        Integer count = db.queryForObject(
+            "SELECT COUNT(*) FROM scholarship_types WHERE classification = ? AND COALESCE(is_active, 1) = 1 " +
+                "AND classification <> 'ACADEMIC'",
+            Integer.class, classification.trim().toUpperCase(java.util.Locale.US));
+        return count != null && count > 0;
     }
 
     public List<Map<String, Object>> getAllScholarshipTypes() {
@@ -1034,6 +1061,7 @@ public class ScholarEnrollmentService {
         settings.put(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, PolicySettings.scholarshipMaxIndividualGrade(db));
         settings.put(PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, PolicySettings.scholarshipDefaultDiscountPercent(db));
         settings.put(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, PolicySettings.scholarshipMinCompletedSubjects(db));
+        settings.put(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS, PolicySettings.scholarshipMinCompletedUnits(db));
         settings.put(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC, PolicySettings.scholarshipDisqualifyInc(db));
         settings.put(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED, PolicySettings.scholarshipDisqualifyFailed(db));
         return settings;
@@ -1044,6 +1072,7 @@ public class ScholarEnrollmentService {
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, params.get(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE));
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, params.get(PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT));
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, params.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS));
+        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS, params.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS));
         PolicySettings.saveBoolean(db, PolicySettings.SCHOLARSHIP_DISQUALIFY_INC, params.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC));
         PolicySettings.saveBoolean(db, PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED, params.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED));
     }
@@ -1075,6 +1104,7 @@ public class ScholarEnrollmentService {
     }
 
     public List<Map<String, Object>> evaluateAcademicScholarshipCandidates(Integer termId) {
+        ensureScholarshipReviewWorkflow();
         Integer resolvedTermId = termId != null && termId > 0 ? termId : getDefaultScholarshipTermId();
         if (resolvedTermId == null) {
             return List.of();
@@ -1083,7 +1113,7 @@ public class ScholarEnrollmentService {
         Map<String, Object> policy = getScholarshipPolicySettings();
         double maxGwa = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_GWA)).doubleValue();
         double maxIndividual = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE)).doubleValue();
-        int minSubjects = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS)).intValue();
+        int minUnits = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS)).intValue();
         boolean blockInc = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC));
         boolean blockFailed = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED));
 
@@ -1092,12 +1122,14 @@ public class ScholarEnrollmentService {
                 "s.program_code, COALESCE(s.scholarship_approved, 0) AS scholarship_approved, " +
                 "COALESCE(s.scholarship_type, 'NONE') AS scholarship_type, COALESCE(s.discount_percentage, 0) AS discount_percentage, " +
                 "COUNT(g.id) AS subject_count, " +
+                "COALESCE(SUM(COALESCE(c.credit_units, 0)), 0) AS completed_units, " +
                 "AVG(COALESCE(g.registrar_final_grade, g.semestral_grade)) AS gwa, " +
                 "MAX(COALESCE(g.registrar_final_grade, g.semestral_grade)) AS highest_grade, " +
                 "SUM(CASE WHEN " + GradeOutcomeSql.failed("g") + " THEN 1 ELSE 0 END) AS failed_count, " +
                 "SUM(CASE WHEN " + GradeOutcomeSql.outcome("g") + " = 'INC' THEN 1 ELSE 0 END) AS inc_count " +
                 "FROM grades g " +
                 "JOIN class_sections cs ON cs.section_id = g.section_id " +
+                "LEFT JOIN courses c ON c.course_id = COALESCE(g.course_id, cs.course_id) " +
                 "JOIN students s ON s.student_number = g.student_id " +
                 "LEFT JOIN sys_users u ON u.username = s.student_number " +
                 "WHERE cs.term_id = ? " +
@@ -1107,15 +1139,23 @@ public class ScholarEnrollmentService {
                 "ORDER BY student_name, s.student_number",
             resolvedTermId);
 
+        Map<String, Map<String, Object>> reviewsByStudent = new HashMap<>();
+        for (Map<String, Object> review : db.queryForList(
+                "SELECT * FROM scholarship_review_workflow WHERE term_id = ? AND classification = 'ACADEMIC'",
+                resolvedTermId)) {
+            reviewsByStudent.put(String.valueOf(review.get("student_number")), review);
+        }
+
         for (Map<String, Object> row : rows) {
             double gwa = numericOrZero(row.get("gwa"));
             double highest = numericOrZero(row.get("highest_grade"));
             int subjects = intOrZero(row.get("subject_count"));
+            double units = numericOrZero(row.get("completed_units"));
             int failed = intOrZero(row.get("failed_count"));
             int inc = intOrZero(row.get("inc_count"));
 
             List<String> reasons = new ArrayList<>();
-            if (subjects < minSubjects) reasons.add("Needs at least " + minSubjects + " completed subject(s)");
+            if (units < minUnits) reasons.add("Needs at least " + minUnits + " completed unit(s)");
             if (blockFailed && failed > 0) reasons.add(failed + " failed grade(s)");
             if (blockInc && inc > 0) reasons.add(inc + " INC grade(s)");
             if (gwa <= 0 || gwa > maxGwa) reasons.add("GWA " + formatGrade(gwa) + " exceeds " + formatGrade(maxGwa));
@@ -1123,11 +1163,126 @@ public class ScholarEnrollmentService {
 
             row.put("gwa_fmt", formatGrade(gwa));
             row.put("highest_grade_fmt", formatGrade(highest));
+            row.put("completed_units_fmt", formatUnits(units));
             row.put("eligible", reasons.isEmpty());
             row.put("scholarship_granted", truthy(row.get("scholarship_approved")));
+            Map<String, Object> review = reviewsByStudent.get(String.valueOf(row.get("student_number")));
+            row.put("review_status", review != null ? String.valueOf(review.get("status")).toUpperCase() : "NONE");
+            row.put("decision_note", review != null ? review.get("decision_note") : null);
             row.put("reason", reasons.isEmpty() ? "Meets configured scholarship policy." : String.join("; ", reasons));
         }
         return rows;
+    }
+
+    @Transactional
+    public String requestAcademicScholarship(String studentNumber, Integer termId, String requestedBy) {
+        ensureScholarshipReviewWorkflow();
+        Integer resolvedTermId = termId != null && termId > 0 ? termId : getDefaultScholarshipTermId();
+        if (resolvedTermId == null) return "ERROR: Academic term not found.";
+
+        Map<String, Object> candidate = evaluateAcademicScholarshipCandidates(resolvedTermId).stream()
+            .filter(row -> studentNumber.equals(String.valueOf(row.get("student_number"))))
+            .findFirst().orElse(null);
+        if (candidate == null) return "ERROR: Student has no official grade record for this term.";
+        if (!Boolean.TRUE.equals(candidate.get("eligible"))) return "ERROR: Student does not meet the configured policy.";
+        if (truthy(candidate.get("scholarship_granted"))) return "ERROR: Scholarship is already posted.";
+
+        String currentStatus = String.valueOf(candidate.get("review_status"));
+        if ("PENDING".equals(currentStatus) || "APPROVED".equals(currentStatus)) {
+            return "ERROR: Scholarship review is already " + currentStatus.toLowerCase() + ".";
+        }
+
+        double discount = PolicySettings.scholarshipDefaultDiscountPercent(db);
+        int updated = db.update(
+            "UPDATE scholarship_review_workflow SET status = 'PENDING', discount_percentage = ?, scholarship_amount = 0, " +
+                "decision_note = NULL, requested_by = ?, requested_at = CURRENT_TIMESTAMP, reviewed_by = NULL, reviewed_at = NULL, " +
+                "posted_by = NULL, posted_at = NULL, updated_at = CURRENT_TIMESTAMP " +
+                "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC'",
+            discount, cleanActor(requestedBy), studentNumber, resolvedTermId);
+        if (updated == 0) {
+            db.update(
+                "INSERT INTO scholarship_review_workflow " +
+                    "(student_number, term_id, classification, status, discount_percentage, scholarship_amount, requested_by, requested_at) " +
+                    "VALUES (?, ?, 'ACADEMIC', 'PENDING', ?, 0, ?, CURRENT_TIMESTAMP)",
+                studentNumber, resolvedTermId, discount, cleanActor(requestedBy));
+        }
+        return "SUCCESS";
+    }
+
+    @Transactional
+    public String approveAcademicScholarship(String studentNumber, Integer termId, String reviewedBy, String note) {
+        ensureScholarshipReviewWorkflow();
+        int updated = db.update(
+            "UPDATE scholarship_review_workflow SET status = 'APPROVED', decision_note = ?, reviewed_by = ?, " +
+                "reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+                "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC' AND status = 'PENDING'",
+            cleanNote(note), cleanActor(reviewedBy), studentNumber, termId);
+        return updated == 1 ? "SUCCESS" : "ERROR: Only a pending review can be approved.";
+    }
+
+    @Transactional
+    public String rejectAcademicScholarship(String studentNumber, Integer termId, String reviewedBy, String note) {
+        ensureScholarshipReviewWorkflow();
+        int updated = db.update(
+            "UPDATE scholarship_review_workflow SET status = 'REJECTED', decision_note = ?, reviewed_by = ?, " +
+                "reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+                "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC' AND status IN ('PENDING', 'APPROVED')",
+            cleanNote(note), cleanActor(reviewedBy), studentNumber, termId);
+        return updated == 1 ? "SUCCESS" : "ERROR: Only a pending or approved review can be rejected.";
+    }
+
+    @Transactional
+    public String postAcademicScholarship(String studentNumber, Integer termId, String postedBy) {
+        ensureScholarshipReviewWorkflow();
+        List<Map<String, Object>> reviews = db.queryForList(
+            "SELECT discount_percentage, scholarship_amount FROM scholarship_review_workflow " +
+                "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC' AND status = 'APPROVED'",
+            studentNumber, termId);
+        if (reviews.isEmpty()) return "ERROR: Scholarship must be approved before posting.";
+
+        Map<String, Object> review = reviews.get(0);
+        String result = grantExternalScholarship(
+            studentNumber, "ACADEMIC", numericOrZero(review.get("discount_percentage")),
+            numericOrZero(review.get("scholarship_amount")), "ACTIVE");
+        if (!result.startsWith("SUCCESS")) return result;
+
+        db.update(
+            "UPDATE scholarship_review_workflow SET status = 'POSTED', posted_by = ?, posted_at = CURRENT_TIMESTAMP, " +
+                "updated_at = CURRENT_TIMESTAMP WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC'",
+            cleanActor(postedBy), studentNumber, termId);
+        return "SUCCESS";
+    }
+
+    public void markAcademicScholarshipRevoked(String studentNumber, Integer termId, String actor) {
+        if (termId == null) return;
+        ensureScholarshipReviewWorkflow();
+        db.update(
+            "UPDATE scholarship_review_workflow SET status = 'REVOKED', decision_note = 'Revoked by registrar', " +
+                "reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
+                "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC'",
+            cleanActor(actor), studentNumber, termId);
+    }
+
+    private void ensureScholarshipReviewWorkflow() {
+        db.execute(
+            "CREATE TABLE IF NOT EXISTS scholarship_review_workflow (" +
+                "review_id BIGINT AUTO_INCREMENT PRIMARY KEY, student_number VARCHAR(100) NOT NULL, term_id INT NOT NULL, " +
+                "classification VARCHAR(50) NOT NULL DEFAULT 'ACADEMIC', status VARCHAR(20) NOT NULL DEFAULT 'PENDING', " +
+                "discount_percentage DECIMAL(5,2) NOT NULL DEFAULT 0.00, scholarship_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00, " +
+                "decision_note VARCHAR(500) NULL, requested_by VARCHAR(100) NULL, requested_at TIMESTAMP NULL, " +
+                "reviewed_by VARCHAR(100) NULL, reviewed_at TIMESTAMP NULL, posted_by VARCHAR(100) NULL, posted_at TIMESTAMP NULL, " +
+                "updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, " +
+                "UNIQUE KEY uq_scholar_review_student_term_type (student_number, term_id, classification))");
+    }
+
+    private String cleanActor(String actor) {
+        return actor == null || actor.isBlank() ? "SYSTEM" : actor.trim();
+    }
+
+    private String cleanNote(String note) {
+        if (note == null || note.isBlank()) return null;
+        String clean = note.trim();
+        return clean.length() <= 500 ? clean : clean.substring(0, 500);
     }
 
     private String resolveScholarshipStudentNumber(String rawStudentRef) {
@@ -1161,6 +1316,13 @@ public class ScholarEnrollmentService {
 
     private String formatGrade(double value) {
         return String.format(java.util.Locale.US, "%.2f", value);
+    }
+
+    private String formatUnits(double value) {
+        if (Math.abs(value - Math.rint(value)) < 0.001) {
+            return String.format(java.util.Locale.US, "%.0f", value);
+        }
+        return String.format(java.util.Locale.US, "%.1f", value);
     }
 
     @Transactional

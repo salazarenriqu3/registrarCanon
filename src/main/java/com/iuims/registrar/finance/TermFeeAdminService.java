@@ -158,7 +158,7 @@ public class TermFeeAdminService {
         rows.add(feeRow("MISC_ENERGY", "Energy Fee", "MISC", "FLAT"));
         
         rows.add(feeRow("OTHER_LATE_ENROLLMENT", "Late Enrollment Fee", "OTHER", "FLAT"));
-        rows.add(feeRow("OTHER_ADD_DROP", "Adding/Dropping Fee", "OTHER", "FLAT"));
+        rows.add(feeRow("OTHER_ADD_DROP", "Enrollment Change Fee", "OTHER", "FLAT"));
         rows.add(feeRow("OTHER_INSTALLMENT", "Installment Charge", "OTHER", "FLAT"));
         rows.add(feeRow("OTHER_ID", "Identification Card", "OTHER", "FLAT"));
         rows.add(feeRow("OTHER_INS", "Insurance", "OTHER", "FLAT"));
@@ -169,7 +169,7 @@ public class TermFeeAdminService {
 
     public Map<String, Double> getFeeRatesForScope(int programId, Integer termId, int yearLevel, int semester) {
         Map<String, Double> map = new LinkedHashMap<>();
-        Optional<ProgramFeeSetting> settingOpt = feeSettingRepository.findActiveForExactScope(programId, yearLevel, semester, termId);
+        Optional<ProgramFeeSetting> settingOpt = feeSettingRepository.findBestMatch(programId, yearLevel, semester, termId);
         
         if (settingOpt.isPresent()) {
             ProgramFeeSetting setting = settingOpt.get();
@@ -185,7 +185,7 @@ public class TermFeeAdminService {
 
     public Map<String, String> getFeeRateSourcesForScope(int programId, Integer termId, int yearLevel, int semester) {
         Map<String, String> map = new LinkedHashMap<>();
-        Optional<ProgramFeeSetting> settingOpt = feeSettingRepository.findActiveForExactScope(programId, yearLevel, semester, termId);
+        Optional<ProgramFeeSetting> settingOpt = feeSettingRepository.findBestMatch(programId, yearLevel, semester, termId);
         
         if (settingOpt.isPresent()) {
             ProgramFeeSetting setting = settingOpt.get();

@@ -49,6 +49,7 @@ public class AcademicGradingService {
     private final AcademicGradingRepository academicGradingRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final EnlistmentSchemaService enlistmentSchemaService;
+    private final ScheduleConflictValidator scheduleConflictValidator;
     
     // Phase 3.5: Entity Expansion Repositories
     private final com.iuims.registrar.core.SysUserRepository sysUserRepository;
@@ -95,6 +96,7 @@ public class AcademicGradingService {
         this.academicGradingRepository = academicGradingRepository;
         this.eventPublisher = eventPublisher;
         this.enlistmentSchemaService = enlistmentSchemaService;
+        this.scheduleConflictValidator = new ScheduleConflictValidator(db);
         this.sysUserRepository = sysUserRepository;
         this.studentRepository = studentRepository;
         this.courseRepository = courseRepository;
@@ -1784,6 +1786,15 @@ public class AcademicGradingService {
             }
             Integer rid = (roomId == null || roomId == 0) ? null : roomId;
             Integer sectionFacultyId = sectionFacultyId(sectionId);
+
+            String day1Conflict = scheduleConflictValidator.validateNewSlot(
+                sectionId, sectionFacultyId, rid, day1, parsedStart, parsedEnd);
+            if (day1Conflict != null) return "ERROR: " + day1Conflict;
+            if (day2 != null && day2 > 0 && day2 != day1) {
+                String day2Conflict = scheduleConflictValidator.validateNewSlot(
+                    sectionId, sectionFacultyId, rid, day2, parsedStart, parsedEnd);
+                if (day2Conflict != null) return "ERROR: " + day2Conflict;
+            }
             
             ClassSchedule s1 = new ClassSchedule();
             s1.setSectionId(sectionId);
@@ -1807,6 +1818,14 @@ public class AcademicGradingService {
             classScheduleRepository.flush();
             return "SUCCESS";
         } catch (Exception e) { return "ERROR: " + e.getMessage(); }
+    }
+
+    public ScheduleConflictValidator.ConflictPreview getScheduleConflictPreview(int termId, int maxResults) {
+        try {
+            return scheduleConflictValidator.findExistingConflictPreview(termId, maxResults);
+        } catch (Exception e) {
+            return new ScheduleConflictValidator.ConflictPreview(List.of(), false);
+        }
     }
 
     @Transactional
@@ -1833,13 +1852,17 @@ public class AcademicGradingService {
     public String assignFaculty(int sectionId, Integer facultyId) {
         try {
             ClassSection section = classSectionRepository.findById(sectionId).orElse(null);
-            if (section != null) {
-                section.setFacultyId((facultyId == null || facultyId == 0) ? null : facultyId);
-                classSectionRepository.saveAndFlush(section);
-                db.update(
-                    "UPDATE class_schedules SET faculty_id = ? WHERE section_id = ?",
-                    section.getFacultyId(), sectionId);
+            if (section == null) return "ERROR: Section not found.";
+            Integer normalizedFacultyId = (facultyId == null || facultyId == 0) ? null : facultyId;
+            if (normalizedFacultyId != null) {
+                String conflict = scheduleConflictValidator.validateFacultyAssignment(sectionId, normalizedFacultyId);
+                if (conflict != null) return "ERROR: " + conflict;
             }
+            section.setFacultyId(normalizedFacultyId);
+            classSectionRepository.saveAndFlush(section);
+            db.update(
+                "UPDATE class_schedules SET faculty_id = ? WHERE section_id = ?",
+                section.getFacultyId(), sectionId);
             return "SUCCESS";
         } catch (Exception e) { return "ERROR: " + e.getMessage(); }
     }

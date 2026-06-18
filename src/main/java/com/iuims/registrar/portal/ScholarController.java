@@ -161,7 +161,7 @@ public class ScholarController {
     @PostMapping("/admin/drop-subject")
     public String dropSubject(@RequestParam int eid, @RequestParam String keyword, RedirectAttributes ra) {
         ra.addFlashAttribute("errorMessage",
-            "Direct drop is retired. Open Student Profile and submit a formal withdrawal request.");
+            "Direct subject removal is retired. Open Student Profile and submit a formal withdrawal request.");
         return "redirect:/admin/scholar-cashier?keyword=" + keyword;
     }
 

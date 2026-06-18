@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
-    <title>Class Scheduling â€” EAC Registrar</title>
+    <title>Class Scheduling - EAC Registrar</title>
     <th:block th:replace="~{fragments/layout :: head}"></th:block>
     <script th:inline="javascript">const contextPath = /*[[@{/}]]*/ '';</script>
     <style>
@@ -109,6 +109,24 @@
                 <span th:text="${msg}"></span>
             </div>
 
+            <div th:if="${scheduleConflicts != null and !scheduleConflicts.isEmpty()}" class="alert alert-danger" style="margin-bottom: 1.5rem; align-items: flex-start;">
+                <i class="ti ti-alert-triangle" aria-hidden="true"></i>
+                <div>
+                    <strong>Existing schedule conflicts need attention.</strong>
+                    <div th:if="${scheduleConflictsTruncated}" style="margin-top: 0.35rem;">
+                        Showing a 50-item preview. Additional conflicts exist; new conflicting assignments are still blocked.
+                    </div>
+                    <div th:each="conflict : ${scheduleConflicts}" style="margin-top: 0.35rem;">
+                        <span th:text="${conflict.conflict_type == 'ROOM' ? 'Room' : 'Faculty'}"></span>
+                        <strong th:text="${conflict.resource_name}"></strong>:
+                        <span th:text="${conflict.section_a}"></span> overlaps
+                        <span th:text="${conflict.section_b}"></span>
+                        on day <span th:text="${conflict.day_of_week}"></span>
+                        (<span th:text="${conflict.start_time}"></span>-<span th:text="${conflict.end_time}"></span>).
+                    </div>
+                </div>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <h1 class="page-title">Class Scheduling</h1>
@@ -127,15 +145,15 @@
             <div class="workflow-steps">
                 <div class="workflow-step">
                     <strong>1. Block template</strong>
-                    Create cohort above (<code>BSIT-1-2-A</code>) — materializes all curriculum courses.
+                    Create a regular cohort from the program's active curriculum. This materializes its courses as class sections for the selected term.
                 </div>
                 <div class="workflow-step">
                     <strong>2. Faculty &amp; schedules</strong>
-                    Assign professor and add day/time/room slots per course — in the block table below <em>or</em> Course Sections.
+                    Assign faculty and add day/time/room slots. Same-term room and faculty overlaps are blocked; room may remain TBA.
                 </div>
                 <div class="workflow-step">
-                    <strong>3. Irregular sections</strong>
-                    Open <code>IRREG-A</code> per course in Course Sections (not block codes).
+                    <strong>3. Per-course sections</strong>
+                    Use Course Sections to inspect or manage the individual offerings created under each block.
                 </div>
             </div>
 
@@ -377,7 +395,7 @@
                                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                                             <span style="font-weight: 700; color: var(--text-primary); font-size: 0.95rem;">
                                                 <i class="ti ti-books" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
-                                                <span th:text="${c.course_code + ' â€” ' + c.course_title}"></span>
+                                                <span th:text="${c.course_code + ' - ' + c.course_title}"></span>
                                             </span>
                                             <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;"
                                                     th:attr="data-course-id=${c.course_id}, data-label=${c.course_code + ' - ' + c.course_title}, data-term-id=${termId}"
@@ -411,7 +429,7 @@
                                                         <input type="hidden" name="sectionId" th:value="${sec.section_id}">
                                                         <input type="hidden" name="termId"    th:value="${termId}">
                                                         <select name="facultyId" class="form-control" style="min-width: 200px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
-                                                            <option value="0">â€” Assign Faculty â€”</option>
+                                                            <option value="0">- Assign Faculty -</option>
                                                             <option th:each="f : ${faculty}" th:value="${f.faculty_id}" th:text="${f.real_name}" th:selected="${f.faculty_id == sec.faculty_id}"></option>
                                                         </select>
                                                         <button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.6rem;" title="Save Faculty">
@@ -423,11 +441,11 @@
                                                 <!-- Schedule tags -->
                                                 <div style="margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 1rem;">
                                                     <span class="slot-label">Schedule Slots:</span>
-                                                    <span th:if="${#lists.isEmpty(sec['schedules'])}" style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No schedule set â€” click Add Schedule below.</span>
+                                                    <span th:if="${#lists.isEmpty(sec['schedules'])}" style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No schedule set - click Add Schedule below.</span>
                                                     <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.5rem;">
                                                         <span th:each="sch : ${sec['schedules']}" class="sched-tag">
                                                             <i class="ti ti-calendar-time" style="margin-right: 0.4rem; color: var(--primary-color);"></i>
-                                                            <span th:text="${sch.day_name + '  ' + sch.start_fmt + ' â€“ ' + sch.end_fmt + '  ' + sch.room_code}"></span>
+                                                            <span th:text="${sch.day_name + '  ' + sch.start_fmt + ' - ' + sch.end_fmt + '  ' + sch.room_code}"></span>
                                                             <form th:action="@{/admin/class-scheduling/remove-schedule}" method="post" style="margin: 0; display: inline;">
                                                                 <input type="hidden" name="scheduleId" th:value="${sch.schedule_id}">
                                                                 <input type="hidden" name="termId" th:value="${termId}">
@@ -505,7 +523,7 @@
                 <div>
                     <label class="form-label">Assign Faculty <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
                     <select name="facultyId" class="form-control">
-                        <option value="0">â€” Assign Later â€”</option>
+                        <option value="0">- Assign Later -</option>
                         <option th:each="f : ${faculty}" th:value="${f.faculty_id}" th:text="${f.real_name + ' (' + f.department_name + ')'}"></option>
                     </select>
                 </div>
@@ -558,7 +576,7 @@
                         </select>
                     </div>
                     <div>
-                        <label class="form-label">Group</label>
+                        <label class="form-label">Section Group</label>
                         <input type="text" name="sectionGroup" class="form-control" value="A" maxlength="10" required>
                     </div>
                 </div>
@@ -618,7 +636,7 @@
                     <div>
                         <label class="form-label">Day 1 <span style="color: var(--danger-color);">*</span></label>
                         <select name="day1" class="form-control" required>
-                            <option value="">â€” Select â€”</option>
+                            <option value="">- Select -</option>
                             <option value="1">Monday</option>
                             <option value="2">Tuesday</option>
                             <option value="3">Wednesday</option>
@@ -630,7 +648,7 @@
                     <div>
                         <label class="form-label">Day 2 <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
                         <select name="day2" class="form-control">
-                            <option value="0">â€” None (1-day only) â€”</option>
+                            <option value="0">- None (1-day only) -</option>
                             <option value="1">Monday</option>
                             <option value="2">Tuesday</option>
                             <option value="3">Wednesday</option>
@@ -644,7 +662,7 @@
                     <div>
                         <label class="form-label">Start Time <span style="color: var(--danger-color);">*</span></label>
                         <select name="startTime" class="form-control" required>
-                            <option value="">â€” Select â€”</option>
+                            <option value="">- Select -</option>
                             <optgroup label="Morning (90-min TTH/MW slots)">
                                 <option value="07:30:00">7:30 AM</option>
                                 <option value="09:00:00">9:00 AM</option>
@@ -674,7 +692,7 @@
                     <div>
                         <label class="form-label">End Time <span style="color: var(--danger-color);">*</span></label>
                         <select name="endTime" class="form-control" required>
-                            <option value="">â€” Select â€”</option>
+                            <option value="">- Select -</option>
                             <optgroup label="90-minute end times">
                                 <option value="09:00:00">9:00 AM</option>
                                 <option value="10:30:00">10:30 AM</option>
@@ -701,8 +719,8 @@
                 <div>
                     <label class="form-label">Room <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
                     <select name="roomId" class="form-control">
-                        <option value="0">â€” Assign Room Later â€”</option>
-                        <option th:each="r : ${rooms}" th:value="${r.room_id}" th:text="${r.room_code + ' â€” ' + r.building_name + ' (cap:' + r.capacity + ')'}"></option>
+                        <option value="0">- Assign Room Later -</option>
+                        <option th:each="r : ${rooms}" th:value="${r.room_id}" th:text="${r.room_code + ' - ' + r.building_name + ' (cap:' + r.capacity + ')'}"></option>
                     </select>
                 </div>
             </div>
