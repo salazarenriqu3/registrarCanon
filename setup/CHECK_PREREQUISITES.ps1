@@ -11,8 +11,7 @@ param(
     [int]$DbPort = 3306,
     [string]$DbUser = "root",
     [string]$DbPassword = "",
-    [int]$RegistrarPort = 8083,
-    [int]$EnrollmentPort = 8082
+    [int]$RegistrarPort = 8083
 )
 
 $ErrorActionPreference = "Continue"
@@ -65,10 +64,7 @@ function Get-JavaMajor {
 
 # Resolve project root
 if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
-    $ProjectRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    if (-not (Test-Path (Join-Path $ProjectRoot "registrar"))) {
-        $ProjectRoot = (Get-Location).Path
-    }
+    $ProjectRoot = Split-Path $PSScriptRoot -Parent
 }
 
 Write-Host ""
@@ -78,10 +74,9 @@ Write-Host ""
 
 # ── Project layout ───────────────────────────────────────────────────────────
 Write-Check "PRJ-ROOT" (Test-Path $ProjectRoot) $ProjectRoot
-Write-Check "PRJ-REGISTRAR" (Test-Path (Join-Path $ProjectRoot "registrar\pom.xml")) "registrar/pom.xml"
-Write-Check "PRJ-ENROLLMENT" (Test-Path (Join-Path $ProjectRoot "enrollment3\pom.xml")) "enrollment3/pom.xml"
-Write-Check "PRJ-SETUP-CMD" (Test-Path (Join-Path $ProjectRoot "registrar\setup\RUN_FRESH_SETUP.cmd")) "bootstrap script"
-Write-Check "PRJ-DB-FIX" (Test-Path (Join-Path $ProjectRoot "registrar\db\fix")) "schema seed"
+Write-Check "PRJ-REGISTRAR" (Test-Path (Join-Path $ProjectRoot "pom.xml")) "pom.xml"
+Write-Check "PRJ-SETUP-CMD" (Test-Path (Join-Path $ProjectRoot "setup\RUN_FRESH_SETUP.cmd")) "bootstrap script"
+Write-Check "PRJ-FRESH-SQL" (Test-Path (Join-Path $ProjectRoot "handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\02_FRESH_DATABASE\sql\01_SCHEMA\01_base_schema_and_seed.sql")) "self-contained schema seed"
 
 # ── JDK ──────────────────────────────────────────────────────────────────────
 $javaOk = $false
@@ -102,10 +97,6 @@ if (Get-Command mvn -ErrorAction SilentlyContinue) {
         $mvnOk = $true
         $mvnDetail = $ver
     } catch { }
-}
-if (-not $mvnOk -and (Test-Path (Join-Path $ProjectRoot "enrollment3\mvnw.cmd"))) {
-    $mvnOk = $true
-    $mvnDetail = "mvn missing but enrollment3\mvnw.cmd present"
 }
 Write-Check "MAVEN" $mvnOk $mvnDetail
 
@@ -141,9 +132,7 @@ if ($mysqlExe -and $dbOk) {
 
 # ── Ports (warn if apps already running — not a hard fail) ───────────────────
 $regFree = Test-PortFree -Port $RegistrarPort
-$enrFree = Test-PortFree -Port $EnrollmentPort
 Write-Check "PORT-REGISTRAR" $true $(if ($regFree) { ":$RegistrarPort free" } else { ":$RegistrarPort IN USE (stop Registrar or continue)" })
-Write-Check "PORT-ENROLLMENT" $true $(if ($enrFree) { ":$EnrollmentPort free" } else { ":$EnrollmentPort IN USE (stop Enrollment or continue)" })
 
 # ── Optional Python (preflight only) ─────────────────────────────────────────
 $pyOk = Get-Command python -ErrorAction SilentlyContinue
@@ -153,9 +142,9 @@ Write-Host ""
 Write-Host "Summary: $($script:Results.Count - $script:FailCount)/$($script:Results.Count) passed" -ForegroundColor $(if ($script:FailCount -eq 0) { "Green" } else { "Yellow" })
 if ($script:FailCount -gt 0) {
     Write-Host ""
-    Write-Host "Required failures must be fixed before bootstrap. See registrar\setup\AGENT_FRESH_SETUP.md" -ForegroundColor Yellow
+    Write-Host "Required failures must be fixed before bootstrap. See setup\AGENT_FRESH_SETUP.md" -ForegroundColor Yellow
     exit 1
 }
 Write-Host ""
-Write-Host "Next: registrar\setup\RUN_FRESH_SETUP.cmd" -ForegroundColor Cyan
+Write-Host "Next: setup\RUN_FRESH_SETUP.cmd" -ForegroundColor Cyan
 exit 0

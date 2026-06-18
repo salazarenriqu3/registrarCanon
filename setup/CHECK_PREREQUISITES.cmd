@@ -1,5 +1,6 @@
 @echo off
-REM Prerequisite checker — run from project root or anywhere.
-cd /d "%~dp0\..\.."
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0CHECK_PREREQUISITES.ps1" -ProjectRoot "%CD%"
+setlocal EnableExtensions
+REM Standalone Registrar prerequisite checker.
+for %%I in ("%~dp0\..") do set "REGISTRAR_ROOT=%%~fI"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0CHECK_PREREQUISITES.ps1" -ProjectRoot "%REGISTRAR_ROOT%"
 exit /b %ERRORLEVEL%

@@ -1,20 +1,10 @@
 @echo off
 setlocal
-for %%I in ("%~dp0..\..\..\..") do set "ROOT=%%~fI"
+for %%I in ("%~dp0..\..\..") do set "REGISTRAR_ROOT=%%~fI"
 
 echo === BUILD REGISTRAR ===
-pushd "%ROOT%\registrar"
+pushd "%REGISTRAR_ROOT%"
 call mvn -q -DskipTests package
-if errorlevel 1 (popd & exit /b 1)
-popd
-
-echo === BUILD ENROLLMENT ===
-pushd "%ROOT%\enrollment3"
-if exist mvnw.cmd (
-  call mvnw.cmd -q -DskipTests package
-) else (
-  call mvn -q -DskipTests package
-)
 if errorlevel 1 (popd & exit /b 1)
 popd
 

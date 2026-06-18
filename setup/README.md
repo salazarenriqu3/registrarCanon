@@ -13,20 +13,20 @@ Last updated: 2026-06-09
 From **project root**:
 
 ```cmd
-registrar\setup\CHECK_PREREQUISITES.cmd
-registrar\setup\RUN_FRESH_SETUP.cmd
+setup\CHECK_PREREQUISITES.cmd
+setup\RUN_FRESH_SETUP.cmd
 ```
 
 One command bootstrap (includes prereq gate):
 
 ```cmd
-registrar\setup\RUN_FRESH_SETUP.cmd
+setup\RUN_FRESH_SETUP.cmd
 ```
 
 Skip prereq check only if you already verified:
 
 ```cmd
-registrar\setup\RUN_FRESH_SETUP.cmd --skip-prereq
+setup\RUN_FRESH_SETUP.cmd --skip-prereq
 ```
 
 **Active term after run:** `1120242025` (A.Y. 2024–25, **1st Semester**, `term_id = 1`)
@@ -44,7 +44,7 @@ registrar\setup\RUN_FRESH_SETUP.cmd --skip-prereq
 | `sql/01` … `05` | Term activation, fees (all calendar terms), prof.cruz, verify |
 | `fees/` | CSV templates for Program Fees UI |
 
-Legacy: `registrar/db/run_full_uat_bootstrap.cmd` forwards here.
+The bootstrap uses the self-contained SQL package tracked in this repository. Admission and Enrollment source checkouts are not required.
 
 ---
 

@@ -1,5 +1,5 @@
 $ErrorActionPreference = "Stop"
-$workspace = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\..\.."))
+$registrar = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\..\.."))
 $failures = [System.Collections.Generic.List[string]]::new()
 
 function Check([string]$Name, [bool]$Passed, [string]$Detail) {
@@ -10,14 +10,12 @@ function Check([string]$Name, [bool]$Passed, [string]$Detail) {
 }
 
 Write-Host "EAC demo prerequisite check" -ForegroundColor Cyan
-Write-Host "Workspace: $workspace"
+Write-Host "Registrar: $registrar"
 
-Check "Registrar project" (Test-Path (Join-Path $workspace "registrar\pom.xml")) "registrar/pom.xml"
-Check "Enrollment project" (Test-Path (Join-Path $workspace "enrollment3\pom.xml")) "enrollment3/pom.xml"
+Check "Registrar project" (Test-Path (Join-Path $registrar "pom.xml")) "pom.xml"
 Check "Java" ($null -ne (Get-Command java -ErrorAction SilentlyContinue)) "Java 17+ required"
 $hasMaven = $null -ne (Get-Command mvn -ErrorAction SilentlyContinue)
-$hasWrapper = Test-Path (Join-Path $workspace "enrollment3\mvnw.cmd")
-Check "Maven" ($hasMaven -or $hasWrapper) "mvn or enrollment wrapper"
+Check "Maven" $hasMaven "mvn"
 
 $mysql = Get-Command mysql -ErrorAction SilentlyContinue
 if (-not $mysql) {
@@ -42,9 +40,7 @@ if ($mysql) {
 }
 
 $registrarInUse = $null -ne (Get-NetTCPConnection -LocalPort 8083 -State Listen -ErrorAction SilentlyContinue)
-$enrollmentInUse = $null -ne (Get-NetTCPConnection -LocalPort 8082 -State Listen -ErrorAction SilentlyContinue)
 Check "Registrar port" $true $(if ($registrarInUse) { "8083 already in use; stop the existing app before starting another" } else { "8083 available" })
-Check "Enrollment port" $true $(if ($enrollmentInUse) { "8082 already in use; stop the existing app before starting another" } else { "8082 available" })
 
 if ($failures.Count -gt 0) {
     Write-Host "Failed checks: $($failures -join ', ')" -ForegroundColor Red

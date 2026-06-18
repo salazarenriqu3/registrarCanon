@@ -17,6 +17,8 @@ mvn spring-boot:run
 Default URL: `http://localhost:8083/registrar`  
 Demo login: `admin` / `1234`
 
+`RUN_FRESH_SETUP.cmd` drops and recreates `eacdb` after an explicit `RECREATE` confirmation. It uses the repository's self-contained SQL bundle; no Admission or Enrollment source checkout is required.
+
 ## Repository layout
 
 | Path | Purpose |
