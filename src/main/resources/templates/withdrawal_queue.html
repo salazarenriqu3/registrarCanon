@@ -22,11 +22,10 @@
                     <p class="page-subtitle" th:text="${pageSubtitle}">Review withdrawal requests.</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                    <a th:if="${queueMode != 'DEAN'}" th:href="@{/admin/withdrawals}" class="btn btn-outline" style="font-size: 0.85rem;">Approval Queue</a>
-                    <a th:if="${queueMode != 'DEAN'}" th:href="@{/admin/withdrawals/report}" class="btn btn-outline" style="font-size: 0.85rem;">Report</a>
-                    <span class="status-badge pending"><div class="status-dot"></div>Dean: <span th:text="${statusCounts.get('PENDING_DEAN')}">0</span></span>
-                    <span class="status-badge pending"><div class="status-dot"></div>Registrar: <span th:text="${statusCounts.get('PENDING_REGISTRAR')}">0</span></span>
+                    <a th:if="${queueMode != 'REPORT'}" th:href="@{/admin/withdrawals/report}" class="btn btn-outline" style="font-size: 0.85rem;">Withdrawal History</a>
+                    <span class="status-badge pending"><div class="status-dot"></div>Pending Registrar: <span th:text="${statusCounts.get('PENDING_REGISTRAR')}">0</span></span>
                     <span class="status-badge enrolled"><div class="status-dot"></div>Approved: <span th:text="${statusCounts.get('APPROVED')}">0</span></span>
+                    <span class="status-badge inactive"><div class="status-dot"></div>Rejected: <span th:text="${statusCounts.get('REJECTED')}">0</span></span>
                 </div>
             </div>
 
@@ -70,7 +69,7 @@
                 <div class="card-header">
                     <h4 class="card-title" style="margin: 0; color: #DC2626;">
                         <i class="ti ti-file-minus" aria-hidden="true"></i>
-                        <span th:text="${queueMode == 'DEAN' ? 'Pending Dean Review' : (queueMode == 'REPORT' ? 'Withdrawal History' : 'Pending Registrar Approval')}">Pending Requests</span>
+                        <span th:text="${queueMode == 'REPORT' ? 'Withdrawal History' : 'Pending Registrar Approval'}">Pending Requests</span>
                     </h4>
                 </div>
                 <div style="padding: 1rem 1.5rem 1.5rem;">
@@ -83,7 +82,7 @@
                                     <th>Reason</th>
                                     <th>Policy</th>
                                     <th>Status</th>
-                                    <th>Dean</th>
+                                    <th>Registrar Decision</th>
                                     <th style="padding-right: 1.5rem; text-align: right;">Action</th>
                                 </tr>
                             </thead>
@@ -100,9 +99,9 @@
                                         <div style="font-size: 0.78rem; color: var(--text-muted);" th:text="${wr.program_code + ' Y' + wr.year_level}">Program</div>
                                     </td>
                                     <td>
-                                        <div style="font-weight: 700;" th:text="${wr.course_code}">COURSE</div>
-                                        <div style="font-size: 0.8rem; color: var(--text-muted);" th:text="${wr.course_title}">Title</div>
-                                        <div style="font-size: 0.78rem; color: var(--text-muted);" th:text="${'Section ' + wr.section_code}">Section</div>
+                                        <div style="font-weight: 700;" th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'FULL CURRENT TERM' : wr.course_code}">COURSE</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-muted);" th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? wr.subject_count + ' subject(s)' : wr.course_title}">Title</div>
+                                        <div style="font-size: 0.78rem; color: var(--text-muted);" th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'All current-term enlisted subjects' : 'Section ' + wr.section_code}">Section</div>
                                     </td>
                                     <td>
                                         <div style="font-weight: 600;" th:text="${wr.reason_label}">Reason</div>
@@ -125,22 +124,18 @@
                                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;" th:text="${wr.requested_at}">requested</div>
                                     </td>
                                     <td>
-                                        <div th:if="${wr.dean_approved_at != null}">
-                                            <div style="font-weight: 600;" th:text="${wr.dean_approved_by}">Dean</div>
-                                            <div style="font-size: 0.75rem; color: var(--text-muted);" th:text="${wr.dean_approved_at}">time</div>
+                                        <div th:if="${wr.registrar_approved_at != null}">
+                                            <div style="font-weight: 600;" th:text="${wr.registrar_approved_by}">Registrar</div>
+                                            <div style="font-size: 0.75rem; color: var(--text-muted);" th:text="${wr.registrar_approved_at}">time</div>
                                         </div>
-                                        <div th:if="${wr.dean_approved_at == null}" style="color: var(--text-muted); font-size: 0.85rem;">Pending</div>
+                                        <div th:if="${wr.registrar_approved_at == null}" style="color: var(--text-muted); font-size: 0.85rem;">Pending Registrar</div>
                                     </td>
                                     <td style="padding-right: 1.5rem; text-align: right; min-width: 230px;">
-                                        <form th:if="${queueMode == 'DEAN'}" th:action="@{/faculty/withdrawals/dean-approve}" method="post" style="display: inline-block; margin: 0 0.35rem 0 0;" onsubmit="return confirm('Approve this withdrawal for Registrar review?');">
-                                            <input type="hidden" name="requestId" th:value="${wr.request_id}">
-                                            <button class="btn btn-primary" style="background: #0EA5E9; border-color: #0EA5E9;">Dean Approve</button>
-                                        </form>
                                         <form th:if="${queueMode == 'REGISTRAR'}" th:action="@{/admin/withdrawals/approve}" method="post" style="display: inline-block; margin: 0 0.35rem 0 0;" onsubmit="return confirm('Final-approve this withdrawal and remove the subject from the student load?');">
                                             <input type="hidden" name="requestId" th:value="${wr.request_id}">
-                                            <button class="btn btn-primary" style="background: #DC2626; border-color: #DC2626;">Registrar Approve</button>
+                                            <button class="btn btn-primary" style="background: #DC2626; border-color: #DC2626;" th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'Execute Full Withdrawal' : 'Registrar Approve'}">Registrar Approve</button>
                                         </form>
-                                        <form th:if="${queueMode != 'REPORT'}" th:action="${queueMode == 'DEAN'} ? @{/faculty/withdrawals/reject} : @{/admin/withdrawals/reject}" method="post" style="display: inline-grid; grid-template-columns: 1fr auto; gap: 0.35rem; margin-top: 0.5rem;">
+                                        <form th:if="${queueMode != 'REPORT'}" th:action="@{/admin/withdrawals/reject}" method="post" style="display: inline-grid; grid-template-columns: 1fr auto; gap: 0.35rem; margin-top: 0.5rem;">
                                             <input type="hidden" name="requestId" th:value="${wr.request_id}">
                                             <input type="text" name="rejectionReason" maxlength="500" class="form-control" placeholder="Reject reason" style="font-size: 0.75rem; padding: 0.25rem 0.4rem;">
                                             <button class="btn btn-ghost" style="border: 1px solid var(--border-color); font-size: 0.8rem;">Reject</button>
@@ -152,7 +147,7 @@
                         </table>
                     </div>
                     <p style="font-size: 0.8rem; color: var(--text-muted); margin: 1rem 0 0;">
-                        Registrar approval uses the existing withdrawal ledger recalculation path only after Dean review has forwarded the request.
+                        Every withdrawal case is archived. Registrar approval executes the queued request and preserves the full history trail.
                     </p>
                 </div>
             </div>

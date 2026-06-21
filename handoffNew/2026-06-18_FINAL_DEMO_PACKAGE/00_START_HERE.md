@@ -31,6 +31,14 @@ For a disposable machine/database only:
 handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\02_FRESH_DATABASE\RUN_FRESH_DATABASE.cmd
 ```
 
+Focused Registrar withdrawal data can then be loaded with:
+
+```cmd
+handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\04_RUNNERS\11_LOAD_WITHDRAWAL_UAT_DATA.cmd
+```
+
+The detailed checklist is `handoffNew\2026-06-22_WITHDRAWAL_UAT_CHECKLIST.md`.
+
 Warning: the fresh database command drops and recreates `eacdb`.
 
 Then run:

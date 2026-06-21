@@ -551,7 +551,7 @@
                                         <td th:text="${c.units}"></td>
                                         <td style="font-size: 0.85rem; color: var(--text-muted);" th:text="${c.pretty_schedule}"></td>
                                         <td style="text-align: right; min-width: 260px;">
-                                            <form th:action="@{/admin/withdrawals/request}" method="post" style="display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0;" onsubmit="return confirm('Submit this subject withdrawal for Dean review?');">
+                                            <form th:action="@{/admin/withdrawals/request}" method="post" style="display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0;" onsubmit="return confirm('Submit this class withdrawal for Registrar approval?');">
                                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                                 <input type="hidden" name="scheduleId" th:value="${c.schedule_id}">
                                                 <select name="reasonCode" class="form-control" required style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">
@@ -574,6 +574,25 @@
                                 </tfoot>
                             </table>
                         </div>
+                        <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); background: rgba(220,38,38,0.035);">
+                            <div style="font-weight: 700; color: #B91C1C; margin-bottom: 0.35rem;">Withdraw Student From School</div>
+                            <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem;">
+                                This creates one tracked full-student case with an archived line for every current-term class. The load remains until Registrar approval.
+                            </p>
+                            <form th:action="@{/admin/withdrawals/request-student}" method="post"
+                                  style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
+                                  onsubmit="return confirm('Submit a full-student withdrawal for Registrar approval? Approval removes every current-term class and deactivates the student account.');">
+                                <input type="hidden" name="studentNumber" th:value="${student.username}">
+                                <select name="reasonCode" class="form-control" required style="flex: 1 1 180px;">
+                                    <option value="" disabled selected>Withdrawal reason</option>
+                                    <option th:each="reason : ${withdrawalReasons}" th:value="${reason.reason_code}" th:text="${reason.reason_label}"></option>
+                                </select>
+                                <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Case reference / remarks" style="flex: 2 1 220px;">
+                                <button type="submit" class="btn" style="background: #B91C1C; color: #fff; white-space: nowrap;">
+                                    <i class="ti ti-user-minus" aria-hidden="true"></i> Request Full Withdrawal
+                                </button>
+                            </form>
+                        </div>
                     </div>
 
                     <!-- Withdrawal Requests -->
@@ -595,8 +614,10 @@
                                 <tbody>
                                     <tr th:each="wr : ${studentWithdrawalRequests}">
                                         <td>
-                                            <div style="font-weight: 700;" th:text="${wr.course_code}">COURSE</div>
-                                            <div style="font-size: 0.78rem; color: var(--text-muted);" th:text="${wr.section_code}">SECTION</div>
+                                            <div style="font-weight: 700;"
+                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'FULL STUDENT' : wr.course_code}">COURSE</div>
+                                            <div style="font-size: 0.78rem; color: var(--text-muted);"
+                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? wr.subject_count + ' classes archived' : wr.section_code}">SECTION</div>
                                         </td>
                                         <td>
                                             <div th:text="${wr.reason_label}">Reason</div>
@@ -606,7 +627,7 @@
                                             <span class="status-badge"
                                                   th:classappend="${wr.status == 'APPROVED'} ? 'enrolled' : (${wr.status == 'REJECTED'} ? 'inactive' : 'pending')">
                                                 <div class="status-dot"></div>
-                                                <span th:text="${wr.status}">STATUS</span>
+                                                <span th:text="${wr.status == 'APPROVED' ? 'COMPLETED' : wr.status}">STATUS</span>
                                             </span>
                                         </td>
                                         <td style="font-size: 0.8rem; color: var(--text-muted);" th:text="${wr.requested_at}">date</td>
@@ -619,8 +640,12 @@
                     <!-- Not Enrolled State -->
                     <div th:if="${!hasEnrolledSubjects}" class="card" style="border-left: 4px solid #3B82F6; text-align: center; padding: 3rem 1rem;">
                         <i class="ti ti-info-circle" style="font-size: 3rem; color: #3B82F6; margin-bottom: 1rem; display: block; opacity: 0.8;"></i>
-                        <h5 style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">Not Yet Enrolled</h5>
-                        <p style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+                        <h5 th:if="${student.admission_status == 'WITHDRAWN'}" style="font-weight: 700; color: #B91C1C; font-size: 1.25rem; margin-bottom: 0.5rem;">Withdrawn From School</h5>
+                        <h5 th:unless="${student.admission_status == 'WITHDRAWN'}" style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">Not Yet Enrolled</h5>
+                        <p th:if="${student.admission_status == 'WITHDRAWN'}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+                            The Registrar completed the full-student withdrawal. The profile, class-line snapshots, and document trail remain archived.
+                        </p>
+                        <p th:unless="${student.admission_status == 'WITHDRAWN'}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
                             This student has a Student ID but has not yet been enrolled in any subjects.<br>
                             Enrollment is processed via the <a th:href="${enrollmentCashierUrl}" target="_blank" style="color: var(--primary-color); font-weight: 600; text-decoration: none;">External Enrollment System</a>.
                         </p>

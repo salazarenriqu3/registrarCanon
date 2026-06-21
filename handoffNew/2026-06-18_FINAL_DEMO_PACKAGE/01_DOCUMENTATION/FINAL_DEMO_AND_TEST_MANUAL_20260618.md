@@ -157,14 +157,15 @@ Pass when identity, committed load, curriculum, alerts, and document history agr
 
 ### Demo 3 - Withdrawal workflow (10 minutes)
 
-Use a disposable student with a committed active-term subject.
+Load `03_TEST_DATA\20_withdrawal_uat_seed.sql` or run
+`04_RUNNERS\11_LOAD_WITHDRAWAL_UAT_DATA.cmd` to prepare the disposable student.
 
-1. From Student Profile, submit a withdrawal request with a reason.
-2. Open `/registrar/faculty/withdrawals` for Dean review.
-3. Approve or reject the Dean stage according to the test case.
-4. Open `/registrar/admin/withdrawals` and complete Registrar action.
-5. Open `/registrar/admin/withdrawals/report`.
-6. Verify the event in `/registrar/admin/document-trail`.
+1. From Student Profile, submit one class withdrawal with a reason.
+2. Confirm the class remains until approval and the request is `PENDING_REGISTRAR`.
+3. Open `/registrar/admin/withdrawals` and approve or reject the case.
+4. Repeat with `Request Full Withdrawal` and verify every current-term class is represented by an archived request line.
+5. Approve the full-student case and confirm the student and login are inactive while the permanent profile remains.
+6. Open `/registrar/admin/withdrawals/report` and `/registrar/admin/document-trail`.
 
 Pass when status transitions, actor/action history, report, and student load reflect one consistent outcome. Do not use the stale `SL_1120262026` fixture for the active term.
 
@@ -257,9 +258,9 @@ Mark each row Pass, Fail, Blocked, or Not Run and attach a screenshot/student nu
 
 | ID | Test | Expected |
 |---|---|---|
-| D01 | Withdrawal submission | Reason and active subject persist |
-| D02 | Dean review | Status and reviewer are recorded |
-| D03 | Registrar action | Final action updates report/trail |
+| D01 | Class withdrawal submission | Reason and active class persist until Registrar approval |
+| D02 | Full-student submission | One header and one immutable line per current-term class persist |
+| D03 | Registrar action | Approver, timestamp, final state, report, and document trail agree |
 | D04 | Faculty login | `prof.cruz` does not loop to login |
 | D05 | Faculty roster | Assigned section shows committed students only |
 | D06 | Grade save/reload | Grade persists |

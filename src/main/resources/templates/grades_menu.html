@@ -71,18 +71,6 @@
                     </div>
                 </div>
 
-                <div class="card card-modern p-4 mb-4 border-start border-5 border-danger">
-                    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                        <div>
-                            <h5 class="mb-1 text-danger">Withdrawal Review</h5>
-                            <p class="mb-0 text-muted">Review subject withdrawal requests before Registrar final approval.</p>
-                        </div>
-                        <a th:href="@{/faculty/withdrawals}" class="btn btn-outline-danger">
-                            <i class="fas fa-file-circle-minus me-1"></i> Open Review Queue
-                        </a>
-                    </div>
-                </div>
-
                 <div class="row g-4">
                     <div class="col-md-4 class-card" th:each="c : ${classes}" 
                          th:data-code="${c.course_code}" th:data-desc="${c.description}">

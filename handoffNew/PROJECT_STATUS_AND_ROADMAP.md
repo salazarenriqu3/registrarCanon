@@ -141,6 +141,10 @@ Work that was not in the original stabilization scope but was delivered:
 
 **Execution note (2026-06-18):** Registrar functional regression is clean (42 passed, 1 skipped). The full Maven command still reports the pre-existing Modulith package-cycle violation as one structural error. Live readiness for `1120242025` is green. Enrollment was started and admin login passed, but Session C remains pending because the available withdrawal UAT record points to `SL_1120262026` while Registrar is open on `1120242025`, has no current assessment, and Enrollment logs an `Unknown column 'RESERVED'` schema warning. Session D is waiting for a working faculty test login, and Session E still needs transactional UAT data/sign-off. The dashboard active-term subtitle was realigned to the canonical active-term model instead of a hardcoded term.
 
+**Withdrawal governance note (2026-06-22):** Withdrawal is now Registrar-owned with no Dean stage. Both one-class and full-student cases remain pending until Registrar approval, preserve request headers and per-class lines, record document/reg-form trail events, and retain withdrawn student history. The focused UAT is `2026-06-22_WITHDRAWAL_UAT_CHECKLIST.md`.
+
+**Validation note (2026-06-22):** The latest canonical branch passes the complete Maven suite: 71 tests passed, 0 failed, 1 intentionally skipped. This includes Modulith verification and five focused Registrar withdrawal tests. The external enrollment schema warning for `RESERVED` remains visible during shared-database startup and is still outside this Registrar-only patch.
+
 **Long-form demos (optional):**
 
 - `THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md` — 2+ hr
