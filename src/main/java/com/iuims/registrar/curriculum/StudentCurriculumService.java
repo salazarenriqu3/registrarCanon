@@ -1,21 +1,8 @@
 package com.iuims.registrar.curriculum;
-import com.iuims.registrar.academic.AcademicGradingService;
+
 import com.iuims.registrar.core.GradeOutcomeSql;
-import com.iuims.registrar.admission.ApplicantStatusSyncService;
-import com.iuims.registrar.admission.FinanceAdmissionService;
-import com.iuims.registrar.curriculum.CurriculumSeederService;
-import com.iuims.registrar.curriculum.StudentCurriculumService;
-import com.iuims.registrar.core.EnlistmentSchemaService;
-import com.iuims.registrar.faculty.FacultyLoadService;
-import com.iuims.registrar.scholarship.ScholarEnrollmentService;
-import com.iuims.registrar.finance.TermFeeAdminService;
-import com.iuims.registrar.core.DatabaseSetupService;
-import com.iuims.registrar.jaypee.JaypeeIntegrationService;
-import com.iuims.registrar.core.PolicySettings;
-import com.iuims.registrar.core.SqlGenerator;
 import com.iuims.registrar.forms.RegFormEventService;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,11 +15,13 @@ import java.util.Map;
 @Service
 public class StudentCurriculumService {
 
-    @Autowired
-    private JdbcTemplate db;
+    private final JdbcTemplate db;
+    private final RegFormEventService regFormEventService;
 
-    @Autowired
-    private RegFormEventService regFormEventService;
+    public StudentCurriculumService(JdbcTemplate db, RegFormEventService regFormEventService) {
+        this.db = db;
+        this.regFormEventService = regFormEventService;
+    }
 
     public void ensureSchema() {
         db.execute("""

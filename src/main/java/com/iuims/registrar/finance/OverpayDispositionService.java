@@ -1,7 +1,6 @@
 package com.iuims.registrar.finance;
 
 import com.iuims.registrar.forms.RegFormEventService;
-import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -13,21 +12,21 @@ import java.util.UUID;
 public class OverpayDispositionService {
 
     private final JdbcTemplate db;
-    private final ScholarEnrollmentService scholarEnrollmentService;
+    private final StudentOverpaymentBalancePort balancePort;
     private final RegFormEventService regFormEventService;
 
     @Autowired
     public OverpayDispositionService(JdbcTemplate db,
-                                     ScholarEnrollmentService scholarEnrollmentService,
+                                     StudentOverpaymentBalancePort balancePort,
                                      RegFormEventService regFormEventService) {
         this.db = db;
-        this.scholarEnrollmentService = scholarEnrollmentService;
+        this.balancePort = balancePort;
         this.regFormEventService = regFormEventService;
     }
 
     public OverpayDispositionService(JdbcTemplate db,
-                                     ScholarEnrollmentService scholarEnrollmentService) {
-        this(db, scholarEnrollmentService, null);
+                                     StudentOverpaymentBalancePort balancePort) {
+        this(db, balancePort, null);
     }
 
     public record DispositionResult(
@@ -47,14 +46,14 @@ public class OverpayDispositionService {
 
     @Transactional
     public DispositionResult applyAsCredit(String studentNumber, double amount, String decidedBy, String remarks) {
-        double pending = scholarEnrollmentService.getPendingTermCredit(studentNumber);
+        double pending = balancePort.getPendingTermCredit(studentNumber);
         double credit = amount > 0.01 ? amount : pending;
         return postDisposition(studentNumber, 0, credit, decidedBy, remarks);
     }
 
     @Transactional
     public DispositionResult refundAsCash(String studentNumber, double amount, String decidedBy, String remarks) {
-        double pending = scholarEnrollmentService.getPendingTermCredit(studentNumber);
+        double pending = balancePort.getPendingTermCredit(studentNumber);
         double refund = amount > 0.01 ? amount : pending;
         return postDisposition(studentNumber, refund, 0, decidedBy, remarks);
     }
@@ -77,7 +76,7 @@ public class OverpayDispositionService {
             return DispositionResult.fail("Student number is required.");
         }
         String sn = studentNumber.trim();
-        double pending = scholarEnrollmentService.getPendingTermCredit(sn);
+        double pending = balancePort.getPendingTermCredit(sn);
         double total = refundAmount + creditAmount;
         if (total <= 0.01) {
             return DispositionResult.fail("Amount must be greater than zero.");
@@ -144,8 +143,8 @@ public class OverpayDispositionService {
         } catch (Exception ignored) {
         }
 
-        double pendingRemaining = scholarEnrollmentService.getPendingTermCredit(sn);
-        double forwardNet = scholarEnrollmentService.getForwardedBalanceNet(sn);
+        double pendingRemaining = balancePort.getPendingTermCredit(sn);
+        double forwardNet = balancePort.getForwardedBalanceNet(sn);
         return DispositionResult.ok(
             String.format("Disposition recorded: refund ₱%,.2f, credit ₱%,.2f.", refundAmount, creditAmount),
             pendingRemaining, forwardNet);

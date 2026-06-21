@@ -1,10 +1,7 @@
 package com.iuims.registrar.curriculum;
 
-import com.iuims.registrar.academic.Grade;
-import com.iuims.registrar.academic.GradeRepository;
 import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.forms.RegFormEventService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,11 +9,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.BufferedReader;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class CreditGradeService {
@@ -25,17 +19,20 @@ public class CreditGradeService {
 
     public record BulkCreditResult(int credited, int skipped, List<BulkCreditLineResult> lines) {}
 
-    @Autowired
-    private GradeRepository gradeRepository;
+    private final JdbcTemplate db;
+    private final StudentCurriculumService studentCurriculumService;
+    private final RegFormEventService regFormEventService;
+    private final TransferCreditGradePort transferCreditGradePort;
 
-    @Autowired
-    private JdbcTemplate db;
-
-    @Autowired
-    private StudentCurriculumService studentCurriculumService;
-
-    @Autowired
-    private RegFormEventService regFormEventService;
+    public CreditGradeService(JdbcTemplate db,
+                              StudentCurriculumService studentCurriculumService,
+                              RegFormEventService regFormEventService,
+                              TransferCreditGradePort transferCreditGradePort) {
+        this.db = db;
+        this.studentCurriculumService = studentCurriculumService;
+        this.regFormEventService = regFormEventService;
+        this.transferCreditGradePort = transferCreditGradePort;
+    }
 
     @Transactional
     public String creditCourse(String studentNumber, int courseId, Double numericGrade,
@@ -144,26 +141,13 @@ public class CreditGradeService {
             return "ERROR: Student already has a passing grade for this course.";
         }
 
-        String studentName = resolveStudentName(sn);
-        Grade grade = findExistingGrade(sn, courseId).orElseGet(Grade::new);
-        grade.setStudentId(sn);
-        grade.setCourseId(courseId);
-        grade.setSectionId(null);
-        grade.setStudentName(studentName);
-        grade.setRemarks("Passed");
-        grade.setStatus("SUBMITTED");
-        grade.setGradeLockStatus("LOCKED");
-        grade.setGradeLockReason(buildLockReason(sourceSchool, note));
+        transferCreditGradePort.saveTransferCredit(
+            sn,
+            courseId,
+            resolveStudentName(sn),
+            buildLockReason(sourceSchool, note),
+            numericGrade != null ? BigDecimal.valueOf(numericGrade) : null);
 
-        if (numericGrade != null) {
-            BigDecimal value = BigDecimal.valueOf(numericGrade);
-            grade.setRegistrarFinalGrade(value);
-            grade.setSemestralGrade(value);
-            grade.setRegistrarFinalRemarks("Passed");
-            grade.setRegistrarFinalizedAt(LocalDateTime.now());
-        }
-
-        gradeRepository.save(grade);
         try {
             StringBuilder remarks = new StringBuilder();
             remarks.append("Credited ").append(courseCode);
@@ -206,18 +190,6 @@ public class CreditGradeService {
         } catch (Exception e) {
             return null;
         }
-    }
-
-    private java.util.Optional<Grade> findExistingGrade(String studentNumber, int courseId) {
-        for (Object key : gradeLookupKeys(studentNumber)) {
-            List<Grade> rows = gradeRepository.findByStudentId(key.toString());
-            for (Grade row : rows) {
-                if (row.getCourseId() != null && row.getCourseId() == courseId) {
-                    return java.util.Optional.of(row);
-                }
-            }
-        }
-        return java.util.Optional.empty();
     }
 
     private boolean isCoursePassed(String studentNumber, int courseId) {

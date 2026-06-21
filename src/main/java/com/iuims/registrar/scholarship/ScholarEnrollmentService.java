@@ -10,6 +10,7 @@ import com.iuims.registrar.core.EnlistmentSchemaService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.LedgerTransactionTypes;
+import com.iuims.registrar.finance.StudentOverpaymentBalancePort;
 import com.iuims.registrar.finance.TermFeeAdminService;
 import com.iuims.registrar.core.YearLevelLoadPolicyService;
 import com.iuims.registrar.core.DatabaseSetupService;
@@ -39,7 +40,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
-public class ScholarEnrollmentService {
+public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     private static final Logger log = LoggerFactory.getLogger(ScholarEnrollmentService.class);
 

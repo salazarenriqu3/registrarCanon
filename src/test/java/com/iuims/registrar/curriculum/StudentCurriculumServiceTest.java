@@ -20,7 +20,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
-import org.springframework.test.util.ReflectionTestUtils;
 
 class StudentCurriculumServiceTest {
 
@@ -61,8 +60,7 @@ class StudentCurriculumServiceTest {
             )
             """);
 
-        service = new StudentCurriculumService();
-        ReflectionTestUtils.setField(service, "db", db);
+        service = new StudentCurriculumService(db, null);
         service.ensureSchema();
     }
 
