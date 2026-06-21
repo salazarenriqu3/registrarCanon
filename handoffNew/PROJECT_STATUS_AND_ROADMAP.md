@@ -171,7 +171,7 @@ Work that was not in the original stabilization scope but was delivered:
 
 - TOR PDF / OCR
 - Course equivalency table
-- Scheduling automation / room conflicts
+- Automatic timetable generation (hard room/faculty/section overlap validation is already live for manual schedule saves)
 - Curriculum CSV **import** (export only)
 - Six retired programs (unless official curriculum supplied)
 

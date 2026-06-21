@@ -15,12 +15,13 @@ Scope: registrar only. The retired admission/pre-registration/dean bridge is not
 
 ## UI changes
 
-- Curriculum recovery/import actions are collapsed under **Import & Maintenance**.
+- The normal curriculum path is displayed as three explicit steps: **New Curriculum Draft**, build the course plan, then **Publish & Activate**.
+- Curriculum recovery/import actions are collapsed under **Import & Maintenance** and identified as administrative tools outside the normal workflow.
 - **New Curriculum Draft** replaces the ambiguous placeholder action in the normal workflow.
 - **Publish & Activate** makes the active-version transition explicit.
 - Curriculum rows display lecture, laboratory, and total units.
 - Course Catalog edits lecture and laboratory units and derives total units.
-- Course Catalog's location action opens concrete curriculum, section, record, and prerequisite usage.
+- Course Catalog's **Where Used** action opens concrete curriculum, section, record, and prerequisite usage.
 - Scheduling copy now explains active-curriculum materialization, TBA rooms, and collision blocking.
 
 ## Technical changes

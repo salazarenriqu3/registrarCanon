@@ -6,17 +6,18 @@
 2. Create a temporary course with 2 lecture units and 1 laboratory unit.
 3. Confirm the table shows `3` total and `2 lec + 1 lab`.
 4. Edit the course and confirm both unit fields reopen correctly.
-5. Click the location-pin action and confirm the usage dialog opens.
+5. Click **Where Used** and confirm the usage dialog opens.
 
 ## Curriculum
 
-1. Open **Academics > Curriculum** and confirm maintenance tools are collapsed.
+1. Open **Academics > Curriculum** and confirm the three-step normal workflow is visible while maintenance tools remain collapsed.
 2. Create or clone a working draft for a test program.
-3. Search for the temporary catalog course and attach it.
-4. Confirm the row shows lecture, laboratory, and total units separately.
-5. Confirm only year and semester placement are editable for an attached catalog course.
-6. Add at least one course, click **Publish & Activate**, and accept the confirmation.
-7. Return to Active and History views; confirm the new version is active and the previous version is historical.
+3. Confirm the draft states that it remains inactive until **Publish & Activate**.
+4. Search for the temporary catalog course and attach it.
+5. Confirm the row shows lecture, laboratory, and total units separately.
+6. Confirm only year and semester placement are editable for an attached catalog course.
+7. Add at least one course, click **Publish & Activate**, and accept the confirmation.
+8. Return to Active and History views; confirm the new version is active and the previous version is historical.
 
 ## Usage Trace
 

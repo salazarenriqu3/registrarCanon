@@ -53,6 +53,20 @@
             padding: 1rem;
             margin-bottom: 1.5rem;
         }
+        .catalog-guide {
+            display: flex;
+            align-items: flex-start;
+            gap: .75rem;
+            margin-bottom: 1.5rem;
+            padding: .85rem 1rem;
+            border: 1px solid rgba(30, 64, 175, .18);
+            border-left: 4px solid var(--primary-color);
+            border-radius: var(--radius-md);
+            background: rgba(239, 246, 255, .72);
+            color: var(--text-secondary);
+            font-size: .86rem;
+            line-height: 1.45;
+        }
         .filter-row {
             display: flex;
             gap: .8rem;
@@ -198,7 +212,7 @@
             <div class="catalog-header">
                 <div>
                     <h1 class="page-title">Course Catalog</h1>
-                    <p class="page-subtitle">Manage shared course records used by curriculum, scheduling, grading, and enrollment.</p>
+                    <p class="page-subtitle">Manage the shared master record for every course used across Registrar.</p>
                 </div>
                 <div class="catalog-actions">
                     <a th:href="@{/admin/curriculum}" class="btn btn-outline">
@@ -208,6 +222,11 @@
                         <i class="ti ti-plus" aria-hidden="true"></i> New Course
                     </button>
                 </div>
+            </div>
+
+            <div class="catalog-guide">
+                <i class="ti ti-info-circle" aria-hidden="true" style="color:var(--primary-color); font-size:1.15rem;"></i>
+                <span><strong>One course, reused everywhere.</strong> Curriculum versions place these catalog courses by year and semester; class scheduling creates offerings from them. Use <strong>Where Used</strong> before editing to inspect the exact curricula, sections, student records, and prerequisites linked to a course.</span>
             </div>
 
             <div class="stats-grid">
@@ -225,7 +244,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-value" th:text="${summary.used}">0</div>
-                    <div class="stat-label">Used Somewhere</div>
+                    <div class="stat-label">Courses In Use</div>
                 </div>
             </div>
 
@@ -267,7 +286,7 @@
                             <th style="width: 11%; text-align: center;">Units</th>
                             <th style="width: 20%;">Department</th>
                             <th style="width: 10%; text-align: center;">Status</th>
-                            <th style="width: 22%;">Usage</th>
+                            <th style="width: 22%;">Usage Summary</th>
                             <th style="width: 16%; text-align: right; padding-right: 1.25rem;">Actions</th>
                         </tr>
                         </thead>
@@ -305,8 +324,9 @@
                             </td>
                             <td style="padding-right: 1.25rem;">
                                 <div class="row-actions">
-                                    <button type="button" class="btn btn-outline" style="padding: .3rem .55rem;" th:attr="data-course-id=${c.course_id},data-usage-url=@{/admin/courses/usage}" onclick="openUsageModal(this)" title="View where this course is used">
+                                    <button type="button" class="btn btn-outline" style="padding: .3rem .65rem;" th:attr="data-course-id=${c.course_id},data-usage-url=@{/admin/courses/usage}" onclick="openUsageModal(this)" title="View where this course is used">
                                         <i class="ti ti-map-pin" aria-hidden="true"></i>
+                                        <span>Where Used</span>
                                     </button>
                                     <button type="button" class="btn btn-outline" style="padding: .3rem .55rem;"
                                             th:attr="data-course-id=${c.course_id},data-course-code=${c.course_code},data-course-title=${c.course_title},data-department-id=${c.department_id},data-lecture-units=${c.lec_units},data-laboratory-units=${c.lab_units},data-active=${c.active_status}"
@@ -399,7 +419,7 @@
                     </div>
                 </div>
                 <div class="hint-box">
-                    Total credit units are calculated as lecture plus laboratory units. Editing this shared record updates how the course is shown in every curriculum and scheduling workspace; use the location button in the table to inspect its current usage first.
+                    Total credit units are calculated as lecture plus laboratory units. Editing this shared record updates how the course is shown in every curriculum and scheduling workspace; use <strong>Where Used</strong> in the table to inspect its current links first.
                 </div>
             </div>
             <div class="modal-footer">

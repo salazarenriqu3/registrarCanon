@@ -99,6 +99,71 @@
             gap: .4rem;
             align-items: center;
         }
+        .workflow-guide {
+            display: grid;
+            grid-template-columns: minmax(280px, 1.5fr) repeat(2, minmax(180px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .workflow-step {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-lg);
+            padding: 1rem;
+            box-shadow: var(--shadow-sm);
+        }
+        .workflow-step.primary { border-left: 4px solid var(--primary-color); }
+        .workflow-step-title {
+            display: flex;
+            align-items: center;
+            gap: .5rem;
+            margin-bottom: .35rem;
+            color: var(--text-primary);
+            font-weight: 800;
+        }
+        .workflow-step-number {
+            display: inline-grid;
+            place-items: center;
+            width: 1.55rem;
+            height: 1.55rem;
+            border-radius: 999px;
+            background: var(--primary-color);
+            color: white;
+            font-size: .78rem;
+        }
+        .workflow-step p {
+            margin: 0 0 .75rem;
+            color: var(--text-muted);
+            font-size: .84rem;
+            line-height: 1.45;
+        }
+        .maintenance-menu {
+            position: absolute;
+            right: 0;
+            z-index: 20;
+            width: 340px;
+            padding: 1rem;
+            display: grid;
+            gap: .65rem;
+            margin-top: .5rem;
+        }
+        .maintenance-warning {
+            border-left: 3px solid #d97706;
+            background: #fffbeb;
+            color: #92400e;
+            padding: .65rem .75rem;
+            font-size: .8rem;
+            line-height: 1.4;
+        }
+        .draft-notice {
+            margin: 1rem 1rem 0;
+            padding: .8rem 1rem;
+            border: 1px solid rgba(217, 119, 6, .25);
+            border-radius: var(--radius-md);
+            background: #fffbeb;
+            color: #92400e;
+            font-size: .86rem;
+        }
         .curriculum-meta {
             display: flex;
             gap: .4rem;
@@ -384,6 +449,12 @@
             justify-content: flex-end;
             gap: 1rem;
         }
+        @media (max-width: 980px) {
+            .workflow-guide { grid-template-columns: 1fr; }
+        }
+        @media (max-width: 640px) {
+            .maintenance-menu { position: static; width: min(340px, 90vw); }
+        }
     </style>
     <script th:inline="javascript">
         const ctx = /*[[@{/}]]*/ '/';
@@ -411,11 +482,12 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
                 <div>
                     <h1 class="page-title">Curriculum Management</h1>
-                    <p class="page-subtitle" th:text="'Manage academic programs and course requisites. Rows shown: ' + ${#lists.size(programs)}"></p>
+                    <p class="page-subtitle" th:text="'Build, publish, and review program curriculum versions. Rows shown: ' + ${#lists.size(programs)}"></p>
                 </div>
                 <details th:unless="${courses != null}" style="position:relative;">
                     <summary class="btn btn-outline" style="list-style:none; cursor:pointer;"><i class="ti ti-settings"></i> Import &amp; Maintenance</summary>
-                    <div class="card" style="position:absolute; right:0; z-index:20; width:320px; padding:1rem; display:grid; gap:.65rem; margin-top:.5rem;" title="Import and recovery tools; normal curriculum work starts with New Curriculum Draft below.">
+                    <div class="card maintenance-menu" title="Import and recovery tools; normal curriculum work starts with New Curriculum Draft below.">
+                    <div class="maintenance-warning"><strong>Administrative tools</strong><br>Use these only for imports or data repair. They are not required to create and publish a normal curriculum.</div>
                     <button class="btn btn-outline" onclick="document.getElementById('uploadModal').classList.add('show')">
                         <i class="ti ti-upload" aria-hidden="true"></i> Import .docx
                     </button>
@@ -435,7 +507,6 @@
                             <i class="ti ti-archive" aria-hidden="true"></i> Repair Active Versions
                         </button>
                     </form>
-                        <small style="color:var(--text-muted);">Recovery tools are separate from the normal create, edit, and publish workflow.</small>
                     </div>
                 </details>
             </div>
@@ -458,21 +529,31 @@
                     </select>
                     <button type="submit" class="btn btn-outline"><i class="ti ti-filter"></i> Filter</button>
                 </form>
-                <form th:action="@{/admin/curriculum/placeholder}" method="post" class="curriculum-actions">
-                    <select name="programCode" class="form-control" style="min-width: 260px;" required>
-                        <option value="">Select program for new working draft</option>
-                        <option th:each="p : ${programOptions}"
-                                th:value="${p.program_code}"
-                                th:text="${p.program_code + ' - ' + p.program_name}"></option>
-                    </select>
-                    <input name="academicYear" class="form-control" style="width: 130px;" placeholder="2024-2025">
-                    <button type="submit" class="btn btn-primary" onclick="showSpinner('Creating working curriculum draft...')"><i class="ti ti-file-plus"></i> New Curriculum Draft</button>
-                </form>
             </div>
 
-            <div th:unless="${courses != null}" class="card" style="padding:1rem 1.25rem; margin-bottom:1.25rem; border-left:4px solid var(--primary-color);">
-                <strong>Normal workflow:</strong>
-                <span style="color:var(--text-muted);">create or clone a working draft, attach shared catalog courses and place them by year and semester, then publish it. Publishing makes that version active and archives the previous active version for the same program.</span>
+            <div th:unless="${courses != null}" class="workflow-guide">
+                <div class="workflow-step primary">
+                    <div class="workflow-step-title"><span class="workflow-step-number">1</span> Create a working draft</div>
+                    <p>Select a program and academic year. A new draft is editable but does not affect active scheduling until it is published.</p>
+                    <form th:action="@{/admin/curriculum/placeholder}" method="post" class="curriculum-actions">
+                        <select name="programCode" class="form-control" style="min-width: 240px;" required>
+                            <option value="">Select program</option>
+                            <option th:each="p : ${programOptions}"
+                                    th:value="${p.program_code}"
+                                    th:text="${p.program_code + ' - ' + p.program_name}"></option>
+                        </select>
+                        <input name="academicYear" class="form-control" style="width: 130px;" placeholder="2024-2025" aria-label="Academic year">
+                        <button type="submit" class="btn btn-primary" onclick="showSpinner('Creating working curriculum draft...')"><i class="ti ti-file-plus"></i> New Curriculum Draft</button>
+                    </form>
+                </div>
+                <div class="workflow-step">
+                    <div class="workflow-step-title"><span class="workflow-step-number">2</span> Build the course plan</div>
+                    <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Lecture and laboratory units remain visible separately.</p>
+                </div>
+                <div class="workflow-step">
+                    <div class="workflow-step-title"><span class="workflow-step-number">3</span> Publish and activate</div>
+                    <p>Use <strong>Publish &amp; Activate</strong> inside the draft. That version becomes active and the previous active version moves to History.</p>
+                </div>
             </div>
 
             <div th:unless="${courses != null}" th:if="${completionQueue != null and !#lists.isEmpty(completionQueue)}" class="completion-workspace">
@@ -590,6 +671,9 @@
                             <i class="ti ti-arrow-left" aria-hidden="true"></i> Back
                         </a>
                     </div>
+                </div>
+                <div th:if="${curriculumEditable}" class="draft-notice">
+                    <strong>Working draft:</strong> edits here are not used for active class scheduling until you select <strong>Publish &amp; Activate</strong>.
                 </div>
                 <div th:if="${curriculumEditable}" class="editor-panel">
                     <form th:action="@{/admin/curriculum/course/add}" method="post" class="editor-grid" id="courseAddForm"

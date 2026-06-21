@@ -539,7 +539,7 @@ cd enrollment3 && mvn -q spring-boot:run
 
 - TOR PDF upload / OCR
 - Course equivalency table
-- Scheduling automation / room conflicts
+- Automatic timetable generation (hard room/faculty/section overlap validation is already live for manual schedule saves)
 - Six retired programs: BSBA, BSCE, BSCS, BSECE, BSED, BSMATH
 - Production fee rates (seeds use demo amounts)
 - Python preflight (optional)

@@ -1,6 +1,6 @@
 # Current State Map
 
-Last updated: 2026-06-19
+Last updated: 2026-06-21
 
 > **For current status, roadmap, and UAT progress read `PROJECT_STATUS_AND_ROADMAP.md` first.**  
 > Changelog: **`HANDOFF_UPDATES_20260609.md`** (§13–15 = UI contrast, doc sync, UAT decisions).  
@@ -17,6 +17,7 @@ Last updated: 2026-06-19
 | Program Builder | Live; Registrar owns core program master data separately from curriculum mapping |
 | Course Catalog | Live; lecture/laboratory units and usage drilldown are exposed in the Registrar UI |
 | Curriculum readiness | 18 active programs; 6 soft-retired (no source curriculum) |
+| Schedule collision rules | Live; active saves reject same-term room, faculty, and same-section overlaps while allowing TBA rooms |
 | Slot Monitoring | Live; committed counts, staged pre-registration counts, capacity edits, and close actions are visible per section |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
 | Registrar Spring Security | **Deferred** — proposal only |
@@ -24,6 +25,14 @@ Last updated: 2026-06-19
 | Runtime verification (June 8) | Cross-app, term transition scripts — PASS in `_runtime_logs/` |
 
 **Handoff implementation scope: complete.** Remaining work is UAT sign-off, user refinements, then production backlog — not stabilization coding.
+
+## 2026-06-21 Academic Builder Clarification
+
+- Curriculum Management presents the normal path as: create a working draft, build the year/semester course plan, then publish and activate it.
+- A working draft remains inactive until **Publish & Activate** is selected; activation archives the prior active version for that program.
+- Import and repair controls are administrative recovery tools, not normal curriculum creation actions.
+- Course Catalog is the shared course master. **Where Used** expands concrete curriculum placements, class sections, student/academic records, and prerequisite links before a shared course is edited.
+- Class Scheduling save paths hard-block same-term room, faculty, and same-section overlaps. A room may remain TBA and be assigned later.
 
 ## 2026-06-17 Registrar Scope Overlay
 

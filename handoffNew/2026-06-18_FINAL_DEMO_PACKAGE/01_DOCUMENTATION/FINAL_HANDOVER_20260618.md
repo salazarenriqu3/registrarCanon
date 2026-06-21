@@ -152,7 +152,7 @@ This section captures the work completed after the 2026-06-18 baseline that the 
 - Course-section filters now cover search, department, section availability, section status, faculty assignment, schedule state, day, and room.
 - Filter state is preserved after apply/reset so the current selection remains visible.
 - The course/section load path was refactored to use bulk queries instead of per-row lookups, which made the large scheduling page noticeably faster on the current dataset.
-- Important known gap: the system still does not enforce room/time clash prevention as a hard validation rule. Clashing schedules can still be created unless that logic is added later.
+- Schedule writes now hard-block same-term overlaps for the same room, assigned faculty member, or class section. Rooms may intentionally remain TBA; overlap validation applies once a room is assigned.
 
 ### Curriculum management
 
@@ -179,5 +179,5 @@ This section captures the work completed after the 2026-06-18 baseline that the 
   - `FINAL_SYSTEM_DOCUMENTATION_20260618.md`
   - `FINAL_DEMO_AND_TEST_MANUAL_20260618.md`
   - `FINAL_HANDOVER_20260618.md`
-- Do not assume schedule clash enforcement exists just because the UI now has better filters.
+- Schedule clash enforcement exists in the active save paths and is covered by `ScheduleConflictValidatorTest`; keep the focused room, faculty, and same-section overlap checks in release UAT.
 - The current demo path is ready for controlled UAT and handoff, but not for production sign-off.
