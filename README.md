@@ -34,6 +34,7 @@ Demo login: `admin` / `1234`
 
 | Start here | Description |
 |------------|-------------|
+| [`AGENTS.md`](AGENTS.md) | Compact registrar workflow and canon for future agent passes |
 | [`handoffNew/START_HERE_NEW_PC_HANDOFF.md`](handoffNew/START_HERE_NEW_PC_HANDOFF.md) | Current handoff entry point |
 | [`handoffNew/COMPLETE_FRESH_SETUP_AND_DEMO_GUIDE.md`](handoffNew/COMPLETE_FRESH_SETUP_AND_DEMO_GUIDE.md) | Full setup and demo guide |
 | [`handoffNew/FINAL_SYSTEM_DOCUMENTATION_20260618.md`](handoffNew/FINAL_SYSTEM_DOCUMENTATION_20260618.md) | Current system state and scope |
