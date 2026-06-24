@@ -12,6 +12,7 @@ if not defined DB_PORT set "DB_PORT=3306"
 set "DB_USER=%EAC_DB_USER%"
 if not defined DB_USER set "DB_USER=root"
 if defined EAC_DB_PASSWORD set "MYSQL_PWD=%EAC_DB_PASSWORD%"
+set "MYSQL_ARGS=--skip-ssl -h ""%DB_HOST%"" -P ""%DB_PORT%"" -u ""%DB_USER%"""
 
 set "MYSQL_EXE="
 where mysql >nul 2>&1 && set "MYSQL_EXE=mysql"
@@ -23,5 +24,5 @@ if not defined MYSQL_EXE (
 )
 
 echo Running %~f1
-"%MYSQL_EXE%" -h "%DB_HOST%" -P "%DB_PORT%" -u "%DB_USER%" eacdb < "%~f1"
+"%MYSQL_EXE%" %MYSQL_ARGS% eacdb < "%~f1"
 exit /b %ERRORLEVEL%

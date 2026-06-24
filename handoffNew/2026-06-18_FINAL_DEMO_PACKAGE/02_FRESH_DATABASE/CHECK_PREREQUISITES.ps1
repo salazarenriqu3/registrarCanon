@@ -31,9 +31,10 @@ if ($mysql) {
     $dbPort = if ($env:EAC_DB_PORT) { $env:EAC_DB_PORT } else { "3306" }
     $dbUser = if ($env:EAC_DB_USER) { $env:EAC_DB_USER } else { "root" }
     if ($env:EAC_DB_PASSWORD) { $env:MYSQL_PWD = $env:EAC_DB_PASSWORD }
+    $mysqlArgs = @("--skip-ssl", "-h", $dbHost, "-P", $dbPort, "-u", $dbUser, "-e", "SELECT 1")
     $previousErrorAction = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
-    & $mysql -h $dbHost -P $dbPort -u $dbUser -e "SELECT 1" 2>$null | Out-Null
+    & $mysql @mysqlArgs 2>$null | Out-Null
     $databaseExitCode = $LASTEXITCODE
     $ErrorActionPreference = $previousErrorAction
     Check "Database server" ($databaseExitCode -eq 0) "$dbUser@$dbHost`:$dbPort"

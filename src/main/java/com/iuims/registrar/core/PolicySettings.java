@@ -23,9 +23,10 @@ public final class PolicySettings {
     public static final String DOWNPAYMENT_THRESHOLD = "DOWNPAYMENT_THRESHOLD";
     public static final String DOWNPAYMENT_PERCENT = "DOWNPAYMENT_PERCENT";
     public static final String SCHOLARSHIP_MAX_GWA = "SCHOLARSHIP_MAX_GWA";
-    public static final String SCHOLARSHIP_MAX_INDIVIDUAL_GRADE = "SCHOLARSHIP_MAX_INDIVIDUAL_GRADE";
+    public static final String SCHOLARSHIP_MAX_PRELIM_GRADE = "SCHOLARSHIP_MAX_PRELIM_GRADE";
+    public static final String SCHOLARSHIP_MAX_MIDTERM_GRADE = "SCHOLARSHIP_MAX_MIDTERM_GRADE";
+    public static final String SCHOLARSHIP_MAX_FINALS_GRADE = "SCHOLARSHIP_MAX_FINALS_GRADE";
     public static final String SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT = "SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT";
-    public static final String SCHOLARSHIP_MIN_COMPLETED_SUBJECTS = "SCHOLARSHIP_MIN_COMPLETED_SUBJECTS";
     public static final String SCHOLARSHIP_MIN_COMPLETED_UNITS = "SCHOLARSHIP_MIN_COMPLETED_UNITS";
     public static final String SCHOLARSHIP_DISQUALIFY_INC = "SCHOLARSHIP_DISQUALIFY_INC";
     public static final String SCHOLARSHIP_DISQUALIFY_FAILED = "SCHOLARSHIP_DISQUALIFY_FAILED";
@@ -52,16 +53,20 @@ public final class PolicySettings {
         return decimal(db, SCHOLARSHIP_MAX_GWA, 1.75);
     }
 
-    public static double scholarshipMaxIndividualGrade(JdbcTemplate db) {
-        return decimal(db, SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, 2.00);
+    public static double scholarshipMaxPrelimGrade(JdbcTemplate db) {
+        return decimal(db, SCHOLARSHIP_MAX_PRELIM_GRADE, 2.00);
+    }
+
+    public static double scholarshipMaxMidtermGrade(JdbcTemplate db) {
+        return decimal(db, SCHOLARSHIP_MAX_MIDTERM_GRADE, 2.00);
+    }
+
+    public static double scholarshipMaxFinalsGrade(JdbcTemplate db) {
+        return decimal(db, SCHOLARSHIP_MAX_FINALS_GRADE, 2.00);
     }
 
     public static double scholarshipDefaultDiscountPercent(JdbcTemplate db) {
         return decimal(db, SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, 100.0);
-    }
-
-    public static int scholarshipMinCompletedSubjects(JdbcTemplate db) {
-        return (int) Math.round(decimal(db, SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, 1.0));
     }
 
     public static int scholarshipMinCompletedUnits(JdbcTemplate db) {

@@ -115,7 +115,7 @@ public class StudentCurriculumService {
                 "SELECT ct.curriculum_id FROM curriculum_templates ct " +
                     "JOIN programs p ON p.program_id = ct.program_id " +
                     "JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
-                    "WHERE p.program_code = ? AND COALESCE(ct.is_active, 0) = 1 " +
+                    "WHERE p.program_code = ? AND " + lifecycleSql("ct") + " = 'CURRENT' " +
                     "GROUP BY ct.curriculum_id, ct.version_number " +
                     "ORDER BY ct.version_number DESC, ct.curriculum_id DESC LIMIT 1",
                 Integer.class, programCode.trim().toUpperCase());
@@ -193,10 +193,12 @@ public class StudentCurriculumService {
         try {
             return db.queryForList(
                 "SELECT ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, ct.is_active, " +
+                    lifecycleSql("ct") + " AS lifecycle_status, " +
                     "p.program_code, p.program_name " +
                     "FROM curriculum_templates ct JOIN programs p ON p.program_id = ct.program_id " +
-                    "WHERE COALESCE(p.active_status, 1) = 1 " +
-                    "ORDER BY p.program_code, COALESCE(ct.is_active, 0) DESC, ct.version_number DESC, ct.curriculum_id DESC");
+                    "WHERE COALESCE(p.active_status, 1) = 1 AND " + lifecycleSql("ct") + " IN ('CURRENT','LEGACY') " +
+                    "ORDER BY p.program_code, CASE " + lifecycleSql("ct") + " WHEN 'CURRENT' THEN 0 WHEN 'LEGACY' THEN 1 ELSE 2 END, " +
+                    "ct.version_number DESC, ct.curriculum_id DESC");
         } catch (Exception e) {
             return new ArrayList<>();
         }
@@ -209,7 +211,7 @@ public class StudentCurriculumService {
             return db.queryForMap(
                 "SELECT sca.assignment_id, sca.student_number, sca.curriculum_id, sca.program_code, " +
                     "sca.assignment_type, sca.reason, sca.assigned_at, ct.curriculum_name, ct.academic_year, " +
-                    "ct.version_number, ct.is_active " +
+                    "ct.version_number, ct.is_active, " + lifecycleSql("ct") + " AS lifecycle_status " +
                     "FROM student_curriculum_assignments sca " +
                     "JOIN curriculum_templates ct ON ct.curriculum_id = sca.curriculum_id " +
                     "WHERE sca.student_number = ? AND sca.is_current = 1 " +
@@ -223,6 +225,16 @@ public class StudentCurriculumService {
     private String normalizeAssignmentType(String assignmentType) {
         if (assignmentType == null || assignmentType.isBlank()) return "DEFAULT";
         return assignmentType.trim().toUpperCase();
+    }
+
+    private String lifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
     }
 
     private String truncateReason(String reason) {

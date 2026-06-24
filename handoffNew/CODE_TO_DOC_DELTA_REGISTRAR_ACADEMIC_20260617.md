@@ -167,11 +167,11 @@ Patched now:
 
 - policy labels expanded from abbreviations:
   - `Max GWA` to `Maximum Allowed GWA`
-  - `Max Grade` to `Maximum Allowed Individual Grade`
+  - period grade caps to `Maximum Prelim Grade`, `Maximum Midterm Grade`, and `Maximum Finals Grade`
 - scholarship minimum converted to configurable completed units:
   - setting key: `SCHOLARSHIP_MIN_COMPLETED_UNITS`
   - default: `27`
-  - evaluator sums graded course `credit_units`
+  - evaluator sums graded/taken course `credit_units` and computes unit-weighted GWA
 - registrar scholarship review workflow added:
   - `PENDING` after submission
   - `APPROVED` after review, with no financial effect yet

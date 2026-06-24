@@ -41,9 +41,10 @@ public class DatabaseSetupService {
             seedDefaultSetting(PolicySettings.DOWNPAYMENT_THRESHOLD, "3000.0");
             seedDefaultSetting(PolicySettings.DOWNPAYMENT_PERCENT, "0");
             seedDefaultSetting(PolicySettings.SCHOLARSHIP_MAX_GWA, "1.75");
-            seedDefaultSetting(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, "2.00");
+            seedDefaultSetting(PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE, "2.00");
+            seedDefaultSetting(PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE, "2.00");
+            seedDefaultSetting(PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE, "2.00");
             seedDefaultSetting(PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, "100.0");
-            seedDefaultSetting(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, "1");
             seedDefaultSetting(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS, "27");
             seedDefaultSetting(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC, "true");
             seedDefaultSetting(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED, "true");
@@ -209,7 +210,9 @@ public class DatabaseSetupService {
 
             // 4. CANONICAL CURRICULUM & PROGRAM TABLES
             db.execute("CREATE TABLE IF NOT EXISTS programs (program_id INT AUTO_INCREMENT PRIMARY KEY, program_code VARCHAR(20) NOT NULL UNIQUE, program_name VARCHAR(150), department_id INT DEFAULT NULL, school_name VARCHAR(100), duration_years INT NOT NULL DEFAULT 4, active_status TINYINT(1) NOT NULL DEFAULT 1)");
-            db.execute("CREATE TABLE IF NOT EXISTS curriculum_templates (curriculum_id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, curriculum_name VARCHAR(100), academic_year VARCHAR(20), version_number INT NOT NULL DEFAULT 1, approval_status VARCHAR(20) NOT NULL DEFAULT 'Draft', is_active TINYINT(1) NOT NULL DEFAULT 0)");
+            db.execute("CREATE TABLE IF NOT EXISTS curriculum_templates (curriculum_id INT AUTO_INCREMENT PRIMARY KEY, program_id INT NOT NULL, curriculum_name VARCHAR(100), academic_year VARCHAR(20), version_number INT NOT NULL DEFAULT 1, approval_status VARCHAR(20) NOT NULL DEFAULT 'Draft', lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'DRAFT', is_active TINYINT(1) NOT NULL DEFAULT 0)");
+            try { db.execute("ALTER TABLE curriculum_templates ADD COLUMN lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'DRAFT'"); } catch (Exception ignored) {}
+            try { db.update("UPDATE curriculum_templates SET lifecycle_status = CASE WHEN UPPER(COALESCE(approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' WHEN UPPER(COALESCE(approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(is_active,0) = 0 THEN 'DRAFT' WHEN COALESCE(is_active,0) = 1 THEN 'CURRENT' ELSE 'LEGACY' END WHERE lifecycle_status IS NULL OR lifecycle_status = '' OR UPPER(lifecycle_status) NOT IN ('DRAFT','CURRENT','LEGACY','ARCHIVED')"); } catch (Exception ignored) {}
             db.execute("CREATE TABLE IF NOT EXISTS curriculum_courses (curriculum_course_id INT AUTO_INCREMENT PRIMARY KEY, curriculum_id INT NOT NULL, course_id INT NOT NULL, year_level INT NOT NULL, semester_number INT NOT NULL, is_required TINYINT(1) NOT NULL DEFAULT 1)");
             db.execute("CREATE TABLE IF NOT EXISTS course_prerequisites (prerequisite_id INT AUTO_INCREMENT PRIMARY KEY, course_id INT NOT NULL, prerequisite_course_id INT NOT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, UNIQUE KEY unique_prereq (course_id, prerequisite_course_id))");
             db.execute("CREATE TABLE IF NOT EXISTS student_curriculum_assignments (assignment_id BIGINT AUTO_INCREMENT PRIMARY KEY, student_number VARCHAR(100) NOT NULL, curriculum_id INT NOT NULL, program_code VARCHAR(100) NOT NULL, assignment_type VARCHAR(40) NOT NULL DEFAULT 'DEFAULT', reason VARCHAR(255) NULL, is_current TINYINT(1) NOT NULL DEFAULT 1, assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_sca_student_current (student_number, is_current), KEY idx_sca_curriculum (curriculum_id), KEY idx_sca_program (program_code))");

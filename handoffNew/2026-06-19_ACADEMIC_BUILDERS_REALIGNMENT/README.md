@@ -9,20 +9,20 @@ Scope: registrar only. The retired admission/pre-registration/dean bridge is not
 - Course Catalog owns reusable course identity, title, department, status, lecture units, and laboratory units.
 - Total credit units are derived as `lecture units + laboratory units`.
 - Curriculum Management places catalog courses into a program version by year and semester.
-- Publishing a working curriculum draft activates that version and archives the previous active version for the same program.
-- Class Scheduling materializes an active curriculum into regular block offerings, then assigns faculty, time, and room.
+- Publishing a working curriculum draft sets that version as the program's `CURRENT` offering and moves the previous current offering to `LEGACY`.
+- Class Scheduling materializes the current curriculum offering into regular block offerings, then assigns faculty, time, and room.
 - Faculty Teaching Load counts total catalog credit units once per assigned class section unless a coordinator-equivalent load is configured.
 
 ## UI changes
 
-- The normal curriculum path is displayed as three explicit steps: **New Curriculum Draft**, build the course plan, then **Publish & Activate**.
+- The normal curriculum path is displayed as three explicit steps: **New Curriculum Draft**, build the course plan, then **Publish & Set Current**.
 - Curriculum recovery/import actions are collapsed under **Import & Maintenance** and identified as administrative tools outside the normal workflow.
 - **New Curriculum Draft** replaces the ambiguous placeholder action in the normal workflow.
-- **Publish & Activate** makes the active-version transition explicit.
+- **Publish & Set Current** makes the current-offering transition explicit.
 - Curriculum rows display lecture, laboratory, and total units.
 - Course Catalog edits lecture and laboratory units and derives total units.
 - Course Catalog's **Where Used** action opens concrete curriculum, section, record, and prerequisite usage.
-- Scheduling copy now explains active-curriculum materialization, TBA rooms, and collision blocking.
+- Scheduling copy now explains current-offering materialization, TBA rooms, and collision blocking.
 
 ## Technical changes
 

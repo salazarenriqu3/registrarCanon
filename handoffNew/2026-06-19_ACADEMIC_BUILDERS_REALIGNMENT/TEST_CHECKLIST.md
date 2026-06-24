@@ -12,12 +12,12 @@
 
 1. Open **Academics > Curriculum** and confirm the three-step normal workflow is visible while maintenance tools remain collapsed.
 2. Create or clone a working draft for a test program.
-3. Confirm the draft states that it remains inactive until **Publish & Activate**.
+3. Confirm the draft states that it remains inactive until **Publish & Set Current**.
 4. Search for the temporary catalog course and attach it.
 5. Confirm the row shows lecture, laboratory, and total units separately.
 6. Confirm only year and semester placement are editable for an attached catalog course.
-7. Add at least one course, click **Publish & Activate**, and accept the confirmation.
-8. Return to Active and History views; confirm the new version is active and the previous version is historical.
+7. Add at least one course, click **Publish & Set Current**, and accept the confirmation.
+8. Return to Current and History views; confirm the new version is the current offering and the previous version is legacy.
 
 ## Usage Trace
 

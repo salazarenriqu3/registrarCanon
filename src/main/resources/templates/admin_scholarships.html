@@ -4,6 +4,69 @@
 <body>
 <div class="app">
     <div th:replace="~{fragments/layout :: topbar}"></div>
+
+    <style>
+        .scholarship-type-table {
+            width: 100%;
+            min-width: 1080px;
+            table-layout: fixed;
+        }
+        .scholarship-type-table th,
+        .scholarship-type-table td {
+            vertical-align: middle;
+        }
+        .scholarship-type-table .type-code {
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: 0.02em;
+            word-break: break-word;
+        }
+        .scholarship-type-table .compact-control {
+            width: 100%;
+            min-width: 0;
+            padding: 0.35rem 0.6rem;
+            font-size: 0.85rem;
+        }
+        .scholarship-type-table .check-cell {
+            text-align: center;
+        }
+        .scholarship-type-table .check-cell input[type="checkbox"] {
+            width: 1.1rem;
+            height: 1.1rem;
+            accent-color: var(--primary-color);
+        }
+        .scholarship-type-table .action-cell {
+            text-align: right;
+            white-space: nowrap;
+        }
+        .scholarship-type-table .add-row {
+            background: rgba(245, 158, 11, 0.05);
+        }
+        .scholarship-table-wrap {
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+        .scholarship-type-table th,
+        .scholarship-review-table th {
+            white-space: normal;
+            line-height: 1.25;
+        }
+        .scholarship-review-table {
+            min-width: 1180px;
+            table-layout: fixed;
+        }
+        .scholarship-action-stack {
+            display: inline-flex;
+            justify-content: flex-end;
+            gap: 0.35rem;
+            flex-wrap: wrap;
+        }
+        .scholarship-note-input {
+            width: 130px;
+            padding: 0.3rem 0.5rem;
+            font-size: 0.8rem;
+        }
+    </style>
     
     <div class="body-wrapper">
         <nav th:replace="~{fragments/layout :: sidebar(activeLink='scholarships')}"></nav>
@@ -42,15 +105,23 @@
                                             th:text="${term.term_name + ' #' + term.term_id + (term.current_term == 1 ? ' (Active)' : '')}"
                                             th:selected="${term.term_id == selectedTermId}"></option>
                                 </select>
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Eligibility is evaluated from official grade records and completed course units in this term.</div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Eligibility is evaluated from seeded/imported official grade records and completed course units in this term.</div>
                             </div>
                             <div>
                                 <label class="form-label">Maximum Allowed GWA</label>
                                 <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_GWA" th:value="${policy.get('SCHOLARSHIP_MAX_GWA')}">
                             </div>
                             <div>
-                                <label class="form-label">Maximum Allowed Individual Grade</label>
-                                <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_INDIVIDUAL_GRADE" th:value="${policy.get('SCHOLARSHIP_MAX_INDIVIDUAL_GRADE')}">
+                                <label class="form-label">Maximum Prelim Grade</label>
+                                <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_PRELIM_GRADE" th:value="${policy.get('SCHOLARSHIP_MAX_PRELIM_GRADE')}">
+                            </div>
+                            <div>
+                                <label class="form-label">Maximum Midterm Grade</label>
+                                <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_MIDTERM_GRADE" th:value="${policy.get('SCHOLARSHIP_MAX_MIDTERM_GRADE')}">
+                            </div>
+                            <div>
+                                <label class="form-label">Maximum Finals Grade</label>
+                                <input type="number" min="1" max="5" step="0.01" class="form-control" name="SCHOLARSHIP_MAX_FINALS_GRADE" th:value="${policy.get('SCHOLARSHIP_MAX_FINALS_GRADE')}">
                             </div>
                             <div>
                                 <label class="form-label">Default Discount %</label>
@@ -82,8 +153,18 @@
                 <div class="card-header" style="border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
                     <h4 class="card-title" style="color: var(--warning-color);"><i class="ti ti-tags" aria-hidden="true"></i> Manual Scholarship Type Catalog</h4>
                 </div>
-                <div style="overflow-x: auto;">
-                    <table class="table-eac">
+                <div class="scholarship-table-wrap">
+                    <table class="table-eac scholarship-type-table">
+                        <colgroup>
+                            <col style="width: 12%;">
+                            <col style="width: 20%;">
+                            <col style="width: 13%;">
+                            <col style="width: 13%;">
+                            <col style="width: 16%;">
+                            <col style="width: 8%;">
+                            <col style="width: 8%;">
+                            <col style="width: 10%;">
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th style="padding-left: 1.5rem;">Code</th>
@@ -97,52 +178,48 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr th:each="type : ${scholarshipTypes}">
-                                <td colspan="8" style="padding: 0;">
-                                    <form th:action="@{/admin/scholarships/types}" method="post" style="display: contents;">
+                            <tr th:each="type : ${scholarshipTypes}" th:with="formId=${'scholarshipTypeForm-' + type.classification}">
+                                <td style="padding-left: 1.5rem;">
+                                    <form th:id="${formId}" th:action="@{/admin/scholarships/types}" method="post" style="display: none;">
                                         <input type="hidden" name="termId" th:value="${selectedTermId}">
                                         <input type="hidden" name="classification" th:value="${type.classification}">
-                                        <div style="display: table-row;">
-                                            <td style="padding-left: 1.5rem; font-weight: 700; color: var(--text-primary);" th:text="${type.classification}"></td>
-                                            <td><input name="displayName" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;" th:value="${type.display_name}"></td>
-                                            <td>
-                                                <select name="discountMode" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem;">
-                                                    <option value="PERCENT" th:selected="${type.discount_mode == 'PERCENT'}">Percent</option>
-                                                    <option value="FLAT" th:selected="${type.discount_mode == 'FLAT'}">Flat Amount</option>
-                                                    <option value="FULL" th:selected="${type.discount_mode == 'FULL'}">Full</option>
-                                                </select>
-                                            </td>
-                                            <td style="text-align: center;"><input type="number" min="0" max="100" step="0.01" name="defaultDiscountPct" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; text-align: center;" th:value="${type.default_discount_percentage}"></td>
-                                            <td style="text-align: center;"><input type="number" min="0" step="0.01" name="defaultAmount" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; text-align: center;" th:value="${type.default_scholarship_amount}"></td>
-                                            <td style="text-align: center;"><input type="checkbox" name="isInternal" value="true" th:checked="${type.is_internal == 1}" style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary-color);"></td>
-                                            <td style="text-align: center;"><input type="checkbox" name="isActive" value="true" th:checked="${type.is_active == 1}" style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary-color);"></td>
-                                            <td style="padding-right: 1.5rem; text-align: right;"><button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"><i class="ti ti-device-floppy"></i> Save</button></td>
-                                        </div>
                                     </form>
+                                    <span class="type-code" th:text="${type.classification}"></span>
                                 </td>
+                                <td><input name="displayName" class="form-control compact-control" th:value="${type.display_name}" th:attr="form=${formId}"></td>
+                                <td>
+                                    <select name="discountMode" class="form-control compact-control" th:attr="form=${formId}">
+                                        <option value="PERCENT" th:selected="${type.discount_mode == 'PERCENT'}">Percent</option>
+                                        <option value="FLAT" th:selected="${type.discount_mode == 'FLAT'}">Flat Amount</option>
+                                        <option value="FULL" th:selected="${type.discount_mode == 'FULL'}">Full</option>
+                                    </select>
+                                </td>
+                                <td><input type="number" min="0" max="100" step="0.01" name="defaultDiscountPct" class="form-control compact-control" style="text-align: center;" th:value="${type.default_discount_percentage}" th:attr="form=${formId}"></td>
+                                <td><input type="number" min="0" step="0.01" name="defaultAmount" class="form-control compact-control" style="text-align: center;" th:value="${type.default_scholarship_amount}" th:attr="form=${formId}"></td>
+                                <td class="check-cell"><input type="checkbox" name="isInternal" value="true" th:checked="${type.is_internal == 1}" th:attr="form=${formId}"></td>
+                                <td class="check-cell"><input type="checkbox" name="isActive" value="true" th:checked="${type.is_active == 1}" th:attr="form=${formId}"></td>
+                                <td class="action-cell" style="padding-right: 1.5rem;"><button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.85rem; font-size: 0.85rem;" th:attr="form=${formId}"><i class="ti ti-device-floppy"></i> Save</button></td>
                             </tr>
-                            <tr style="background: rgba(245, 158, 11, 0.05);">
-                                <td colspan="8" style="padding: 0;">
-                                    <form th:action="@{/admin/scholarships/types}" method="post" style="display: contents;">
+                            <tr class="add-row">
+                                <td style="padding-left: 1.5rem;">
+                                    <form id="scholarshipTypeForm-new" th:action="@{/admin/scholarships/types}" method="post" style="display: none;">
                                         <input type="hidden" name="termId" th:value="${selectedTermId}">
-                                        <div style="display: table-row;">
-                                            <td style="padding-left: 1.5rem;"><input name="classification" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; font-weight: 700; background: white;" placeholder="e.g. LGU_SPECIAL"></td>
-                                            <td><input name="displayName" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; background: white;" placeholder="Display name"></td>
-                                            <td>
-                                                <select name="discountMode" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; background: white;">
-                                                    <option value="PERCENT">Percent</option>
-                                                    <option value="FLAT">Flat Amount</option>
-                                                    <option value="FULL">Full</option>
-                                                </select>
-                                            </td>
-                                            <td style="text-align: center;"><input type="number" min="0" max="100" step="0.01" name="defaultDiscountPct" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; text-align: center; background: white;" value="0"></td>
-                                            <td style="text-align: center;"><input type="number" min="0" step="0.01" name="defaultAmount" class="form-control" style="padding: 0.3rem 0.6rem; font-size: 0.85rem; text-align: center; background: white;" value="0"></td>
-                                            <td style="text-align: center;"><input type="checkbox" name="isInternal" value="true" style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary-color);"></td>
-                                            <td style="text-align: center;"><input type="checkbox" name="isActive" value="true" checked style="width: 1.2rem; height: 1.2rem; accent-color: var(--primary-color);"></td>
-                                            <td style="padding-right: 1.5rem; text-align: right;"><button type="submit" class="btn" style="background: var(--warning-color); color: white; border: none; padding: 0.3rem 0.8rem; font-size: 0.85rem; border-radius: var(--radius-md); font-weight: 600;"><i class="ti ti-plus"></i> Add Type</button></td>
-                                        </div>
                                     </form>
+                                    <input name="classification" class="form-control compact-control" style="font-weight: 700; background: white;" placeholder="e.g. LGU_SPECIAL" form="scholarshipTypeForm-new">
                                 </td>
+                                <td><input name="displayName" class="form-control compact-control" style="background: white;" placeholder="Display name" form="scholarshipTypeForm-new"></td>
+                                <td>
+                                    <select name="discountMode" class="form-control compact-control" style="background: white;" form="scholarshipTypeForm-new">
+                                        <option value="PERCENT">Percent</option>
+                                        <option value="FLAT">Flat Amount</option>
+                                        <option value="FULL">Full</option>
+                                    </select>
+                                </td>
+                                <td><input type="number" min="0" max="100" step="0.01" name="defaultDiscountPct" class="form-control compact-control" style="text-align: center; background: white;" value="0" form="scholarshipTypeForm-new"></td>
+                                <td><input type="number" min="0" step="0.01" name="defaultAmount" class="form-control compact-control" style="text-align: center; background: white;" value="0" form="scholarshipTypeForm-new"></td>
+                                <td class="check-cell"><input type="checkbox" name="isInternal" value="true" form="scholarshipTypeForm-new"></td>
+                                <td class="check-cell"><input type="checkbox" name="isActive" value="true" checked form="scholarshipTypeForm-new"></td>
+                                <td class="action-cell" style="padding-right: 1.5rem;"><button type="submit" class="btn" style="background: var(--warning-color); color: white; border: none; padding: 0.35rem 0.85rem; font-size: 0.85rem; border-radius: var(--radius-md); font-weight: 600;" form="scholarshipTypeForm-new"><i class="ti ti-plus"></i> Add Type</button></td>
                             </tr>
                         </tbody>
                     </table>
@@ -154,15 +231,31 @@
                     <h4 class="card-title" style="color: var(--success-color);"><i class="ti ti-list-check" aria-hidden="true"></i> Term Scholarship Review</h4>
                     <span style="background: var(--bg-tertiary); color: var(--text-primary); font-weight: 600; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.85rem;" th:text="${#lists.size(candidates) + ' student(s)'}"></span>
                 </div>
-                <div style="overflow-x: auto;">
-                    <table class="table-eac">
+                <div class="scholarship-table-wrap">
+                    <table class="table-eac scholarship-review-table">
+                        <colgroup>
+                            <col style="width: 16%;">
+                            <col style="width: 8%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 7%;">
+                            <col style="width: 8%;">
+                            <col style="width: 11%;">
+                            <col style="width: 14%;">
+                            <col style="width: 8%;">
+                        </colgroup>
                         <thead>
                             <tr>
                                 <th style="padding-left: 1.5rem;">Student</th>
                                 <th>Program</th>
                                 <th style="text-align: center;">Units</th>
                                 <th style="text-align: center;">GWA</th>
-                                <th style="text-align: center;">Worst Grade</th>
+                                <th style="text-align: center;">Prelim</th>
+                                <th style="text-align: center;">Midterm</th>
+                                <th style="text-align: center;">Finals</th>
+                                <th style="text-align: center;">Final Grade</th>
                                 <th>Status</th>
                                 <th>Reason</th>
                                 <th style="padding-right: 1.5rem; text-align: right;">Action</th>
@@ -170,7 +263,7 @@
                         </thead>
                         <tbody>
                             <tr th:if="${#lists.isEmpty(candidates)}">
-                                <td colspan="8" style="text-align: center; color: var(--text-muted); padding: 3rem;">No grade records found for the selected term.</td>
+                                <td colspan="11" style="text-align: center; color: var(--text-muted); padding: 3rem;">No grade records found for the selected term.</td>
                             </tr>
                             <tr th:each="c : ${candidates}">
                                 <td style="padding-left: 1.5rem;">
@@ -180,6 +273,9 @@
                                 <td style="font-weight: 500;" th:text="${c.program_code}"></td>
                                 <td style="text-align: center; font-weight: 600;" th:text="${c.completed_units_fmt}"></td>
                                 <td style="text-align: center; font-weight: 800; color: var(--primary-color);" th:text="${c.gwa_fmt}"></td>
+                                <td style="text-align: center; font-weight: 600;" th:text="${c.highest_prelim_fmt}"></td>
+                                <td style="text-align: center; font-weight: 600;" th:text="${c.highest_midterm_fmt}"></td>
+                                <td style="text-align: center; font-weight: 600;" th:text="${c.highest_finals_fmt}"></td>
                                 <td style="text-align: center; font-weight: 600;" th:text="${c.highest_grade_fmt}"></td>
                                 <td>
                                     <span class="status-badge" th:classappend="${c.eligible} ? 'enrolled' : 'rejected'">
@@ -199,7 +295,8 @@
                                     <div th:text="${c.reason}"></div>
                                     <div th:if="${c.decision_note != null}" style="margin-top: 0.25rem; font-style: italic;" th:text="${'Review note: ' + c.decision_note}"></div>
                                 </td>
-                                <td style="padding-right: 1.5rem; text-align: right; white-space: nowrap;">
+                                <td style="padding-right: 1.5rem; text-align: right;">
+                                    <div class="scholarship-action-stack">
                                     <form th:if="${c.eligible and !c.scholarship_granted and (c.review_status == 'NONE' or c.review_status == 'REJECTED' or c.review_status == 'REVOKED')}" th:action="@{/admin/scholarships/grant-academic}" method="post" style="display: inline-block; margin: 0;">
                                         <input type="hidden" name="studentNumber" th:value="${c.student_number}">
                                         <input type="hidden" name="termId" th:value="${selectedTermId}">
@@ -210,7 +307,7 @@
                                     <form th:if="${c.review_status == 'PENDING'}" th:action="@{/admin/scholarships/approve-academic}" method="post" style="display: inline-flex; gap: 0.35rem; margin: 0; align-items: center;">
                                         <input type="hidden" name="studentNumber" th:value="${c.student_number}">
                                         <input type="hidden" name="termId" th:value="${selectedTermId}">
-                                        <input type="text" name="note" class="form-control" placeholder="Review note" style="width: 130px; padding: 0.3rem 0.5rem; font-size: 0.8rem;">
+                                        <input type="text" name="note" class="form-control scholarship-note-input" placeholder="Review note">
                                         <button type="submit" class="btn btn-primary" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;">Approve</button>
                                     </form>
                                     <form th:if="${c.review_status == 'PENDING' or c.review_status == 'APPROVED'}" th:action="@{/admin/scholarships/reject-academic}" method="post" style="display: inline-block; margin: 0;">
@@ -234,6 +331,7 @@
                                         </button>
                                     </form>
                                     <span th:if="${!c.eligible and !c.scholarship_granted and c.review_status == 'NONE'}" style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No action</span>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>

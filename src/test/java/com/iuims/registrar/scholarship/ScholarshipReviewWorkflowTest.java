@@ -2,6 +2,7 @@ package com.iuims.registrar.scholarship;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -58,6 +59,29 @@ class ScholarshipReviewWorkflowTest {
         assertThat(scholarshipApproved()).isZero();
     }
 
+    @Test
+    void academicEligibilityBlocksGradesThatExceedPeriodCaps() {
+        db.update("UPDATE grades SET midterm = 83 WHERE student_id = '2026-0001' AND course_id = 101");
+
+        Map<String, Object> candidate = onlyCandidate();
+
+        assertThat(candidate.get("eligible")).isEqualTo(false);
+        assertThat(candidate.get("highest_midterm_fmt")).isEqualTo("2.25");
+        assertThat((String) candidate.get("reason")).contains("Midterm grade 2.25 exceeds 2.00");
+    }
+
+    @Test
+    void academicEligibilityUsesUnitWeightedGwa() {
+        db.update("UPDATE courses SET credit_units = 6 WHERE course_id = 109");
+        db.update("UPDATE grades SET registrar_final_grade = 2.00, semestral_grade = 2.00 WHERE student_id = '2026-0001' AND course_id = 109");
+
+        Map<String, Object> candidate = onlyCandidate();
+
+        assertThat(candidate.get("eligible")).isEqualTo(true);
+        assertThat(candidate.get("gwa_fmt")).isEqualTo("1.60");
+        assertThat(candidate.get("completed_units_fmt")).isEqualTo("30");
+    }
+
     private String reviewStatus() {
         return db.queryForObject(
             "SELECT status FROM scholarship_review_workflow WHERE student_number = '2026-0001' AND term_id = 15",
@@ -71,11 +95,21 @@ class ScholarshipReviewWorkflowTest {
         return value != null ? value : 0;
     }
 
+    private Map<String, Object> onlyCandidate() {
+        List<Map<String, Object>> candidates = service.evaluateAcademicScholarshipCandidates(15);
+        return candidates.stream()
+            .filter(row -> row.get("student_number").equals("2026-0001"))
+            .findFirst()
+            .orElseThrow();
+    }
+
     private void createFixture() {
         db.execute("CREATE TABLE system_settings (setting_key VARCHAR(100) PRIMARY KEY, setting_value VARCHAR(100))");
         Map.of(
             "SCHOLARSHIP_MAX_GWA", "1.75",
-            "SCHOLARSHIP_MAX_INDIVIDUAL_GRADE", "2.00",
+            "SCHOLARSHIP_MAX_PRELIM_GRADE", "2.00",
+            "SCHOLARSHIP_MAX_MIDTERM_GRADE", "2.00",
+            "SCHOLARSHIP_MAX_FINALS_GRADE", "2.00",
             "SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT", "100",
             "SCHOLARSHIP_MIN_COMPLETED_UNITS", "27",
             "SCHOLARSHIP_DISQUALIFY_INC", "true",
@@ -96,7 +130,8 @@ class ScholarshipReviewWorkflowTest {
         db.execute("""
             CREATE TABLE grades (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY, student_id VARCHAR(100), course_id INT, section_id INT,
-                status VARCHAR(20), remarks VARCHAR(30), semestral_grade DECIMAL(5,2),
+                status VARCHAR(20), remarks VARCHAR(30), prelim DECIMAL(5,2), midterm DECIMAL(5,2),
+                final_grade DECIMAL(5,2), semestral_grade DECIMAL(5,2),
                 registrar_final_grade DECIMAL(5,2), registrar_final_remarks VARCHAR(30)
             )
             """);
@@ -108,7 +143,7 @@ class ScholarshipReviewWorkflowTest {
             int sectionId = 500 + i;
             db.update("INSERT INTO courses VALUES (?, 3)", courseId);
             db.update("INSERT INTO class_sections VALUES (?, 15, ?)", sectionId, courseId);
-            db.update("INSERT INTO grades (student_id, course_id, section_id, status, remarks, semestral_grade) VALUES ('2026-0001', ?, ?, 'SUBMITTED', 'Passed', 1.50)", courseId, sectionId);
+            db.update("INSERT INTO grades (student_id, course_id, section_id, status, remarks, prelim, midterm, final_grade, semestral_grade) VALUES ('2026-0001', ?, ?, 'SUBMITTED', 'Passed', 1.50, 1.50, 1.50, 1.50)", courseId, sectionId);
         }
     }
 }

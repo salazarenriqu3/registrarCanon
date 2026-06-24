@@ -112,6 +112,15 @@ class AcademicGradingServiceGradingWindowTest {
             )
             """);
         db.execute("""
+            CREATE TABLE vpaa_extensions (
+                ext_id INT AUTO_INCREMENT PRIMARY KEY,
+                schedule_id INT NULL,
+                faculty_id INT NULL,
+                status VARCHAR(50) DEFAULT 'PENDING',
+                reason VARCHAR(255) NULL
+            )
+            """);
+        db.execute("""
             CREATE TABLE grades (
                 id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 student_id VARCHAR(100) NOT NULL,

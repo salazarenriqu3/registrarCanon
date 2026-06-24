@@ -125,6 +125,11 @@ public class WithdrawalService {
         addColumnIfMissing("student_withdrawal_request_lines", "charge_percent", "DECIMAL(5,2) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_request_lines", "estimated_charge", "DECIMAL(12,2) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_request_lines", "policy_note", "VARCHAR(255) NULL");
+        normalizeColumnCollation("withdrawal_reasons", "reason_code", "VARCHAR(40) NOT NULL");
+        normalizeColumnCollation("withdrawal_reasons", "reason_label", "VARCHAR(160) NOT NULL");
+        normalizeColumnCollation("student_withdrawal_requests", "student_number", "VARCHAR(100) NOT NULL");
+        normalizeColumnCollation("student_withdrawal_requests", "reason_code", "VARCHAR(40) NOT NULL");
+        normalizeColumnCollation("student_withdrawal_request_lines", "student_number", "VARCHAR(100) NOT NULL");
         db.update("""
             UPDATE student_withdrawal_requests
             SET status = ?, approval_source = COALESCE(approval_source, 'REGISTRAR_WORKFLOW')
@@ -160,6 +165,15 @@ public class WithdrawalService {
         }
     }
 
+    private void normalizeColumnCollation(String tableName, String columnName, String definition) {
+        try {
+            db.execute(
+                "ALTER TABLE " + tableName + " MODIFY " + columnName + " " + definition +
+                    " CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (Exception ignored) {
+        }
+    }
+
     private void seedDefaultReasons() {
         db.update("""
             INSERT IGNORE INTO withdrawal_reasons (reason_code, reason_label, sort_order) VALUES
@@ -183,7 +197,7 @@ public class WithdrawalService {
         if (studentNumber == null || studentNumber.isBlank()) return List.of();
         ensureSchema();
         return db.queryForList(baseRequestSql() +
-                "WHERE wr.student_number = ? ORDER BY wr.requested_at DESC, wr.request_id DESC",
+                "WHERE wr.student_number COLLATE utf8mb4_uca1400_ai_ci = ? ORDER BY wr.requested_at DESC, wr.request_id DESC",
             studentNumber.trim());
     }
 
@@ -193,13 +207,14 @@ public class WithdrawalService {
             return db.queryForList(baseRequestSql() + "ORDER BY wr.requested_at DESC, wr.request_id DESC");
         }
         return db.queryForList(baseRequestSql() +
-                "WHERE wr.status = ? ORDER BY wr.requested_at ASC, wr.request_id ASC",
+                "WHERE wr.status COLLATE utf8mb4_uca1400_ai_ci = ? ORDER BY wr.requested_at ASC, wr.request_id ASC",
             status.trim().toUpperCase());
     }
 
     private String baseRequestSql() {
         return """
-            SELECT wr.request_id, wr.student_number, COALESCE(s.real_name, wr.student_number) AS student_name,
+            SELECT wr.request_id, wr.student_number,
+                   COALESCE(s.real_name, wr.student_number COLLATE utf8mb4_uca1400_ai_ci) AS student_name,
                    s.program_code, s.year_level, wr.section_id, wr.course_id, wr.term_id,
                    c.course_code, c.course_title, c.credit_units, cs.section_code,
                    wr.reason_code, rr.reason_label, wr.remarks, wr.status,
@@ -211,10 +226,12 @@ public class WithdrawalService {
                    wr.registrar_approved_by, wr.registrar_approved_at, wr.rejected_by,
                    wr.rejected_at, wr.rejection_reason, wr.completed_at
             FROM student_withdrawal_requests wr
-            LEFT JOIN students s ON s.student_number = wr.student_number
+            LEFT JOIN students s
+                   ON s.student_number = wr.student_number COLLATE utf8mb4_uca1400_ai_ci
             LEFT JOIN courses c ON c.course_id = wr.course_id
             LEFT JOIN class_sections cs ON cs.section_id = wr.section_id
-            LEFT JOIN withdrawal_reasons rr ON rr.reason_code = wr.reason_code
+            LEFT JOIN withdrawal_reasons rr
+                   ON rr.reason_code COLLATE utf8mb4_unicode_ci = wr.reason_code COLLATE utf8mb4_unicode_ci
             """;
     }
 

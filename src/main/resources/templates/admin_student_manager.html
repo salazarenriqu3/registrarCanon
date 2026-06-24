@@ -5,6 +5,60 @@
 <div class="app">
     <div th:replace="~{fragments/layout :: topbar}"></div>
 
+    <style>
+        .profile-collapse {
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #0F766E;
+        }
+        .profile-collapse summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.1rem 1.5rem;
+        }
+        .profile-collapse summary::-webkit-details-marker {
+            display: none;
+        }
+        .profile-collapse summary .toggle-icon {
+            transition: transform 0.18s ease;
+        }
+        .profile-collapse[open] summary .toggle-icon {
+            transform: rotate(180deg);
+        }
+        .document-row {
+            display: flex;
+            gap: 0.75rem;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.85rem 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        .document-actions {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            gap: 0.4rem;
+        }
+        .document-file-name {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            word-break: break-word;
+        }
+        @media (max-width: 720px) {
+            .document-row {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .document-actions {
+                justify-content: flex-start;
+            }
+        }
+    </style>
+
     <div class="body-wrapper">
         <nav th:replace="~{fragments/layout :: sidebar(activeLink='students')}"></nav>
 
@@ -282,13 +336,17 @@
                             <h5 class="card-title" style="margin: 0; color: #B45309;">
                                 <i class="ti ti-folders" aria-hidden="true"></i> Applicant Documents
                             </h5>
-                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Admission-owned files; registrar access is read-only.</div>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Registrar safekeeping access to admission-submitted files. View/download actions are recorded in the document trail.</div>
                         </div>
                     </div>
                     <div th:if="${applicantDocuments != null and !applicantDocuments.isEmpty()}" style="padding: 0.5rem 1.25rem 1.25rem;">
-                        <div th:each="document : ${applicantDocuments}" style="display: flex; gap: 0.75rem; justify-content: space-between; align-items: center; padding: 0.8rem 0; border-bottom: 1px solid var(--border-color);">
+                        <div th:each="document : ${applicantDocuments}" class="document-row">
                             <div style="min-width: 0;">
                                 <div style="font-weight: 700;" th:text="${document['label']}"></div>
+                                <div th:if="${document['filename'] != null}" class="document-file-name">
+                                    <span th:text="${document['file_ext'] ?: 'FILE'}"></span>
+                                    <span th:text="${' - ' + document['filename']}"></span>
+                                </div>
                                 <div style="display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.3rem; font-size: 0.72rem;">
                                     <span th:if="${document['required']}" class="status-badge waitlist" style="padding: 0.12rem 0.4rem;">Required</span>
                                     <span th:if="${document['submitted'] and document['verified']}" class="status-badge enrolled" style="padding: 0.12rem 0.4rem;">Verified</span>
@@ -296,11 +354,16 @@
                                     <span th:if="${!document['submitted']}" class="status-badge inactive" style="padding: 0.12rem 0.4rem;">Not submitted</span>
                                 </div>
                             </div>
-                            <a th:if="${document['document_key'] != null}"
-                               th:href="@{/admin/student-manager/admission-document(studentNumber=${student.username},documentKey=${document['document_key']})}"
-                               target="_blank" rel="noopener" class="btn btn-ghost" style="white-space: nowrap; border: 1px solid #D97706; color: #B45309;">
-                                <i class="ti ti-eye" aria-hidden="true"></i> View
-                            </a>
+                            <div class="document-actions" th:if="${document['document_key'] != null}">
+                                <a th:href="@{/admin/student-manager/admission-document(studentNumber=${student.username},documentKey=${document['document_key']},mode='view')}"
+                                   target="_blank" rel="noopener" class="btn btn-ghost" style="white-space: nowrap; border: 1px solid #D97706; color: #B45309;">
+                                    <i class="ti ti-eye" aria-hidden="true"></i> View
+                                </a>
+                                <a th:href="@{/admin/student-manager/admission-document(studentNumber=${student.username},documentKey=${document['document_key']},mode='download')}"
+                                   class="btn btn-ghost" style="white-space: nowrap; border: 1px solid #2563EB; color: #2563EB;">
+                                    <i class="ti ti-download" aria-hidden="true"></i> Download
+                                </a>
+                            </div>
                         </div>
                     </div>
                     <div th:if="${applicantDocuments == null or applicantDocuments.isEmpty()}" style="padding: 1.25rem; color: var(--text-muted);">
@@ -309,12 +372,18 @@
                 </div>
             </div>
 
-            <div class="card" th:if="${student != null}" style="margin-bottom: 1.5rem; border-left: 4px solid #0F766E;">
-                <div class="card-header">
-                    <h5 class="card-title" style="margin: 0; color: #0F766E;">
-                        <i class="ti ti-user-edit" aria-hidden="true"></i> Registrar Editable Profile
-                    </h5>
-                </div>
+            <details class="card profile-collapse" th:if="${student != null}">
+                <summary>
+                    <div>
+                        <h5 class="card-title" style="margin: 0; color: #0F766E;">
+                            <i class="ti ti-user-edit" aria-hidden="true"></i> Registrar Editable Profile
+                        </h5>
+                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Collapsed by default; expand only when registrar identity or background records need correction.</div>
+                    </div>
+                    <span class="btn btn-ghost" style="border: 1px solid #0F766E; color: #0F766E; pointer-events: none;">
+                        <i class="ti ti-chevron-down toggle-icon" aria-hidden="true"></i> Expand
+                    </span>
+                </summary>
                 <form th:action="@{/admin/student-manager/profile}" method="post" style="padding: 1.5rem;">
                     <input type="hidden" name="studentNumber" th:value="${student.username}">
 
@@ -519,7 +588,7 @@
                         </button>
                     </div>
                 </form>
-            </div>
+            </details>
 
             <!-- Detailed Content Grid -->
             <div th:if="${student != null}" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">

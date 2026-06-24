@@ -13,6 +13,7 @@ if not defined DB_PORT set "DB_PORT=3306"
 set "DB_USER=%EAC_DB_USER%"
 if not defined DB_USER set "DB_USER=root"
 if defined EAC_DB_PASSWORD set "MYSQL_PWD=%EAC_DB_PASSWORD%"
+set "MYSQL_ARGS=--skip-ssl -h ""%DB_HOST%"" -P ""%DB_PORT%"" -u ""%DB_USER%"""
 
 call :find_mysql
 if errorlevel 1 (
@@ -38,7 +39,7 @@ echo SQL bundle: %~dp0sql
 echo Database:  %DB_USER%@%DB_HOST%:%DB_PORT%/eacdb
 echo.
 
-"%MYSQL_EXE%" -h "%DB_HOST%" -P "%DB_PORT%" -u "%DB_USER%" -e "DROP DATABASE IF EXISTS eacdb; CREATE DATABASE eacdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+"%MYSQL_EXE%" %MYSQL_ARGS% -e "DROP DATABASE IF EXISTS eacdb; CREATE DATABASE eacdb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 if errorlevel 1 exit /b 1
 
 call :run "sql\01_SCHEMA\01_base_schema_and_seed.sql"
@@ -95,7 +96,7 @@ exit /b 1
 
 :run
 echo --- %~1 ---
-"%MYSQL_EXE%" -h "%DB_HOST%" -P "%DB_PORT%" -u "%DB_USER%" eacdb < "%~dp0%~1"
+"%MYSQL_EXE%" %MYSQL_ARGS% eacdb < "%~dp0%~1"
 if errorlevel 1 (
   echo FAILED: %~1
   exit /b 1

@@ -260,7 +260,7 @@ SOURCE registrar/handoffNew/sql_manual/08_scholarship_demo_seed.sql;
 | **URL** | http://localhost:8083/registrar/admin/scholarships |
 | **Do** | Confirm Academic Scholarship Policy shows **Minimum Completed Units = 27** |
 | **Pass 1** | `SCH-UAT-ELIGIBLE` / Sofia Scholar shows **27** units and **Eligible** |
-| **Pass 2** | `SCH-UAT-LOWUNITS` / Liam Low Units shows **24** units and **Not eligible** with reason `Needs at least 27 completed unit(s)` |
+| **Pass 2** | `SCH-UAT-LOWUNITS` / Liam Low Units shows **24** units and **Not eligible** with reason `Needs at least 27 graded/taken unit(s)` |
 | **Workflow** | Sofia: **Submit for Review** → confirm `PENDING` → **Approve** → confirm no discount is active yet → **Post** |
 | **Pass 3** | Sofia shows `POSTED`, the scholarship is active, and **Revoke** is available |
 | **Guardrail** | Liam has no submission action because the configured 27-unit requirement is not met |

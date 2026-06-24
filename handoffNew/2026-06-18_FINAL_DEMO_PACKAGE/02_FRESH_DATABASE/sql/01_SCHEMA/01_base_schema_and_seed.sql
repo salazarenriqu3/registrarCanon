@@ -621,6 +621,7 @@ CREATE TABLE curriculum_templates (
     academic_year   VARCHAR(20),
     version_number  INT         NOT NULL DEFAULT 1,
     approval_status VARCHAR(20) NOT NULL DEFAULT 'Draft',
+    lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'DRAFT',
     is_active       TINYINT(1)  NOT NULL DEFAULT 0,
     CONSTRAINT fk_ct_program FOREIGN KEY (program_id)
         REFERENCES programs(program_id) ON DELETE CASCADE
@@ -8933,9 +8934,11 @@ INSERT IGNORE INTO system_settings (setting_key, setting_value) VALUES
 ('ADMISSION_MIN_PAYMENT', '1000.0'),
 ('DOWNPAYMENT_THRESHOLD', '3000.0'),
 ('SCHOLARSHIP_MAX_GWA', '1.75'),
-('SCHOLARSHIP_MAX_INDIVIDUAL_GRADE', '2.00'),
+('SCHOLARSHIP_MAX_PRELIM_GRADE', '2.00'),
+('SCHOLARSHIP_MAX_MIDTERM_GRADE', '2.00'),
+('SCHOLARSHIP_MAX_FINALS_GRADE', '2.00'),
 ('SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT', '100.0'),
-('SCHOLARSHIP_MIN_COMPLETED_SUBJECTS', '1'),
+('SCHOLARSHIP_MIN_COMPLETED_UNITS', '27'),
 ('SCHOLARSHIP_DISQUALIFY_INC', 'true'),
 ('SCHOLARSHIP_DISQUALIFY_FAILED', 'true');
 
@@ -9118,5 +9121,42 @@ INSERT IGNORE INTO class_sections (course_id, term_id, section_code, max_capacit
 INSERT IGNORE INTO class_sections (course_id, term_id, section_code, max_capacity, section_status) VALUES (1014, 1, 'BSIT-4A', 40, 'Open');
 INSERT IGNORE INTO class_sections (course_id, term_id, section_code, max_capacity, section_status) VALUES (1015, 1, 'BSIT-4A', 40, 'Open');
 INSERT IGNORE INTO class_sections (course_id, term_id, section_code, max_capacity, section_status) VALUES (1016, 1, 'BSIT-4A', 40, 'Open');
+
+-- Curriculum lifecycle normalization:
+-- CURRENT = one actively offered curriculum used for new/default assignments.
+-- LEGACY = historical but still assignable to returning old-curriculum students.
+-- DRAFT = editable working copy. ARCHIVED = retained record, not assignable.
+UPDATE curriculum_templates
+SET lifecycle_status = CASE
+    WHEN UPPER(COALESCE(approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED'
+    WHEN COALESCE(is_active,0) = 1 THEN 'CURRENT'
+    WHEN UPPER(COALESCE(approval_status,'')) IN ('DRAFT','PLACEHOLDER') THEN 'DRAFT'
+    ELSE 'LEGACY'
+END
+WHERE lifecycle_status IS NULL
+   OR lifecycle_status = ''
+   OR UPPER(lifecycle_status) NOT IN ('DRAFT','CURRENT','LEGACY','ARCHIVED');
+
+UPDATE curriculum_templates ct
+JOIN (
+    SELECT ranked.curriculum_id
+    FROM (
+        SELECT ct2.curriculum_id,
+               ROW_NUMBER() OVER (
+                   PARTITION BY ct2.program_id
+                   ORDER BY CASE WHEN COUNT(cc.curriculum_course_id) > 0 THEN 0 ELSE 1 END,
+                            ct2.version_number DESC,
+                            ct2.curriculum_id DESC
+               ) AS current_rank
+        FROM curriculum_templates ct2
+        LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct2.curriculum_id
+        WHERE UPPER(COALESCE(ct2.lifecycle_status,'')) = 'CURRENT'
+        GROUP BY ct2.curriculum_id, ct2.program_id, ct2.version_number
+    ) ranked
+    WHERE ranked.current_rank > 1
+) duplicate_current ON duplicate_current.curriculum_id = ct.curriculum_id
+SET ct.lifecycle_status = 'LEGACY',
+    ct.is_active = 0,
+    ct.approval_status = 'Approved';
 
 SET FOREIGN_KEY_CHECKS = 1;

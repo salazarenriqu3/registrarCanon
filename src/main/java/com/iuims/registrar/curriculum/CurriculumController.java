@@ -128,13 +128,35 @@ public class CurriculumController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         try {
             Map<String, Object> result = seederService.enforceSingleActiveCurriculumPerProgram();
-            ra.addAttribute("msg", "Normalized active curricula: "
+            ra.addAttribute("msg", "Normalized current offerings: "
                 + result.get("duplicatePrograms") + " program(s) checked, "
-                + result.get("archivedCurricula") + " legacy curriculum template(s) archived.");
+                + result.getOrDefault("legacyCurricula", 0) + " duplicate curriculum template(s) moved to legacy.");
         } catch (Exception e) {
-            ra.addAttribute("error", "Active curriculum normalization failed: " + e.getMessage());
+            ra.addAttribute("error", "Current offering normalization failed: " + e.getMessage());
         }
         return "redirect:/admin/curriculum";
+    }
+
+    @PostMapping("/admin/curriculum/lifecycle")
+    public String updateCurriculumLifecycle(@RequestParam int curriculumId,
+                                            @RequestParam String targetStatus,
+                                            HttpSession session,
+                                            RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        try {
+            seederService.setCurriculumLifecycle(curriculumId, targetStatus);
+            String normalized = targetStatus == null ? "" : targetStatus.trim().toUpperCase();
+            String message = switch (normalized) {
+                case "CURRENT", "ACTIVE", "CURRENT_OFFERING" -> "Curriculum set as the current offering.";
+                case "LEGACY", "HISTORICAL" -> "Curriculum marked as legacy.";
+                case "ARCHIVED", "RETIRED" -> "Curriculum archived.";
+                default -> "Curriculum lifecycle updated.";
+            };
+            ra.addAttribute("msg", message);
+        } catch (Exception e) {
+            ra.addAttribute("error", "Lifecycle update failed: " + e.getMessage());
+        }
+        return "redirect:/admin/curriculum/view/" + curriculumId;
     }
 
     @PostMapping("/admin/curriculum/retire-empty-blockers")
@@ -294,7 +316,7 @@ public class CurriculumController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         try {
             seederService.finalizeDraftCurriculum(curriculumId);
-            ra.addAttribute("msg", "Curriculum finalized and activated.");
+            ra.addAttribute("msg", "Curriculum published as the current offering.");
         } catch (Exception e) {
             ra.addAttribute("error", "Finalize failed: " + e.getMessage());
         }

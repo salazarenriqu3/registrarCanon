@@ -227,8 +227,8 @@ Mark each row Pass, Fail, Blocked, or Not Run and attach a screenshot/student nu
 | A07 | Slot monitoring | Section shows committed count, staged pre-registration count, and editable capacity |
 | A08 | Close section | Closed section rejects new operational use |
 | A09 | Capacity count | Only committed enlistments count as enrolled |
-| A10 | Exact fees | Active scope reads exact term fee rows |
-| A11 | New curriculum | Creates an inactive draft and opens its editor; it does not replace the active version |
+| A10 | Exact fees | Current term/current offering scope reads exact term fee rows |
+| A11 | New curriculum | Creates an inactive draft and opens its editor; it does not replace the current offering |
 | A12 | Scheduling filters | Applied filter values remain selected and only matching courses/sections are shown |
 
 ### B. Student records

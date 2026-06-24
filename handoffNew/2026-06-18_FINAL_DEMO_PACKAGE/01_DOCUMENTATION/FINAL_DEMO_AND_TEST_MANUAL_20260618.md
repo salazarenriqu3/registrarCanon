@@ -226,8 +226,8 @@ Mark each row Pass, Fail, Blocked, or Not Run and attach a screenshot/student nu
 | A05 | Schedule slot | Day/time/faculty persist; room may remain TBA |
 | A06 | Close section | Closed section rejects new operational use |
 | A07 | Capacity count | Only committed enlistments count as enrolled |
-| A08 | Exact fees | Active scope reads exact term fee rows |
-| A09 | New curriculum | Creates an inactive draft and opens its editor; it does not replace the active version |
+| A08 | Exact fees | Current term/current offering scope reads exact term fee rows |
+| A09 | New curriculum | Creates an inactive draft and opens its editor; it does not replace the current offering |
 | A10 | Scheduling filters | Applied filter values remain selected and only matching courses/sections are shown |
 
 ### B. Student records

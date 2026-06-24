@@ -503,8 +503,8 @@
                     </form>
                     <form th:action="@{/admin/curriculum/normalize-active}" method="post" id="normalizeActiveForm">
                         <button type="submit" class="btn btn-outline"
-                                onclick="return confirm('Archive duplicate active curricula and keep one current active curriculum per program? Existing student curriculum assignments will be preserved.') && showSpinner('Normalizing active curricula...')">
-                            <i class="ti ti-archive" aria-hidden="true"></i> Repair Active Versions
+                                onclick="return confirm('Move duplicate current-offering labels to Legacy and keep one Current Offering per program? Existing student curriculum assignments will be preserved.') && showSpinner('Normalizing current offerings...')">
+                            <i class="ti ti-archive" aria-hidden="true"></i> Repair Current Labels
                         </button>
                     </form>
                     </div>
@@ -513,7 +513,7 @@
 
             <div class="curriculum-toolbar" th:unless="${courses != null}">
                 <div class="mode-tabs">
-                    <a th:href="@{/admin/curriculum(view='active',programCode=${selectedProgramCode})}" th:classappend="${selectedView == null or selectedView == 'active'} ? 'active' : ''"><i class="ti ti-checkup-list"></i> Active</a>
+                    <a th:href="@{/admin/curriculum(view='active',programCode=${selectedProgramCode})}" th:classappend="${selectedView == null or selectedView == 'active'} ? 'active' : ''"><i class="ti ti-checkup-list"></i> Current</a>
                     <a th:href="@{/admin/curriculum(view='draft',programCode=${selectedProgramCode})}" th:classappend="${selectedView == 'draft'} ? 'active' : ''"><i class="ti ti-pencil"></i> Drafts</a>
                     <a th:href="@{/admin/curriculum(view='history',programCode=${selectedProgramCode})}" th:classappend="${selectedView == 'history'} ? 'active' : ''"><i class="ti ti-history"></i> History</a>
                     <a th:href="@{/admin/curriculum(view='all',programCode=${selectedProgramCode})}" th:classappend="${selectedView == 'all'} ? 'active' : ''"><i class="ti ti-stack"></i> All</a>
@@ -534,7 +534,7 @@
             <div th:unless="${courses != null}" class="workflow-guide">
                 <div class="workflow-step primary">
                     <div class="workflow-step-title"><span class="workflow-step-number">1</span> Create a working draft</div>
-                    <p>Select a program and academic year. A new draft is editable but does not affect active scheduling until it is published.</p>
+                    <p>Select a program and academic year. A new draft is editable but does not affect current-offering scheduling until it is published.</p>
                     <form th:action="@{/admin/curriculum/placeholder}" method="post" class="curriculum-actions">
                         <select name="programCode" class="form-control" style="min-width: 240px;" required>
                             <option value="">Select program</option>
@@ -551,8 +551,8 @@
                     <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Lecture and laboratory units remain visible separately.</p>
                 </div>
                 <div class="workflow-step">
-                    <div class="workflow-step-title"><span class="workflow-step-number">3</span> Publish and activate</div>
-                    <p>Use <strong>Publish &amp; Activate</strong> inside the draft. That version becomes active and the previous active version moves to History.</p>
+                    <div class="workflow-step-title"><span class="workflow-step-number">3</span> Publish as current</div>
+                    <p>Use <strong>Publish &amp; Set Current</strong> inside the draft. That version becomes the current offering and the previous current offering moves to Legacy.</p>
                 </div>
             </div>
 
@@ -563,7 +563,7 @@
                             <i class="ti ti-clipboard-list" aria-hidden="true" style="color:#b45309;"></i>
                             Curriculum Completion Workspace
                         </h3>
-                        <p class="completion-subtitle">These programs are not readiness-complete because they do not have an active curriculum with real course rows.</p>
+                        <p class="completion-subtitle">These programs are not readiness-complete because they do not have a current offering with real course rows.</p>
                     </div>
                     <div class="completion-head-actions">
                         <span class="completion-count" th:text="${#lists.size(completionQueue)} + ' blocker(s)'">0 blockers</span>
@@ -598,7 +598,7 @@
                                 <span th:if="${q.curriculum_id != null}" style="font-weight:700;" th:text="${'#' + q.curriculum_id + ' - ' + (q.curriculum_name ?: 'Untitled curriculum')}">#</span>
                                 <span th:if="${q.curriculum_id == null}" style="color:var(--text-muted);">No working draft yet</span>
                                 <div style="font-size:.78rem; color:var(--text-muted);" th:if="${q.curriculum_id != null}">
-                                    <span th:text="${q.approval_status ?: 'Draft'}">Draft</span>
+                                    <span th:text="${q.lifecycle_status ?: q.approval_status ?: 'Draft'}">Draft</span>
                                     <span th:if="${q.academic_year != null}" th:text="${' / ' + q.academic_year}"></span>
                                 </div>
                             </td>
@@ -641,7 +641,7 @@
                             <span class="curriculum-chip" th:text="${curriculum.curriculum_name}"></span>
                             <span class="curriculum-chip" th:text="${'A.Y. ' + curriculum.academic_year}"></span>
                             <span class="curriculum-chip" th:text="${'Version ' + curriculum.version_number}"></span>
-                            <span class="curriculum-chip" th:text="${curriculum.approval_status ?: 'Draft'}"></span>
+                            <span class="curriculum-chip" th:text="${curriculum.lifecycle_status ?: curriculum.approval_status ?: 'Draft'}"></span>
                         </div>
                     </div>
                     <div class="curriculum-actions">
@@ -655,7 +655,7 @@
                                 <i class="ti ti-copy" aria-hidden="true"></i> Clone Draft
                             </button>
                         </form>
-                        <form th:if="${curriculum != null and (curriculum.approval_status == 'Draft' or curriculum.approval_status == 'Placeholder') and (curriculum.is_active == 0 or curriculum.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
+                        <form th:if="${curriculum != null and (curriculum.lifecycle_status == 'DRAFT' or curriculum.approval_status == 'Draft' or curriculum.approval_status == 'Placeholder') and (curriculum.is_active == 0 or curriculum.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                             <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Delete this draft curriculum?')">
                                 <i class="ti ti-trash" aria-hidden="true"></i> Delete
@@ -663,8 +663,29 @@
                         </form>
                         <form th:if="${curriculumEditable and curriculum != null and curriculum.course_count > 0}" th:action="@{/admin/curriculum/finalize}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
-                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Publish this curriculum as the active version? The previous active version for this program will be archived.')">
-                                    <i class="ti ti-check" aria-hidden="true"></i> Publish &amp; Activate
+                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Publish this curriculum as the current offering? The previous current offering for this program will move to Legacy.')">
+                                    <i class="ti ti-check" aria-hidden="true"></i> Publish &amp; Set Current
+                            </button>
+                        </form>
+                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.course_count > 0 and curriculum.lifecycle_status != 'CURRENT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                            <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                            <input type="hidden" name="targetStatus" value="CURRENT">
+                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Set this as the current offering for new/default enrollment? The existing current offering will move to Legacy.')">
+                                <i class="ti ti-star" aria-hidden="true"></i> Set Current
+                            </button>
+                        </form>
+                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'LEGACY' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                            <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                            <input type="hidden" name="targetStatus" value="LEGACY">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Mark this curriculum as Legacy? Legacy curricula remain assignable to returning/old-curriculum students.')">
+                                <i class="ti ti-history" aria-hidden="true"></i> Mark Legacy
+                            </button>
+                        </form>
+                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'CURRENT' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                            <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                            <input type="hidden" name="targetStatus" value="ARCHIVED">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Archive this curriculum? Archived curricula are kept for records but should not be assigned to students.')">
+                                <i class="ti ti-archive" aria-hidden="true"></i> Archive
                             </button>
                         </form>
                         <a th:href="@{/admin/curriculum}" class="btn btn-outline" style="padding: 0.4rem 0.8rem;">
@@ -673,7 +694,7 @@
                     </div>
                 </div>
                 <div th:if="${curriculumEditable}" class="draft-notice">
-                    <strong>Working draft:</strong> edits here are not used for active class scheduling until you select <strong>Publish &amp; Activate</strong>.
+                    <strong>Working draft:</strong> edits here are not used for current-offering class scheduling until you select <strong>Publish &amp; Set Current</strong>.
                 </div>
                 <div th:if="${curriculumEditable}" class="editor-panel">
                     <form th:action="@{/admin/curriculum/course/add}" method="post" class="editor-grid" id="courseAddForm"
@@ -822,9 +843,9 @@
                                         <span th:text="${p.course_count}"></span> courses
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                        <span class="status-badge" th:classappend="${p.approval_status == 'Approved'} ? 'enrolled' : ''">
+                                        <span class="status-badge" th:classappend="${p.lifecycle_status == 'CURRENT'} ? 'enrolled' : ''">
                                             <div class="status-dot"></div>
-                                            <span th:text="${p.approval_status ?: 'Draft'}"></span>
+                                            <span th:text="${p.lifecycle_label ?: p.lifecycle_status ?: p.approval_status ?: 'Draft'}"></span>
                                         </span>
                                         <span style="font-size: 0.8rem; font-weight: 600; color: var(--text-muted); background: var(--bg-tertiary); padding: 0.15rem 0.4rem; border-radius: 4px;" th:text="${p.academic_year}"></span>
                                     </div>
@@ -843,7 +864,21 @@
                                             <i class="ti ti-copy"></i> Clone
                                         </button>
                                     </form>
-                                    <form th:if="${p.curriculum_id != null and (p.approval_status == 'Draft' or p.approval_status == 'Placeholder') and (p.is_active == 0 or p.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
+                                    <form th:if="${p.curriculum_id != null and p.course_count > 0 and p.lifecycle_status != 'CURRENT' and p.lifecycle_status != 'DRAFT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                                        <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
+                                        <input type="hidden" name="targetStatus" value="CURRENT">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Set this as the current offering for new/default enrollment?')">
+                                            <i class="ti ti-star"></i> Set Current
+                                        </button>
+                                    </form>
+                                    <form th:if="${p.curriculum_id != null and p.lifecycle_status == 'CURRENT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                                        <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
+                                        <input type="hidden" name="targetStatus" value="LEGACY">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Mark this current offering as Legacy? Another current offering must already exist for this program.')">
+                                            <i class="ti ti-history"></i> Mark Legacy
+                                        </button>
+                                    </form>
+                                    <form th:if="${p.curriculum_id != null and (p.lifecycle_status == 'DRAFT' or p.approval_status == 'Draft' or p.approval_status == 'Placeholder') and (p.is_active == 0 or p.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
                                         <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
                                         <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Delete this draft curriculum?')">
                                             <i class="ti ti-trash"></i> Delete

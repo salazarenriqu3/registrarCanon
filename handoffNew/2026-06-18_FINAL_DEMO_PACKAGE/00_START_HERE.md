@@ -60,7 +60,7 @@ Load the current scholarship demonstration records when needed:
 handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\04_RUNNERS\07_LOAD_SCHOLARSHIP_TEST_DATA.cmd
 ```
 
-Read `01_DOCUMENTATION\FINAL_DEMO_AND_TEST_MANUAL_20260618.md` before presenting.
+Read `01_DOCUMENTATION\REGISTRAR_WHOLE_FEATURE_ROLE_TEST_ORDER_20260623.md` first, then `01_DOCUMENTATION\FINAL_DEMO_AND_TEST_MANUAL_20260618.md` before presenting.
 
 ## Canonical boundaries
 

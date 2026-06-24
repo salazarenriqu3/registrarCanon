@@ -34,6 +34,10 @@ public class CurriculumSeederService {
 
     private final Map<String, Integer> courseIdCache = new LinkedHashMap<>();
     private static final Pattern EFFECTIVE_SY = Pattern.compile("(\\d{4})\\s*-\\s*(\\d{4})");
+    private static final String LIFECYCLE_DRAFT = "DRAFT";
+    private static final String LIFECYCLE_CURRENT = "CURRENT";
+    private static final String LIFECYCLE_LEGACY = "LEGACY";
+    private static final String LIFECYCLE_ARCHIVED = "ARCHIVED";
 
     /** Manifest-driven seed that only publishes into approved program codes. */
     public List<Map<String, Object>> runAutoSeeder() {
@@ -126,7 +130,7 @@ public class CurriculumSeederService {
         }
 
         if (hasOperationalActiveCurriculum(programId)) {
-            warnings.add("Program " + targetProgramCode + " already has an operational active curriculum. Upload publish was blocked to avoid overwriting live structure.");
+            warnings.add("Program " + targetProgramCode + " already has an operational current offering. Upload publish was blocked to avoid overwriting live structure.");
             result.put("seededCount", 0);
             result.put("warnings", warnings);
             result.put("status", "partial");
@@ -173,20 +177,22 @@ public class CurriculumSeederService {
     }
 
     public List<Map<String, Object>> listCurriculumDashboard(String view, String programCode) {
+        ensureCurriculumLifecycleSchema();
         String normalizedView = normalizeDashboardView(view);
         String normalizedProgramCode = normalizeProgramCode(programCode);
         StringBuilder sql = new StringBuilder(
             "SELECT p.program_id, p.program_code, p.program_name, p.school_name, " +
                 "ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, " +
                 "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, " +
+                lifecycleSql("ct") + " AS lifecycle_status, " +
                 "COUNT(cc.curriculum_course_id) AS course_count, " +
                 "CASE " +
                 "WHEN ct.curriculum_id IS NULL THEN 'Missing' " +
-                "WHEN COUNT(cc.curriculum_course_id) = 0 AND UPPER(COALESCE(ct.approval_status,'')) = 'PLACEHOLDER' THEN 'Placeholder' " +
+                "WHEN " + lifecycleSql("ct") + " = 'CURRENT' THEN 'Current Offering' " +
+                "WHEN " + lifecycleSql("ct") + " = 'LEGACY' THEN 'Legacy' " +
+                "WHEN " + lifecycleSql("ct") + " = 'ARCHIVED' THEN 'Archived' " +
                 "WHEN COUNT(cc.curriculum_course_id) = 0 THEN 'Draft Shell' " +
-                "WHEN COALESCE(ct.is_active, 0) = 1 THEN 'Active' " +
-                "WHEN UPPER(COALESCE(ct.approval_status,'')) = 'ARCHIVED' THEN 'Archived' " +
-                "ELSE 'Historical' END AS lifecycle_status " +
+                "ELSE 'Draft' END AS lifecycle_label " +
                 "FROM programs p " +
                 "LEFT JOIN curriculum_templates ct ON ct.program_id = p.program_id " +
                 "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
@@ -194,11 +200,11 @@ public class CurriculumSeederService {
         List<Object> args = new ArrayList<>();
 
         if ("active".equals(normalizedView)) {
-            sql.append("AND (ct.curriculum_id IS NULL OR COALESCE(ct.is_active, 0) = 1) ");
+            sql.append("AND (ct.curriculum_id IS NULL OR ").append(lifecycleSql("ct")).append(" = 'CURRENT') ");
         } else if ("draft".equals(normalizedView)) {
-            sql.append("AND ct.curriculum_id IS NOT NULL AND UPPER(COALESCE(ct.approval_status,'')) IN ('DRAFT','PLACEHOLDER') ");
+            sql.append("AND ct.curriculum_id IS NOT NULL AND ").append(lifecycleSql("ct")).append(" = 'DRAFT' ");
         } else if ("history".equals(normalizedView)) {
-            sql.append("AND ct.curriculum_id IS NOT NULL AND COALESCE(ct.is_active, 0) = 0 AND UPPER(COALESCE(ct.approval_status,'')) NOT IN ('DRAFT','PLACEHOLDER') ");
+            sql.append("AND ct.curriculum_id IS NOT NULL AND ").append(lifecycleSql("ct")).append(" IN ('LEGACY','ARCHIVED') ");
         } else {
             sql.append("AND (ct.curriculum_id IS NOT NULL OR 'all' = 'all') ");
         }
@@ -211,40 +217,43 @@ public class CurriculumSeederService {
         sql.append(
             "GROUP BY p.program_id, p.program_code, p.program_name, p.school_name, " +
                 "ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, " +
-                "ct.approval_status, ct.is_active " +
-            "ORDER BY p.school_name, p.program_name, COALESCE(ct.is_active, 0) DESC, " +
+                "ct.approval_status, ct.lifecycle_status, ct.is_active " +
+            "ORDER BY p.school_name, p.program_name, CASE " + lifecycleSql("ct") +
+                " WHEN 'CURRENT' THEN 0 WHEN 'DRAFT' THEN 1 WHEN 'LEGACY' THEN 2 ELSE 3 END, " +
                 "ct.version_number DESC, ct.curriculum_id DESC");
 
         return db.queryForList(sql.toString(), args.toArray());
     }
 
     public List<Map<String, Object>> listCurriculumCompletionQueue() {
+        ensureCurriculumLifecycleSchema();
         return db.queryForList(
             "SELECT p.program_id, p.program_code, p.program_name, p.school_name, " +
                 "ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, " +
                 "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, " +
+                lifecycleSql("ct") + " AS lifecycle_status, " +
                 "COUNT(cc.curriculum_course_id) AS course_count, " +
                 "CASE " +
                 "WHEN ct.curriculum_id IS NULL THEN 'Needs placeholder' " +
                 "WHEN COUNT(cc.curriculum_course_id) = 0 THEN 'Empty placeholder' " +
-                "WHEN UPPER(COALESCE(ct.approval_status,'')) IN ('DRAFT','PLACEHOLDER') THEN 'Draft in progress' " +
+                "WHEN " + lifecycleSql("ct") + " = 'DRAFT' THEN 'Draft in progress' " +
                 "ELSE 'Needs review' END AS completion_status " +
                 "FROM programs p " +
                 "LEFT JOIN curriculum_templates ct ON ct.curriculum_id = ( " +
                     "SELECT ct2.curriculum_id FROM curriculum_templates ct2 " +
                     "WHERE ct2.program_id = p.program_id " +
-                    "ORDER BY CASE WHEN UPPER(COALESCE(ct2.approval_status,'')) IN ('DRAFT','PLACEHOLDER') THEN 0 ELSE 1 END, " +
-                        "COALESCE(ct2.is_active, 0) ASC, ct2.version_number DESC, ct2.curriculum_id DESC LIMIT 1 " +
+                    "ORDER BY CASE " + lifecycleSql("ct2") + " WHEN 'DRAFT' THEN 0 WHEN 'LEGACY' THEN 1 ELSE 2 END, " +
+                        "ct2.version_number DESC, ct2.curriculum_id DESC LIMIT 1 " +
                 ") " +
                 "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
                 "WHERE COALESCE(p.active_status, 1) = 1 " +
                 "AND NOT EXISTS ( " +
                     "SELECT 1 FROM curriculum_templates act " +
                     "JOIN curriculum_courses acc ON acc.curriculum_id = act.curriculum_id " +
-                    "WHERE act.program_id = p.program_id AND COALESCE(act.is_active, 0) = 1 " +
+                    "WHERE act.program_id = p.program_id AND " + lifecycleSql("act") + " = 'CURRENT' " +
                 ") " +
                 "GROUP BY p.program_id, p.program_code, p.program_name, p.school_name, " +
-                    "ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, ct.approval_status, ct.is_active " +
+                    "ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, ct.approval_status, ct.lifecycle_status, ct.is_active " +
                 "ORDER BY p.school_name, p.program_code");
     }
 
@@ -348,10 +357,12 @@ public class CurriculumSeederService {
     }
 
     public Map<String, Object> getCurriculumSummary(int curriculumId) {
+        ensureCurriculumLifecycleSchema();
         try {
             return db.queryForMap(
                 "SELECT ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, " +
                     "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, " +
+                    lifecycleSql("ct") + " AS lifecycle_status, " +
                     "p.program_id, p.program_code, p.program_name, p.school_name, " +
                     "COUNT(cc.curriculum_course_id) AS course_count " +
                     "FROM curriculum_templates ct " +
@@ -359,7 +370,7 @@ public class CurriculumSeederService {
                     "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
                     "WHERE ct.curriculum_id = ? " +
                     "GROUP BY ct.curriculum_id, ct.curriculum_name, ct.academic_year, ct.version_number, " +
-                    "ct.approval_status, ct.is_active, p.program_id, p.program_code, p.program_name, p.school_name",
+                    "ct.approval_status, ct.lifecycle_status, ct.is_active, p.program_id, p.program_code, p.program_name, p.school_name",
                 curriculumId);
         } catch (Exception e) {
             return Map.of();
@@ -378,7 +389,7 @@ public class CurriculumSeederService {
                 .append(csv(summary.get("curriculum_name"))).append(',')
                 .append(csv(summary.get("academic_year"))).append(',')
                 .append(csv(summary.get("version_number"))).append(',')
-                .append(csv(summary.get("approval_status"))).append(',')
+                .append(csv(summary.get("lifecycle_status"))).append(',')
                 .append(csv(course.get("year_level"))).append(',')
                 .append(csv(course.get("semester_number"))).append(',')
                 .append(csv(course.get("course_code"))).append(',')
@@ -404,8 +415,8 @@ public class CurriculumSeederService {
             : source.get("program_code") + " Draft Curriculum " + targetAcademicYear;
         int nextVersion = nextVersionNumber(programId);
         db.update(
-            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, is_active) " +
-                "VALUES (?, ?, ?, ?, 'Draft', 0)",
+            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, lifecycle_status, is_active) " +
+                "VALUES (?, ?, ?, ?, 'Draft', 'DRAFT', 0)",
             programId, targetName, targetAcademicYear, nextVersion);
         Integer newCurriculumId = latestCurriculumId(programId);
         if (newCurriculumId == null) {
@@ -431,19 +442,17 @@ public class CurriculumSeederService {
         String targetAcademicYear = academicYear != null && !academicYear.isBlank()
             ? academicYear.trim()
             : resolveAcademicYearFromDocOrSettings(null);
-        Integer existing = findReusableActiveDraftTemplate(programId);
+        Integer existing = findReusableDraftTemplate(programId);
         if (existing != null) {
             return getCurriculumSummary(existing);
         }
-        boolean activateShell = !hasAnyActiveCurriculum(programId);
         db.update(
-            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, is_active) " +
-                "VALUES (?, ?, ?, ?, 'Placeholder', ?)",
+            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, lifecycle_status, is_active) " +
+                "VALUES (?, ?, ?, ?, 'Placeholder', 'DRAFT', 0)",
             programId,
             normalizedProgramCode + " Placeholder Curriculum",
             targetAcademicYear,
-            nextVersionNumber(programId),
-            activateShell ? 1 : 0);
+            nextVersionNumber(programId));
         Integer curriculumId = latestCurriculumId(programId);
         return curriculumId != null ? getCurriculumSummary(curriculumId) : Map.of();
     }
@@ -454,11 +463,11 @@ public class CurriculumSeederService {
         if (summary.isEmpty()) {
             throw new IllegalArgumentException("Curriculum was not found.");
         }
-        String status = String.valueOf(summary.getOrDefault("approval_status", "")).toUpperCase(Locale.ROOT);
+        String lifecycle = lifecycleStatus(summary);
         int isActive = summary.get("is_active") instanceof Number ? ((Number) summary.get("is_active")).intValue() : 0;
         int courseCount = summary.get("course_count") instanceof Number ? ((Number) summary.get("course_count")).intValue() : 0;
-        boolean draftLike = status.equals("DRAFT") || status.equals("PLACEHOLDER");
-        boolean emptyActivePlaceholder = isActive == 1 && courseCount == 0 && status.equals("PLACEHOLDER");
+        boolean draftLike = LIFECYCLE_DRAFT.equals(lifecycle);
+        boolean emptyActivePlaceholder = isActive == 1 && courseCount == 0 && draftLike;
         if (!draftLike || (isActive == 1 && !emptyActivePlaceholder)) {
             throw new IllegalStateException("Only inactive drafts or empty placeholders can be deleted.");
         }
@@ -569,13 +578,69 @@ public class CurriculumSeederService {
         if (courseCount <= 0) {
             throw new IllegalStateException("Add at least one course before finalizing this curriculum.");
         }
-        String status = String.valueOf(summary.getOrDefault("approval_status", "")).toUpperCase(Locale.ROOT);
-        if (!status.equals("DRAFT") && !status.equals("PLACEHOLDER")) {
+        String lifecycle = lifecycleStatus(summary);
+        if (!LIFECYCLE_DRAFT.equals(lifecycle)) {
             throw new IllegalStateException("Only draft or placeholder curricula can be finalized.");
         }
+        setCurriculumLifecycle(curriculumId, LIFECYCLE_CURRENT);
+    }
+
+    @Transactional
+    public void setCurriculumLifecycle(int curriculumId, String targetStatus) {
+        ensureCurriculumLifecycleSchema();
+        Map<String, Object> summary = getCurriculumSummary(curriculumId);
+        if (summary.isEmpty()) {
+            throw new IllegalArgumentException("Curriculum was not found.");
+        }
+        String target = normalizeLifecycle(targetStatus);
+        int courseCount = summary.get("course_count") instanceof Number ? ((Number) summary.get("course_count")).intValue() : 0;
         int programId = ((Number) summary.get("program_id")).intValue();
-        archiveOtherActiveCurricula(programId, curriculumId);
-        db.update("UPDATE curriculum_templates SET approval_status = 'Approved', is_active = 1 WHERE curriculum_id = ?", curriculumId);
+
+        if (LIFECYCLE_CURRENT.equals(target)) {
+            if (courseCount <= 0) {
+                throw new IllegalStateException("A current offering must have at least one course.");
+            }
+            demoteOtherCurrentCurricula(programId, curriculumId);
+            approveCurrentCurriculum(curriculumId);
+            return;
+        }
+
+        if (LIFECYCLE_LEGACY.equals(target)) {
+            if (LIFECYCLE_CURRENT.equals(lifecycleStatus(summary)) && !hasOtherCurrentCurriculum(programId, curriculumId)) {
+                throw new IllegalStateException("Set another curriculum as current before moving this one to legacy.");
+            }
+            db.update(
+                "UPDATE curriculum_templates SET lifecycle_status = 'LEGACY', is_active = 0, " +
+                    "approval_status = CASE WHEN approval_status = 'Archived' THEN 'Approved' ELSE approval_status END " +
+                    "WHERE curriculum_id = ?",
+                curriculumId);
+            return;
+        }
+
+        if (LIFECYCLE_ARCHIVED.equals(target)) {
+            if (LIFECYCLE_CURRENT.equals(lifecycleStatus(summary))) {
+                throw new IllegalStateException("Set another curriculum as current before archiving this one.");
+            }
+            int assignedStudents = countRows(
+                "SELECT COUNT(*) FROM student_curriculum_assignments WHERE curriculum_id = ? AND is_current = 1",
+                curriculumId);
+            if (assignedStudents > 0) {
+                throw new IllegalStateException("This curriculum is still assigned to " + assignedStudents + " student(s). Mark it legacy instead.");
+            }
+            db.update(
+                "UPDATE curriculum_templates SET lifecycle_status = 'ARCHIVED', approval_status = 'Archived', is_active = 0 WHERE curriculum_id = ?",
+                curriculumId);
+            return;
+        }
+
+        if (LIFECYCLE_DRAFT.equals(target)) {
+            if (courseCount > 0 && !LIFECYCLE_DRAFT.equals(lifecycleStatus(summary))) {
+                throw new IllegalStateException("Clone this curriculum to create a new editable draft.");
+            }
+            db.update(
+                "UPDATE curriculum_templates SET lifecycle_status = 'DRAFT', approval_status = 'Draft', is_active = 0 WHERE curriculum_id = ?",
+                curriculumId);
+        }
     }
 
     @Transactional
@@ -584,12 +649,12 @@ public class CurriculumSeederService {
         List<Map<String, Object>> duplicates = db.queryForList(
             "SELECT p.program_id, p.program_code, COUNT(*) AS active_count " +
                 "FROM programs p JOIN curriculum_templates ct ON ct.program_id = p.program_id " +
-                "WHERE COALESCE(ct.is_active, 0) = 1 " +
+                "WHERE " + lifecycleSql("ct") + " = 'CURRENT' " +
                 "GROUP BY p.program_id, p.program_code HAVING COUNT(*) > 1 " +
                 "ORDER BY p.program_code");
 
         List<String> normalized = new ArrayList<>();
-        int archivedCount = 0;
+        int legacyCount = 0;
         for (Map<String, Object> row : duplicates) {
             int programId = ((Number) row.get("program_id")).intValue();
             String programCode = String.valueOf(row.get("program_code"));
@@ -597,14 +662,14 @@ public class CurriculumSeederService {
             if (keepCurriculumId == null) {
                 continue;
             }
-            int archived = archiveOtherActiveCurricula(programId, keepCurriculumId);
+            int demoted = demoteOtherCurrentCurricula(programId, keepCurriculumId);
             approveCurrentCurriculum(keepCurriculumId);
-            archivedCount += archived;
-            normalized.add(programCode + " kept #" + keepCurriculumId + ", archived " + archived);
+            legacyCount += demoted;
+            normalized.add(programCode + " kept #" + keepCurriculumId + ", moved " + demoted + " to legacy");
         }
 
         result.put("duplicatePrograms", duplicates.size());
-        result.put("archivedCurricula", archivedCount);
+        result.put("legacyCurricula", legacyCount);
         result.put("normalized", normalized);
         return result;
     }
@@ -665,7 +730,7 @@ public class CurriculumSeederService {
         }
 
         if (hasOperationalActiveCurriculum(programId)) {
-            warnings.add("Operational active curriculum already exists; manifest seed skipped.");
+            warnings.add("Operational current offering already exists; manifest seed skipped.");
             result.put("seededCount", 0);
             result.put("warnings", warnings);
             result.put("status", "skipped");
@@ -786,18 +851,20 @@ public class CurriculumSeederService {
             return 0;
         }
 
-        Integer curriculumId = findReusableActiveDraftTemplate(programId);
+        Integer curriculumId = findReusableDraftTemplate(programId);
         if (curriculumId == null) {
             int nextVersion = nextVersionNumber(programId);
             db.update(
-                "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, is_active) " +
-                    "VALUES (?, ?, ?, ?, ?, ?)",
-                programId, curriculumName, parsed.academicYear(), nextVersion, approvalStatus, activate ? 1 : 0);
+                "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, lifecycle_status, is_active) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                programId, curriculumName, parsed.academicYear(), nextVersion, approvalStatus,
+                activate ? LIFECYCLE_CURRENT : LIFECYCLE_DRAFT, activate ? 1 : 0);
             curriculumId = latestCurriculumId(programId);
         } else {
             db.update(
-                "UPDATE curriculum_templates SET curriculum_name = ?, academic_year = ?, approval_status = ?, is_active = ? WHERE curriculum_id = ?",
-                curriculumName, parsed.academicYear(), approvalStatus, activate ? 1 : 0, curriculumId);
+                "UPDATE curriculum_templates SET curriculum_name = ?, academic_year = ?, approval_status = ?, lifecycle_status = ?, is_active = ? WHERE curriculum_id = ?",
+                curriculumName, parsed.academicYear(), approvalStatus,
+                activate ? LIFECYCLE_CURRENT : LIFECYCLE_DRAFT, activate ? 1 : 0, curriculumId);
         }
 
         if (curriculumId == null) {
@@ -806,8 +873,8 @@ public class CurriculumSeederService {
         }
 
         if (activate) {
-            archiveOtherActiveCurricula(programId, curriculumId);
-            db.update("UPDATE curriculum_templates SET is_active = 1 WHERE curriculum_id = ?", curriculumId);
+            demoteOtherCurrentCurricula(programId, curriculumId);
+            approveCurrentCurriculum(curriculumId);
         }
 
         int seededCount = 0;
@@ -1058,6 +1125,84 @@ public class CurriculumSeederService {
         return programCode.trim().toUpperCase(Locale.ROOT);
     }
 
+    private void ensureCurriculumLifecycleSchema() {
+        if (!tableExists("curriculum_templates")) {
+            return;
+        }
+        try {
+            db.execute("ALTER TABLE curriculum_templates ADD COLUMN lifecycle_status VARCHAR(20) NOT NULL DEFAULT 'DRAFT'");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.update(
+                "UPDATE curriculum_templates SET lifecycle_status = CASE " +
+                    "WHEN UPPER(COALESCE(approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+                    "WHEN UPPER(COALESCE(approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(is_active, 0) = 0 THEN 'DRAFT' " +
+                    "WHEN COALESCE(is_active, 0) = 1 THEN 'CURRENT' " +
+                    "ELSE 'LEGACY' END " +
+                "WHERE lifecycle_status IS NULL OR lifecycle_status = '' " +
+                    "OR UPPER(lifecycle_status) NOT IN ('DRAFT','CURRENT','LEGACY','ARCHIVED')");
+        } catch (Exception ignored) {
+        }
+        try {
+            normalizeDuplicateCurrentRows();
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void normalizeDuplicateCurrentRows() {
+        List<Map<String, Object>> duplicates = db.queryForList(
+            "SELECT program_id FROM curriculum_templates " +
+                "WHERE " + lifecycleSql(null) + " = 'CURRENT' " +
+                "GROUP BY program_id HAVING COUNT(*) > 1");
+        for (Map<String, Object> row : duplicates) {
+            int programId = ((Number) row.get("program_id")).intValue();
+            Integer keepCurriculumId = selectCurrentCurriculumId(programId);
+            if (keepCurriculumId != null) {
+                demoteOtherCurrentCurricula(programId, keepCurriculumId);
+                approveCurrentCurriculum(keepCurriculumId);
+            }
+        }
+    }
+
+    private String lifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
+    }
+
+    private String lifecycleStatus(Map<String, Object> summary) {
+        String value = String.valueOf(summary.getOrDefault("lifecycle_status", "")).trim().toUpperCase(Locale.ROOT);
+        if (!value.isBlank()) {
+            return normalizeLifecycle(value);
+        }
+        String status = String.valueOf(summary.getOrDefault("approval_status", "")).trim().toUpperCase(Locale.ROOT);
+        int isActive = summary.get("is_active") instanceof Number ? ((Number) summary.get("is_active")).intValue() : 0;
+        if ("ARCHIVED".equals(status) || "RETIRED".equals(status)) {
+            return LIFECYCLE_ARCHIVED;
+        }
+        if (("DRAFT".equals(status) || "PLACEHOLDER".equals(status)) && isActive == 0) {
+            return LIFECYCLE_DRAFT;
+        }
+        return isActive == 1 ? LIFECYCLE_CURRENT : LIFECYCLE_LEGACY;
+    }
+
+    private String normalizeLifecycle(String status) {
+        if (status == null) {
+            return LIFECYCLE_DRAFT;
+        }
+        return switch (status.trim().toUpperCase(Locale.ROOT)) {
+            case "CURRENT", "CURRENT_OFFERING", "ACTIVE" -> LIFECYCLE_CURRENT;
+            case "LEGACY", "HISTORICAL" -> LIFECYCLE_LEGACY;
+            case "ARCHIVED", "RETIRED" -> LIFECYCLE_ARCHIVED;
+            default -> LIFECYCLE_DRAFT;
+        };
+    }
+
     private void requireEditableDraft(Map<String, Object> summary) {
         if (!canEditCurriculum(summary)) {
             throw new IllegalStateException("Only inactive drafts or empty placeholders can be edited.");
@@ -1068,10 +1213,10 @@ public class CurriculumSeederService {
         if (summary == null || summary.isEmpty()) {
             return false;
         }
-        String status = String.valueOf(summary.getOrDefault("approval_status", "")).toUpperCase(Locale.ROOT);
+        String status = lifecycleStatus(summary);
         int isActive = summary.get("is_active") instanceof Number ? ((Number) summary.get("is_active")).intValue() : 0;
         int courseCount = summary.get("course_count") instanceof Number ? ((Number) summary.get("course_count")).intValue() : 0;
-        boolean draftLike = status.equals("DRAFT") || status.equals("PLACEHOLDER");
+        boolean draftLike = LIFECYCLE_DRAFT.equals(status);
         return draftLike && (isActive == 0 || courseCount == 0);
     }
 
@@ -1194,7 +1339,7 @@ public class CurriculumSeederService {
     private boolean hasAnyActiveCurriculum(int programId) {
         try {
             Integer count = db.queryForObject(
-                "SELECT COUNT(*) FROM curriculum_templates WHERE program_id = ? AND is_active = 1",
+                "SELECT COUNT(*) FROM curriculum_templates WHERE program_id = ? AND " + lifecycleSql(null) + " = 'CURRENT'",
                 Integer.class,
                 programId);
             return count != null && count > 0;
@@ -1208,7 +1353,7 @@ public class CurriculumSeederService {
             return db.queryForObject(
                 "SELECT ct.curriculum_id FROM curriculum_templates ct " +
                     "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
-                    "WHERE ct.program_id = ? AND COALESCE(ct.is_active, 0) = 1 " +
+                    "WHERE ct.program_id = ? AND " + lifecycleSql("ct") + " = 'CURRENT' " +
                     "GROUP BY ct.curriculum_id, ct.version_number " +
                     "ORDER BY CASE WHEN COUNT(cc.curriculum_course_id) > 0 THEN 0 ELSE 1 END, " +
                     "ct.version_number DESC, ct.curriculum_id DESC LIMIT 1",
@@ -1219,22 +1364,36 @@ public class CurriculumSeederService {
         }
     }
 
-    private int archiveOtherActiveCurricula(int programId, int keepCurriculumId) {
+    private boolean hasOtherCurrentCurriculum(int programId, int curriculumId) {
+        try {
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM curriculum_templates " +
+                    "WHERE program_id = ? AND curriculum_id <> ? AND " + lifecycleSql(null) + " = 'CURRENT'",
+                Integer.class,
+                programId,
+                curriculumId);
+            return count != null && count > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private int demoteOtherCurrentCurricula(int programId, int keepCurriculumId) {
         return db.update(
-            "UPDATE curriculum_templates SET is_active = 0, " +
+            "UPDATE curriculum_templates SET is_active = 0, lifecycle_status = 'LEGACY', " +
                 "approval_status = CASE " +
                     "WHEN UPPER(COALESCE(approval_status,'')) IN ('DRAFT','PLACEHOLDER') " +
                         "AND NOT EXISTS (SELECT 1 FROM curriculum_courses cc WHERE cc.curriculum_id = curriculum_templates.curriculum_id) " +
                         "THEN approval_status " +
-                    "ELSE 'Archived' END " +
-                "WHERE program_id = ? AND curriculum_id <> ? AND COALESCE(is_active, 0) = 1",
+                    "ELSE 'Approved' END " +
+                "WHERE program_id = ? AND curriculum_id <> ? AND " + lifecycleSql(null) + " = 'CURRENT'",
             programId,
             keepCurriculumId);
     }
 
     private void approveCurrentCurriculum(int curriculumId) {
         db.update(
-            "UPDATE curriculum_templates SET approval_status = 'Approved', is_active = 1 WHERE curriculum_id = ?",
+            "UPDATE curriculum_templates SET approval_status = 'Approved', lifecycle_status = 'CURRENT', is_active = 1 WHERE curriculum_id = ?",
             curriculumId);
     }
 
@@ -1243,7 +1402,7 @@ public class CurriculumSeederService {
             Integer count = db.queryForObject(
                 "SELECT COUNT(*) FROM curriculum_templates ct " +
                     "JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
-                    "WHERE ct.program_id = ? AND ct.is_active = 1",
+                    "WHERE ct.program_id = ? AND " + lifecycleSql("ct") + " = 'CURRENT'",
                 Integer.class,
                 programId);
             return count != null && count > 0;
@@ -1252,12 +1411,12 @@ public class CurriculumSeederService {
         }
     }
 
-    private Integer findReusableActiveDraftTemplate(int programId) {
+    private Integer findReusableDraftTemplate(int programId) {
         try {
             return db.queryForObject(
                 "SELECT ct.curriculum_id FROM curriculum_templates ct " +
                     "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
-                    "WHERE ct.program_id = ? AND ct.is_active = 1 " +
+                    "WHERE ct.program_id = ? AND " + lifecycleSql("ct") + " = 'DRAFT' " +
                     "GROUP BY ct.curriculum_id " +
                     "HAVING COUNT(cc.curriculum_course_id) = 0 " +
                     "ORDER BY ct.curriculum_id DESC LIMIT 1",
@@ -1297,8 +1456,8 @@ public class CurriculumSeederService {
             return false;
         }
         db.update(
-            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, is_active) " +
-                "VALUES (?, ?, ?, ?, 'Placeholder', 1)",
+            "INSERT INTO curriculum_templates (program_id, curriculum_name, academic_year, version_number, approval_status, lifecycle_status, is_active) " +
+                "VALUES (?, ?, ?, ?, 'Placeholder', 'DRAFT', 0)",
             programId,
             programCode + " Placeholder Curriculum",
             resolveAcademicYearFromDocOrSettings(null),

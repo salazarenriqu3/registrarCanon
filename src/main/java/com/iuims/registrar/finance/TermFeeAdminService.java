@@ -796,12 +796,22 @@ public class TermFeeAdminService {
             Integer count = db.queryForObject(
                 "SELECT COUNT(*) FROM curriculum_templates ct " +
                     "JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id " +
-                    "WHERE ct.program_id = ? AND ct.is_active = 1",
+                    "WHERE ct.program_id = ? AND " + curriculumLifecycleSql("ct") + " = 'CURRENT'",
                 Integer.class, programId);
             return count != null && count > 0;
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private String curriculumLifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
     }
 
     private static boolean isTruthy(Object value) {

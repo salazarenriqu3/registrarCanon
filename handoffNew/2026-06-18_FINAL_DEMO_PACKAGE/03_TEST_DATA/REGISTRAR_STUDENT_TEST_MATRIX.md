@@ -33,7 +33,7 @@ The final verification result must say `PASS: Registrar student dataset is ready
 | TOR or transfer-credit entry | `2026-1001` | Credit appears in academic history and deficiency calculation after posting |
 | Scholarship eligibility | `SCH-UAT-ELIGIBLE` | Shows 27 completed units and Eligible |
 | Scholarship submit, approve, post, revoke | `SCH-UAT-ELIGIBLE` | Workflow moves through `PENDING`, `APPROVED`, `POSTED`; finance effect begins at `POSTED` |
-| Scholarship policy rejection | `SCH-UAT-LOWUNITS` | Shows 24 completed units and `Needs at least 27 completed unit(s)` |
+| Scholarship policy rejection | `SCH-UAT-LOWUNITS` | Shows 24 completed units and `Needs at least 27 graded/taken unit(s)` |
 | Withdrawal workflow | `2026-1001` | Request is visible to Dean, then Registrar; use only when that test can be completed/reset |
 
 ## Comparison Rules

@@ -173,6 +173,7 @@ public class ApplicantDocumentReadService {
                 document.put("source", "Configured admission requirement");
                 if (row.get("file_id") != null && row.get("stored_path") != null) {
                     document.put("document_key", "normalized:" + row.get("file_id"));
+                    addFileMetadata(document, stringValue(row.get("stored_path")));
                 }
                 documents.add(document);
             }
@@ -199,6 +200,7 @@ public class ApplicantDocumentReadService {
             document.put("source", "Legacy admission record");
             if (storedPath != null && !stringValue(storedPath).isBlank()) {
                 document.put("document_key", "legacy:" + slot);
+                addFileMetadata(document, stringValue(storedPath));
             }
             documents.add(document);
         }
@@ -244,5 +246,21 @@ public class ApplicantDocumentReadService {
 
     private String stringValue(Object value) {
         return value == null ? "" : value.toString().trim();
+    }
+
+    private void addFileMetadata(Map<String, Object> document, String storedPath) {
+        if (storedPath == null || storedPath.isBlank()) {
+            return;
+        }
+        Path fileName = Paths.get(storedPath).getFileName();
+        if (fileName == null) {
+            return;
+        }
+        String name = fileName.toString();
+        document.put("filename", name);
+        int dot = name.lastIndexOf('.');
+        document.put("file_ext", dot >= 0 && dot < name.length() - 1
+            ? name.substring(dot + 1).toUpperCase()
+            : "FILE");
     }
 }

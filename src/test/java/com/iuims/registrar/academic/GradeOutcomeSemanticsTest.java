@@ -78,8 +78,7 @@ class GradeOutcomeSemanticsTest {
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0001', 100, 'SUBMITTED', 'INC')");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0002', 100, 'FAILED', 'Passed')");
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         Double blocked = ReflectionTestUtils.invokeMethod(service, "computeScholarDiscount", "2026-0001", 12_000.0);
         Double allowed = ReflectionTestUtils.invokeMethod(service, "computeScholarDiscount", "2026-0002", 12_000.0);
@@ -110,8 +109,7 @@ class GradeOutcomeSemanticsTest {
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0001', 100, 'SUBMITTED', 'Failed')");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks) VALUES ('2026-0002', 100, 'FAILED', 'Passed')");
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         service.runGradeBasedRenewal(2, 1);
 
@@ -147,8 +145,7 @@ class GradeOutcomeSemanticsTest {
         db.update("INSERT INTO grades (student_id, course_id, status, remarks, registrar_final_remarks) VALUES ('2026-0001', 100, 'SUBMITTED', 'Failed', 'Passed')");
         db.update("INSERT INTO grades (student_id, course_id, status, remarks, registrar_final_remarks) VALUES ('2026-0002', 100, 'SUBMITTED', 'Passed', 'Failed')");
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         service.runGradeBasedRenewal(2, 1);
 
@@ -169,8 +166,7 @@ class GradeOutcomeSemanticsTest {
             VALUES ('2026-0001', 0, 'NONE', 0, 0)
             """);
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         assertThat(service.grantExternalScholarship("2026-0001", "BARANGAY", 50.0, "ACTIVE")).isEqualTo("SUCCESS");
         Map<String, Object> granted = db.queryForMap("SELECT scholarship_approved, scholarship_type, discount_percentage FROM students WHERE student_number = '2026-0001'");
@@ -194,8 +190,7 @@ class GradeOutcomeSemanticsTest {
             VALUES ('2026-0001', 0, 'NONE', 0, 0)
             """);
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         assertThat(service.grantExternalScholarship("2026-0001", "BARANGAY", 0.0, 2_500.0, "ACTIVE")).isEqualTo("SUCCESS");
 
@@ -213,8 +208,7 @@ class GradeOutcomeSemanticsTest {
     void scholarshipTypeCatalogCanSaveConfigurableManualGrantDefaults() {
         createScholarshipTables();
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         service.saveScholarshipType("city grant", "City Grant", "FLAT", 0.0, 7_500.0, false, true);
 
@@ -275,8 +269,7 @@ class GradeOutcomeSemanticsTest {
                 ('2026-0002', 100, 501, 'SUBMITTED', 'Passed', 1.50, 'Failed', 5.00)
             """);
 
-        ScholarEnrollmentService service = new ScholarEnrollmentService(null, null, null, null, null, null);
-        ReflectionTestUtils.setField(service, "db", db);
+        ScholarEnrollmentService service = scholarshipService();
 
         List<Map<String, Object>> candidates = service.evaluateAcademicScholarshipCandidates(15);
 
@@ -289,7 +282,7 @@ class GradeOutcomeSemanticsTest {
             .findFirst()
             .orElseThrow();
         assertThat(eligible.get("eligible")).isEqualTo(true);
-        assertThat(eligible.get("gwa_fmt")).isEqualTo("1.63");
+        assertThat(eligible.get("gwa_fmt")).isEqualTo("1.61");
         assertThat(failed.get("eligible")).isEqualTo(false);
         assertThat((String) failed.get("reason")).contains("failed grade");
     }
@@ -314,11 +307,23 @@ class GradeOutcomeSemanticsTest {
                 section_id INT NULL,
                 status VARCHAR(20) NULL,
                 remarks VARCHAR(30) NULL,
+                prelim DECIMAL(5,2) NULL,
+                midterm DECIMAL(5,2) NULL,
+                final_grade DECIMAL(5,2) NULL,
                 semestral_grade DECIMAL(5,2) NULL,
                 registrar_final_grade DECIMAL(5,2) NULL,
                 registrar_final_remarks VARCHAR(30) NULL
             )
             """);
+    }
+
+    private ScholarEnrollmentService scholarshipService() {
+        return new ScholarEnrollmentService(db, null, null, null, null, null) {
+            @Override
+            public void syncCoreLedgerAssessment(String studentNumber) {
+                // Ledger synchronization is covered outside this grade-outcome fixture.
+            }
+        };
     }
 }
 

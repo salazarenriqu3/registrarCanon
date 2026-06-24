@@ -166,10 +166,12 @@ public class CourseCatalogService {
         result.put("curricula", tableExists("curriculum_courses")
             ? db.queryForList(
                 "SELECT ct.curriculum_id, p.program_code, p.program_name, ct.curriculum_name, ct.academic_year, " +
-                    "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, cc.year_level, cc.semester_number " +
+                    "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, " +
+                    lifecycleSql("ct") + " AS lifecycle_status, cc.year_level, cc.semester_number " +
                     "FROM curriculum_courses cc JOIN curriculum_templates ct ON ct.curriculum_id = cc.curriculum_id " +
                     "JOIN programs p ON p.program_id = ct.program_id WHERE cc.course_id = ? " +
-                    "ORDER BY COALESCE(ct.is_active, 0) DESC, p.program_code, ct.academic_year DESC",
+                    "ORDER BY CASE " + lifecycleSql("ct") + " WHEN 'CURRENT' THEN 0 WHEN 'LEGACY' THEN 1 WHEN 'DRAFT' THEN 2 ELSE 3 END, " +
+                    "p.program_code, ct.academic_year DESC",
                 courseId)
             : List.of());
         result.put("sections", tableExists("class_sections")
@@ -233,6 +235,16 @@ public class CourseCatalogService {
 
     private String usageSubquery(String table, String alias, String condition) {
         return "(SELECT COUNT(*) FROM " + table + " " + alias + " WHERE " + condition + ")";
+    }
+
+    private String lifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
     }
 
     private int tableUsageCount(String table, String condition, Object... args) {

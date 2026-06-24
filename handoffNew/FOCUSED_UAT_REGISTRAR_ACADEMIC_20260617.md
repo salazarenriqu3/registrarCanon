@@ -111,7 +111,9 @@ Confirmed:
   - Term Scholarship Review
 - Updated labels are visible:
   - Maximum Allowed GWA
-  - Maximum Allowed Individual Grade
+  - Maximum Prelim Grade
+  - Maximum Midterm Grade
+  - Maximum Finals Grade
   - Minimum Completed Units
 
 Follow-up:

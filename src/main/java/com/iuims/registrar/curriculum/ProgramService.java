@@ -165,9 +165,10 @@ public class ProgramService {
         result.put("curricula", tableExists("curriculum_templates")
             ? db.queryForList(
                 "SELECT curriculum_id, curriculum_name, academic_year, version_number, approval_status, " +
-                    "COALESCE(is_active, 0) AS is_active " +
+                    "COALESCE(is_active, 0) AS is_active, " + lifecycleSql(null) + " AS lifecycle_status " +
                     "FROM curriculum_templates WHERE program_id = ? " +
-                    "ORDER BY COALESCE(is_active, 0) DESC, academic_year DESC",
+                    "ORDER BY CASE " + lifecycleSql(null) + " WHEN 'CURRENT' THEN 0 WHEN 'LEGACY' THEN 1 WHEN 'DRAFT' THEN 2 ELSE 3 END, " +
+                    "academic_year DESC, curriculum_id DESC",
                 programId)
             : List.of());
         result.put("assignments", tableExists("student_curriculum_assignments")
@@ -235,6 +236,16 @@ public class ProgramService {
 
     private String usageSubquery(String table, String alias, String condition) {
         return "(SELECT COUNT(*) FROM " + table + " " + alias + " WHERE " + condition + ")";
+    }
+
+    private String lifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
     }
 
     private int tableUsageCount(String table, String condition, Object... args) {

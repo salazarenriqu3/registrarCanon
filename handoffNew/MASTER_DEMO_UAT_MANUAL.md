@@ -308,7 +308,7 @@ Retired (no curriculum): BSBA, BSCE, BSCS, BSECE, BSED, BSMATH
 
 - Policy should show **Minimum Completed Units = 27**.
 - `SCH-UAT-ELIGIBLE` / Sofia Scholar should show **27** units and **Eligible**.
-- `SCH-UAT-LOWUNITS` / Liam Low Units should show **24** units and **Not eligible** with reason `Needs at least 27 completed unit(s)`.
+- `SCH-UAT-LOWUNITS` / Liam Low Units should show **24** units and **Not eligible** with reason `Needs at least 27 graded/taken unit(s)`.
 - Sofia: **Submit for Review** → **Approve** → verify the discount is still inactive → **Post** → verify `POSTED` and active scholarship state.
 - Liam remains blocked from submission by the 27-unit policy.
 

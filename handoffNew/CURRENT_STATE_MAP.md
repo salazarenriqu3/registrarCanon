@@ -16,8 +16,8 @@ Last updated: 2026-06-21
 | Fee readiness | Clean for active term after bootstrap |
 | Program Builder | Live; Registrar owns core program master data separately from curriculum mapping |
 | Course Catalog | Live; lecture/laboratory units and usage drilldown are exposed in the Registrar UI |
-| Curriculum readiness | 18 active programs; 6 soft-retired (no source curriculum) |
-| Schedule collision rules | Live; active saves reject same-term room, faculty, and same-section overlaps while allowing TBA rooms |
+| Curriculum readiness | Current-offering lifecycle labels implemented; legacy curricula remain assignable to returning students |
+| Schedule collision rules | Live; schedule saves reject same-term room, faculty, and same-section overlaps while allowing TBA rooms |
 | Slot Monitoring | Live; committed counts, staged pre-registration counts, capacity edits, and close actions are visible per section |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
 | Registrar Spring Security | **Deferred** — proposal only |
@@ -28,8 +28,8 @@ Last updated: 2026-06-21
 
 ## 2026-06-21 Academic Builder Clarification
 
-- Curriculum Management presents the normal path as: create a working draft, build the year/semester course plan, then publish and activate it.
-- A working draft remains inactive until **Publish & Activate** is selected; activation archives the prior active version for that program.
+- Curriculum Management presents the normal path as: create a working draft, build the year/semester course plan, then publish it as the current offering.
+- A working draft remains inactive until **Publish & Set Current** is selected; publishing moves the prior current offering to `LEGACY`, not `ARCHIVED`.
 - Import and repair controls are administrative recovery tools, not normal curriculum creation actions.
 - Course Catalog is the shared course master. **Where Used** expands concrete curriculum placements, class sections, student/academic records, and prerequisite links before a shared course is edited.
 - Class Scheduling save paths hard-block same-term room, faculty, and same-section overlaps. A room may remain TBA and be assigned later.

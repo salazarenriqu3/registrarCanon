@@ -607,7 +607,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             "FROM class_sections cs " +
             "JOIN courses c ON c.course_id = cs.course_id " +
             "JOIN curriculum_courses cc ON cc.course_id = c.course_id " +
-            "JOIN curriculum_templates ct ON ct.curriculum_id = cc.curriculum_id AND COALESCE(ct.is_active, 0) = 1 " +
+            "JOIN curriculum_templates ct ON ct.curriculum_id = cc.curriculum_id AND " + curriculumLifecycleSql("ct") + " = 'CURRENT' " +
             "JOIN programs p ON p.program_id = ct.program_id " +
             "WHERE p.program_code = ? " +
             "AND COALESCE(c.active_status, 1) = 1 AND COALESCE(c.onlist, 1) = 1 " +
@@ -634,13 +634,23 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "JOIN class_sections cs ON cs.section_id = se.section_id " +
                 "LEFT JOIN students s ON s.student_number = se.student_id " +
                 "LEFT JOIN programs p ON p.program_code = s.program_code " +
-                "LEFT JOIN curriculum_templates ct ON ct.program_id = p.program_id AND COALESCE(ct.is_active, 0) = 1 " +
+                "LEFT JOIN curriculum_templates ct ON ct.program_id = p.program_id AND " + curriculumLifecycleSql("ct") + " = 'CURRENT' " +
                 "LEFT JOIN curriculum_courses cc ON cc.curriculum_id = ct.curriculum_id AND cc.course_id = c.course_id " +
                 "WHERE se.student_id = ?"
                 + enlistmentSchemaService.enlistmentStatusFilter(
                     EnlistmentSchemaService.Scope.COMMITTED_ONLY, "se"),
                 studentNumber);
         } catch (Exception e) { return new ArrayList<>(); }
+    }
+
+    private String curriculumLifecycleSql(String alias) {
+        String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
+            "CASE " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+            "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
+            "ELSE 'LEGACY' END))";
     }
 
     /** Per-unit tuition from program_general_fees for the student's current term context. */
@@ -1059,9 +1069,10 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     public Map<String, Object> getScholarshipPolicySettings() {
         Map<String, Object> settings = new LinkedHashMap<>();
         settings.put(PolicySettings.SCHOLARSHIP_MAX_GWA, PolicySettings.scholarshipMaxGwa(db));
-        settings.put(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, PolicySettings.scholarshipMaxIndividualGrade(db));
+        settings.put(PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE, PolicySettings.scholarshipMaxPrelimGrade(db));
+        settings.put(PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE, PolicySettings.scholarshipMaxMidtermGrade(db));
+        settings.put(PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE, PolicySettings.scholarshipMaxFinalsGrade(db));
         settings.put(PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, PolicySettings.scholarshipDefaultDiscountPercent(db));
-        settings.put(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, PolicySettings.scholarshipMinCompletedSubjects(db));
         settings.put(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS, PolicySettings.scholarshipMinCompletedUnits(db));
         settings.put(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC, PolicySettings.scholarshipDisqualifyInc(db));
         settings.put(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED, PolicySettings.scholarshipDisqualifyFailed(db));
@@ -1070,9 +1081,10 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     public void updateScholarshipPolicySettings(Map<String, String> params) {
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_GWA, params.get(PolicySettings.SCHOLARSHIP_MAX_GWA));
-        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE, params.get(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE));
+        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE, params.get(PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE));
+        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE, params.get(PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE));
+        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE, params.get(PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE));
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT, params.get(PolicySettings.SCHOLARSHIP_DEFAULT_DISCOUNT_PERCENT));
-        PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS, params.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_SUBJECTS));
         PolicySettings.saveDecimal(db, PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS, params.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS));
         PolicySettings.saveBoolean(db, PolicySettings.SCHOLARSHIP_DISQUALIFY_INC, params.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC));
         PolicySettings.saveBoolean(db, PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED, params.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED));
@@ -1113,10 +1125,20 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
         Map<String, Object> policy = getScholarshipPolicySettings();
         double maxGwa = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_GWA)).doubleValue();
-        double maxIndividual = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_INDIVIDUAL_GRADE)).doubleValue();
+        double maxPrelim = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE)).doubleValue();
+        double maxMidterm = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE)).doubleValue();
+        double maxFinals = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE)).doubleValue();
         int minUnits = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS)).intValue();
         boolean blockInc = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC));
         boolean blockFailed = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED));
+
+        String finalPoint = gradePointSql("COALESCE(g.registrar_final_grade, g.semestral_grade)");
+        String prelimPoint = gradePointSql("g.prelim");
+        String midtermPoint = gradePointSql("g.midterm");
+        String finalsPoint = gradePointSql("g.final_grade");
+        String gradedUnits = "CASE WHEN " + finalPoint + " IS NOT NULL THEN COALESCE(c.credit_units, 0) ELSE 0 END";
+        String weightedGwa = "CASE WHEN SUM(" + gradedUnits + ") > 0 THEN " +
+            "SUM((" + finalPoint + ") * " + gradedUnits + ") / SUM(" + gradedUnits + ") ELSE NULL END";
 
         List<Map<String, Object>> rows = db.queryForList(
             "SELECT s.student_number, COALESCE(NULLIF(s.real_name, ''), NULLIF(u.real_name, ''), s.student_number) AS student_name, " +
@@ -1124,8 +1146,11 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "COALESCE(s.scholarship_type, 'NONE') AS scholarship_type, COALESCE(s.discount_percentage, 0) AS discount_percentage, " +
                 "COUNT(g.id) AS subject_count, " +
                 "COALESCE(SUM(COALESCE(c.credit_units, 0)), 0) AS completed_units, " +
-                "AVG(COALESCE(g.registrar_final_grade, g.semestral_grade)) AS gwa, " +
-                "MAX(COALESCE(g.registrar_final_grade, g.semestral_grade)) AS highest_grade, " +
+                weightedGwa + " AS gwa, " +
+                "MAX(" + finalPoint + ") AS highest_grade, " +
+                "MAX(" + prelimPoint + ") AS highest_prelim, " +
+                "MAX(" + midtermPoint + ") AS highest_midterm, " +
+                "MAX(" + finalsPoint + ") AS highest_finals, " +
                 "SUM(CASE WHEN " + GradeOutcomeSql.failed("g") + " THEN 1 ELSE 0 END) AS failed_count, " +
                 "SUM(CASE WHEN " + GradeOutcomeSql.outcome("g") + " = 'INC' THEN 1 ELSE 0 END) AS inc_count " +
                 "FROM grades g " +
@@ -1134,7 +1159,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "JOIN students s ON s.student_number = g.student_id " +
                 "LEFT JOIN sys_users u ON u.username = s.student_number " +
                 "WHERE cs.term_id = ? " +
-                "AND (COALESCE(g.registrar_final_grade, g.semestral_grade) IS NOT NULL " +
+                "AND (" + finalPoint + " IS NOT NULL " +
                 "OR " + GradeOutcomeSql.outcome("g") + " IN ('FAILED', 'INC', 'PASSED')) " +
                 "GROUP BY s.student_number, s.real_name, u.real_name, s.program_code, s.scholarship_approved, s.scholarship_type, s.discount_percentage " +
                 "ORDER BY student_name, s.student_number",
@@ -1150,20 +1175,27 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         for (Map<String, Object> row : rows) {
             double gwa = numericOrZero(row.get("gwa"));
             double highest = numericOrZero(row.get("highest_grade"));
-            int subjects = intOrZero(row.get("subject_count"));
+            double highestPrelim = numericOrZero(row.get("highest_prelim"));
+            double highestMidterm = numericOrZero(row.get("highest_midterm"));
+            double highestFinals = numericOrZero(row.get("highest_finals"));
             double units = numericOrZero(row.get("completed_units"));
             int failed = intOrZero(row.get("failed_count"));
             int inc = intOrZero(row.get("inc_count"));
 
             List<String> reasons = new ArrayList<>();
-            if (units < minUnits) reasons.add("Needs at least " + minUnits + " completed unit(s)");
+            if (units < minUnits) reasons.add("Needs at least " + minUnits + " graded/taken unit(s)");
             if (blockFailed && failed > 0) reasons.add(failed + " failed grade(s)");
             if (blockInc && inc > 0) reasons.add(inc + " INC grade(s)");
             if (gwa <= 0 || gwa > maxGwa) reasons.add("GWA " + formatGrade(gwa) + " exceeds " + formatGrade(maxGwa));
-            if (highest > maxIndividual) reasons.add("Highest individual grade " + formatGrade(highest) + " exceeds " + formatGrade(maxIndividual));
+            if (highestPrelim > 0 && highestPrelim > maxPrelim) reasons.add("Prelim grade " + formatGrade(highestPrelim) + " exceeds " + formatGrade(maxPrelim));
+            if (highestMidterm > 0 && highestMidterm > maxMidterm) reasons.add("Midterm grade " + formatGrade(highestMidterm) + " exceeds " + formatGrade(maxMidterm));
+            if (highestFinals > 0 && highestFinals > maxFinals) reasons.add("Finals grade " + formatGrade(highestFinals) + " exceeds " + formatGrade(maxFinals));
 
             row.put("gwa_fmt", formatGrade(gwa));
             row.put("highest_grade_fmt", formatGrade(highest));
+            row.put("highest_prelim_fmt", formatOptionalGrade(row.get("highest_prelim")));
+            row.put("highest_midterm_fmt", formatOptionalGrade(row.get("highest_midterm")));
+            row.put("highest_finals_fmt", formatOptionalGrade(row.get("highest_finals")));
             row.put("completed_units_fmt", formatUnits(units));
             row.put("eligible", reasons.isEmpty());
             row.put("scholarship_granted", truthy(row.get("scholarship_approved")));
@@ -1173,6 +1205,23 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             row.put("reason", reasons.isEmpty() ? "Meets configured scholarship policy." : String.join("; ", reasons));
         }
         return rows;
+    }
+
+    private String gradePointSql(String expression) {
+        String value = "(" + expression + ")";
+        return "CASE " +
+            "WHEN " + value + " IS NULL OR " + value + " <= 0 THEN NULL " +
+            "WHEN " + value + " <= 5 THEN " + value + " " +
+            "WHEN " + value + " >= 98 THEN 1.00 " +
+            "WHEN " + value + " >= 95 THEN 1.25 " +
+            "WHEN " + value + " >= 92 THEN 1.50 " +
+            "WHEN " + value + " >= 89 THEN 1.75 " +
+            "WHEN " + value + " >= 86 THEN 2.00 " +
+            "WHEN " + value + " >= 83 THEN 2.25 " +
+            "WHEN " + value + " >= 80 THEN 2.50 " +
+            "WHEN " + value + " >= 77 THEN 2.75 " +
+            "WHEN " + value + " >= 75 THEN 3.00 " +
+            "ELSE 5.00 END";
     }
 
     @Transactional
@@ -1317,6 +1366,12 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     private String formatGrade(double value) {
         return String.format(java.util.Locale.US, "%.2f", value);
+    }
+
+    private String formatOptionalGrade(Object value) {
+        if (!(value instanceof Number)) return "-";
+        double grade = ((Number) value).doubleValue();
+        return grade > 0 ? formatGrade(grade) : "-";
     }
 
     private String formatUnits(double value) {

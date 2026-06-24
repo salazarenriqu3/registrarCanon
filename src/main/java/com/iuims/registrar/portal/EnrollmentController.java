@@ -408,8 +408,9 @@ public class EnrollmentController {
 
     @GetMapping("/admin/student-manager/admission-document")
     public ResponseEntity<Resource> viewAdmissionDocument(@RequestParam String studentNumber,
-                                                          @RequestParam String documentKey,
-                                                          HttpSession session) {
+                                                           @RequestParam String documentKey,
+                                                           @RequestParam(required = false, defaultValue = "view") String mode,
+                                                           HttpSession session) {
         if (session.getAttribute("currentUser") == null) {
             return ResponseEntity.status(401).build();
         }
@@ -423,10 +424,29 @@ public class EnrollmentController {
                 ? MediaType.parseMediaType(contentType)
                 : MediaType.APPLICATION_OCTET_STREAM;
             Resource resource = new UrlResource(path.toUri());
+            String normalizedMode = "download".equalsIgnoreCase(mode) ? "download" : "view";
+            boolean download = "download".equals(normalizedMode);
+            String fileName = path.getFileName().toString().replace("\"", "");
+            String sourceTable = documentKey.startsWith("normalized:")
+                ? "student_requirement_files"
+                : "applicants";
+            try {
+                recordTrail(
+                    studentNumber,
+                    "ADMISSION_DOCUMENT",
+                    download ? "ADMISSION_DOCUMENT_DOWNLOADED" : "ADMISSION_DOCUMENT_VIEWED",
+                    download ? "Registrar downloaded admission document" : "Registrar viewed admission document",
+                    "Document key: " + documentKey + "; file: " + fileName,
+                    session,
+                    sourceTable,
+                    documentKey);
+            } catch (Exception ignored) {
+                // Document safekeeping access should remain available even if trail persistence fails.
+            }
             return ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
-                    "inline; filename=\"" + path.getFileName().toString().replace("\"", "") + "\"")
+                    (download ? "attachment" : "inline") + "; filename=\"" + fileName + "\"")
                 .header("X-Content-Type-Options", "nosniff")
                 .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
                 .body(resource);
