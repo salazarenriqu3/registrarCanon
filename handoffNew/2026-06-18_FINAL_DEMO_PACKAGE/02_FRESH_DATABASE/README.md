@@ -30,7 +30,7 @@ $env:EAC_DB_PASSWORD = ""
 |---|---|
 | `01_SCHEMA` | Canonical base schema and seed |
 | `02_CONTRACTS` | Enlistment lifecycle and exact fee schema contracts |
-| `03_ACADEMIC_MASTER` | Full curricula, terms, retirements, sections, schedules, and faculty |
+| `03_ACADEMIC_MASTER` | Full curricula, terms, retirements, sections, schedules, faculty, and schedule cleanup |
 | `04_TERM_AND_FEES` | Active term and exact fee materialization |
 | `05_VERIFICATION` | Read-only post-bootstrap readiness report |
 

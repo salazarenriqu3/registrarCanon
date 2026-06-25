@@ -74,6 +74,8 @@ call :run "sql\04_TERM_AND_FEES\15_materialize_calendar_term_fees.sql"
 if errorlevel 1 exit /b 1
 call :run "sql\03_ACADEMIC_MASTER\16_assign_demo_faculty.sql"
 if errorlevel 1 exit /b 1
+call :run "sql\03_ACADEMIC_MASTER\17_clean_schedule_dataset.sql"
+if errorlevel 1 exit /b 1
 call :run "sql\02_CONTRACTS\18_registrar_withdrawal_governance.sql"
 if errorlevel 1 exit /b 1
 call :run "sql\05_VERIFICATION\17_verify_readiness.sql"

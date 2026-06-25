@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="1200" viewBox="0 0 900 1200">
+  <rect width="900" height="1200" fill="#eef7fb"/>
+  <rect x="40" y="40" width="820" height="1120" rx="24" fill="#fbfeff" stroke="#1d6996" stroke-width="6"/>
+  <text x="80" y="120" font-family="Arial, sans-serif" font-size="42" fill="#1d6996">Supporting Applicant Document</text>
+  <text x="80" y="190" font-family="Arial, sans-serif" font-size="30" fill="#1d6996">Reference: DEMO-SANTOS-001</text>
+  <text x="80" y="240" font-family="Arial, sans-serif" font-size="30" fill="#1d6996">Category: Other Doc</text>
+  <text x="80" y="320" font-family="Arial, sans-serif" font-size="24" fill="#444">This file exists so the registrar document viewer has a complete set of seeded uploads.</text>
+  <line x1="80" y1="400" x2="820" y2="400" stroke="#bfd7ea" stroke-width="3"/>
+  <text x="80" y="490" font-family="Arial, sans-serif" font-size="24" fill="#1d6996">Source: Curated demo package</text>
+  <text x="80" y="550" font-family="Arial, sans-serif" font-size="26" fill="#1d6996">Safe to display during presentation.</text>
+</svg>

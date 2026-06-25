@@ -29,6 +29,22 @@ public final class ScheduleConflictValidator {
         }
 
         int termId = ((Number) sections.get(0).get("term_id")).intValue();
+        if (roomId != null) {
+            List<Map<String, Object>> rooms = db.queryForList(
+                "SELECT room_id FROM rooms WHERE room_id = ? AND COALESCE(active_status, 1) = 1 LIMIT 1",
+                roomId);
+            if (rooms.isEmpty()) {
+                return "Room not found or inactive.";
+            }
+        }
+        if (facultyId != null) {
+            List<Map<String, Object>> facultyRows = db.queryForList(
+                "SELECT faculty_id FROM faculty WHERE faculty_id = ? AND COALESCE(active_status, 1) = 1 LIMIT 1",
+                facultyId);
+            if (facultyRows.isEmpty()) {
+                return "Faculty not found or inactive.";
+            }
+        }
         String overlapSql =
             "SELECT cs.section_id, cs.section_code FROM class_schedules sch " +
             "JOIN class_sections cs ON cs.section_id = sch.section_id " +
@@ -64,6 +80,18 @@ public final class ScheduleConflictValidator {
     }
 
     public String validateFacultyAssignment(int sectionId, int facultyId) {
+        List<Map<String, Object>> targetSection = db.queryForList(
+            "SELECT cs.term_id, cs.section_code, " +
+            "CASE WHEN c.is_coordinator_based = 1 AND c.coordinator_equivalent_units IS NOT NULL " +
+            "  THEN c.coordinator_equivalent_units ELSE c.credit_units END AS load_units " +
+            "FROM class_sections cs " +
+            "JOIN courses c ON c.course_id = cs.course_id " +
+            "WHERE cs.section_id = ?",
+            sectionId);
+        if (targetSection.isEmpty()) {
+            return "Section not found.";
+        }
+
         List<Map<String, Object>> targetSlots = db.queryForList(
             "SELECT cs.term_id, sch.day_of_week, sch.start_time, sch.end_time " +
             "FROM class_sections cs JOIN class_schedules sch ON sch.section_id = cs.section_id " +
@@ -82,7 +110,10 @@ public final class ScheduleConflictValidator {
                     + " during one of this section's schedule slots.";
             }
         }
-        return null;
+
+        int termId = ((Number) targetSection.get(0).get("term_id")).intValue();
+        int sectionLoadUnits = numberValue(targetSection.get(0).get("load_units"));
+        return validateFacultyLoadCap(facultyId, termId, sectionLoadUnits, sectionId);
     }
 
     public List<Map<String, Object>> findExistingConflicts(int termId) {
@@ -129,5 +160,50 @@ public final class ScheduleConflictValidator {
     private String sectionCode(Map<String, Object> row) {
         Object value = row.get("section_code");
         return value == null ? "(unnamed)" : String.valueOf(value);
+    }
+
+    public String validateFacultyLoadCap(int facultyId, int termId, int additionalUnits, Integer excludedSectionId) {
+        if (additionalUnits <= 0) {
+            return null;
+        }
+
+        List<Map<String, Object>> facultyRows = db.queryForList(
+            "SELECT faculty_id FROM faculty WHERE faculty_id = ? AND COALESCE(active_status, 1) = 1 LIMIT 1",
+            facultyId);
+        if (facultyRows.isEmpty()) {
+            return "Faculty not found or inactive.";
+        }
+
+        StringBuilder currentLoadSql = new StringBuilder(
+            "SELECT COALESCE(SUM(CASE " +
+            "  WHEN c.is_coordinator_based = 1 AND c.coordinator_equivalent_units IS NOT NULL " +
+            "    THEN c.coordinator_equivalent_units ELSE c.credit_units END), 0) " +
+            "FROM class_sections cs " +
+            "JOIN courses c ON c.course_id = cs.course_id " +
+            "WHERE cs.faculty_id = ? AND cs.term_id = ?");
+        List<Object> args = new ArrayList<>();
+        args.add(facultyId);
+        args.add(termId);
+        if (excludedSectionId != null) {
+            currentLoadSql.append(" AND cs.section_id <> ?");
+            args.add(excludedSectionId);
+        }
+
+        Integer currentLoad = db.queryForObject(currentLoadSql.toString(), Integer.class, args.toArray());
+        Integer maxUnits = db.queryForObject(
+            "SELECT max_teaching_units FROM faculty WHERE faculty_id = ?",
+            Integer.class, facultyId);
+
+        int load = currentLoad == null ? 0 : currentLoad;
+        int max = maxUnits == null ? 18 : maxUnits;
+        if (load + additionalUnits > max) {
+            return "Faculty assignment would exceed max load (" + load + "/" + max
+                + " units; adding " + additionalUnits + " would exceed the cap).";
+        }
+        return null;
+    }
+
+    private int numberValue(Object value) {
+        return value instanceof Number n ? n.intValue() : 0;
     }
 }

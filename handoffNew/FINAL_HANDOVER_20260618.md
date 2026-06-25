@@ -8,9 +8,10 @@ Workspace: `C:\newer\new`
 
 Read in this order:
 
-1. `FINAL_SYSTEM_DOCUMENTATION_20260618.md`
-2. `FINAL_DEMO_AND_TEST_MANUAL_20260618.md`
-3. This handover
+1. `REGISTRAR_SYSTEM_SPECIFICATION_20260625.md`
+2. `FINAL_SYSTEM_DOCUMENTATION_20260618.md`
+3. `FINAL_DEMO_AND_TEST_MANUAL_20260618.md`
+4. This handover
 
 These files are the current canon. Dated plans and earlier manuals are supporting history.
 
@@ -19,6 +20,12 @@ These files are the current canon. Dated plans and earlier manuals are supportin
 Registrar stabilization and the latest academic refinements are implemented. The build includes Program Builder, Course Catalog unit/usage visibility, Curriculum Builder, Class Scheduling, Slot Monitoring, Student Profile improvements, Registration Form terminology, withdrawal/document-trail surfaces, exact-term fee readiness, and a demonstrable scholarship review/posting workflow.
 
 The project is ready for a controlled demo after its preflight gate. It is not production-approved.
+
+Update 2026-06-25:
+
+- `setup\LOAD_FULL_REGISTRAR_DEMO_DATA.cmd` now loads the current registrar feature presentation dataset.
+- `handoffNew\REGISTRAR_FEATURE_DEMO_MANUAL_20260625.md` is the detailed presenter script for that dataset.
+- The overlay seeds real rooms for the named demo blocks/sections and reconnects Maria `2026-1001` to inline-viewable admission documents.
 
 ## 3. Scope guardrails
 
@@ -90,6 +97,9 @@ The sole full-suite error is `ModulithTests`, which detects existing cycles amon
 | Demo active term | `1120242025`, term id 1 |
 | Fresh bootstrap | `registrar\setup\RUN_FRESH_SETUP.cmd` |
 | Bootstrap nature | Destructive: drops and recreates `eacdb` |
+| Full registrar demo loader | `registrar\setup\LOAD_FULL_REGISTRAR_DEMO_DATA.cmd` |
+| Registrar demo start | `registrar\setup\START_REGISTRAR_DEMO.cmd` |
+| Detailed registrar feature script | `registrar\handoffNew\REGISTRAR_FEATURE_DEMO_MANUAL_20260625.md` |
 | Scholarship seed | `registrar\handoffNew\sql_manual\08_scholarship_demo_seed.sql` |
 
 ## 8. Working tree warning
@@ -112,7 +122,7 @@ Never discard the dirty tree with a hard reset.
 - Active-term and student identity values must agree before debugging downstream behavior.
 - Exact fee scopes are required; demo templates are not official production rates.
 - Scholarship approval does not affect finance until posting.
-- Room assignment can remain tentative/TBA.
+- Baseline bootstrap may leave room assignment tentative/TBA; the June 25 registrar feature overlay assigns concrete rooms to the specific demo blocks and sections.
 - Existing Dean withdrawal review is distinct from the retired new-enrollee advising feature.
 
 ## 10. Suggested first successor task
@@ -158,7 +168,11 @@ This section captures the work completed after the 2026-06-18 baseline that the 
 - Course-section filters now cover search, department, section availability, section status, faculty assignment, schedule state, day, and room.
 - Filter state is preserved after apply/reset so the current selection remains visible.
 - The course/section load path was refactored to use bulk queries instead of per-row lookups, which made the large scheduling page noticeably faster on the current dataset.
-- Schedule writes now hard-block same-term overlaps for the same room, assigned faculty member, or class section. Rooms may intentionally remain TBA; overlap validation applies once a room is assigned.
+- Schedule writes now hard-block same-term overlaps for the same room, assigned faculty member, or class section. Faculty assignment also checks max-teaching-load before the write is allowed. Rooms may intentionally remain TBA; overlap validation applies once a room is assigned.
+- Faculty Load now includes a term-integrity audit that flags suspicious "one faculty owns the whole term" assignment concentration, plus a guarded repair action that clears those assignments from both `class_sections` and `class_schedules`.
+- `class_sections` now attempts to enforce a unique `(term_id, section_code, course_id)` key during schema setup so block/materialization flows cannot silently duplicate the same course-section tuple on a healthy database.
+- The fresh-setup demo seed `setup/sql/03_assign_prof_cruz_demo.sql` no longer stamps all active-term sections onto one faculty member; it now restores a bounded multi-faculty demo mix while keeping `prof.cruz` grading-ready.
+- The schedule seed and cleanup path were hardened so generated schedule rows no longer stamp the same room onto the whole dataset. Fresh setup now leaves rooms as TBA by default, removes same-section overlap duplicates, and clears inactive-term faculty assignments until those terms are deliberately scheduled.
 
 ### Curriculum management
 
@@ -178,12 +192,16 @@ This section captures the work completed after the 2026-06-18 baseline that the 
 - `mvn -q -DskipTests package` passed for the Registrar app.
 - `mvn -q test` produced 42 passing tests, 1 skipped test, and 1 known Modulith architecture-cycle error.
 - Live runtime smoke checks confirmed the updated curriculum button and the new scheduling filters are visible in the current app.
+- Live data cleanup on 2026-06-25 reduced active-term room conflicts, faculty conflicts, same-section overlaps, duplicate `(term, course, section)` tuples, and faculty overloads to zero; inactive-term faculty assignments were cleared to keep the seeded calendar terms constraint-safe until scheduled.
 
 ### What the next agent should know
 
-- Treat the three final documents as the source of truth:
+- Treat the updated specification plus the final handoff set as the source of truth:
+  - `REGISTRAR_SYSTEM_SPECIFICATION_20260625.md`
   - `FINAL_SYSTEM_DOCUMENTATION_20260618.md`
   - `FINAL_DEMO_AND_TEST_MANUAL_20260618.md`
   - `FINAL_HANDOVER_20260618.md`
-- Schedule clash enforcement exists in the active save paths and is covered by `ScheduleConflictValidatorTest`; keep the focused room, faculty, and same-section overlap checks in release UAT.
+- Schedule clash enforcement exists in the active save paths and is covered by `ScheduleConflictValidatorTest`; keep the focused room, faculty, same-section overlap, and faculty-load checks in release UAT.
+- If Faculty Load shows an integrity warning banner, treat the term data as damaged first; use the repair action or equivalent SQL cleanup before trusting overload/conflict dashboards.
+- Fresh bootstrap now relies on `setup/sql/06_clean_schedule_dataset.sql` after the curated faculty mix. If the demo dataset regresses, re-run that cleanup before trusting schedule/conflict reports.
 - The current demo path is ready for controlled UAT and handoff, but not for production sign-off.

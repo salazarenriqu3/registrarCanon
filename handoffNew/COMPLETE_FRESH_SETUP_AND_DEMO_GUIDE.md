@@ -233,7 +233,7 @@ If fee gaps remain: import `registrar/setup/fees/term-fee-import-template-112024
 | Class schedules (not TBA) | Yes |
 | Fees on all calendar terms | Yes |
 | Active term **1120242025** | Yes |
-| **prof.cruz** on all active-term sections | Yes |
+| Curated demo faculty assignments on active-term sections | Yes |
 
 Full step list: `registrar/setup/BOOTSTRAP_SEED_MANIFEST.md`
 
@@ -398,7 +398,7 @@ Detail: `MASTER_DEMO_UAT_MANUAL.md` Part 9.
 
 ### Session D — Faculty / grading (~30 min)
 
-Bootstrap assigns all active sections to **`prof.cruz`**.
+Bootstrap seeds a curated active-term faculty mix and keeps **`prof.cruz`** grading-ready.
 
 | Step | URL / login | Pass when |
 |------|-------------|-----------|

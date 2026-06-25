@@ -27,8 +27,9 @@ Agents: if a demo feature is missing, find its step here and re-run that file in
 | 13 | `registrar/setup/sql/01_activate_term_2425_s1.sql` | Activate **`1120242025`**, set `CURRENT_ACADEMIC_TERM` |
 | 14 | `registrar/setup/sql/02_materialize_term_fees.sql` | Exact fees for term 1; Y3/Y4 gap fill; pre-seed term 2 |
 | 15 | `registrar/setup/sql/05_materialize_all_calendar_term_fees.sql` | Copy fees to **all other calendar terms** (2425 S2 → 2728 S2) |
-| 16 | `registrar/setup/sql/03_assign_prof_cruz_demo.sql` | Assign **all active-term sections** to `prof.cruz`; refresh grading windows |
-| 17 | `registrar/setup/sql/04_verify_readiness.sql` | SQL report — fees, sections, blocks, faculty, gates |
+| 16 | `registrar/setup/sql/03_assign_prof_cruz_demo.sql` | Apply a curated active-term demo faculty mix (keeps `prof.cruz` grading-ready); refresh grading windows |
+| 17 | `registrar/setup/sql/06_clean_schedule_dataset.sql` | Clear seeded room collisions to TBA, drop section self-overlaps, and clear inactive-term faculty assignments |
+| 18 | `registrar/setup/sql/04_verify_readiness.sql` | SQL report — fees, sections, blocks, faculty, scheduling constraints, gates |
 
 ---
 
@@ -41,7 +42,7 @@ Agents: if a demo feature is missing, find its step here and re-run that file in
 | 2526 S1/S2 | `1120252026` … | Yes | Yes | Yes | Yes |
 | … through 2728 | `1120272028` … | Yes | Yes | Yes | Yes |
 
-**Only one term is active** (`is_active=1`) at a time — default **`1120242025`**. Others are pre-seeded for term transition without rebuilding sections.
+**Only one term is active** (`is_active=1`) at a time — default **`1120242025`**. Others are pre-seeded for term transition without rebuilding sections, but faculty assignments outside the active term are intentionally cleared by the cleanup step until scheduling is done for that term.
 
 ---
 
@@ -62,6 +63,7 @@ Agents: if a demo feature is missing, find its step here and re-run that file in
 USE eacdb;
 SOURCE registrar/db/seed_all_class_schedules.sql;
 SOURCE registrar/setup/sql/03_assign_prof_cruz_demo.sql;
+SOURCE registrar/setup/sql/06_clean_schedule_dataset.sql;
 SOURCE registrar/setup/sql/04_verify_readiness.sql;
 ```
 

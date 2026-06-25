@@ -9,7 +9,7 @@ This is the canonical, sorted package for setting up, building, demonstrating, t
 
 | Folder | Purpose |
 |---|---|
-| `01_DOCUMENTATION` | Final system documentation, demo/UAT manual, and handover |
+| `01_DOCUMENTATION` | System specification, final system documentation, demo/UAT manual, and handover |
 | `02_FRESH_DATABASE` | Self-contained destructive fresh database setup and all required SQL |
 | `03_TEST_DATA` | Current test-only seeds, read-only smoke queries, and cleanup |
 | `04_RUNNERS` | Package validation, build, tests, app startup, and preflight commands |
@@ -60,7 +60,12 @@ Load the current scholarship demonstration records when needed:
 handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\04_RUNNERS\07_LOAD_SCHOLARSHIP_TEST_DATA.cmd
 ```
 
-Read `01_DOCUMENTATION\REGISTRAR_WHOLE_FEATURE_ROLE_TEST_ORDER_20260623.md` first, then `01_DOCUMENTATION\FINAL_DEMO_AND_TEST_MANUAL_20260618.md` before presenting.
+Read in this order before presenting:
+
+1. `01_DOCUMENTATION\REGISTRAR_SYSTEM_SPECIFICATION_20260625.md`
+2. `01_DOCUMENTATION\FINAL_SYSTEM_DOCUMENTATION_20260618.md`
+3. `01_DOCUMENTATION\REGISTRAR_FEATURE_DEMO_MANUAL_20260625.md`
+4. `01_DOCUMENTATION\FINAL_DEMO_AND_TEST_MANUAL_20260618.md`
 
 ## Canonical boundaries
 

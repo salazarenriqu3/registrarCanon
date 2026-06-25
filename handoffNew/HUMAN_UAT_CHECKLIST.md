@@ -316,7 +316,7 @@ Detail: `MASTER_DEMO_UAT_MANUAL.md` Part 9.
 
 # Session D — Faculty / grading (~30 min)
 
-Bootstrap assigns all sections to **`prof.cruz`** (`setup/sql/03_assign_prof_cruz_demo.sql`).
+Bootstrap seeds a curated active-term faculty mix and keeps **`prof.cruz`** grading-ready (`setup/sql/03_assign_prof_cruz_demo.sql`).
 
 | # | Step | URL / login | Pass when |
 |---|------|-------------|-----------|

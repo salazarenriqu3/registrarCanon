@@ -224,6 +224,7 @@ public class DatabaseSetupService {
             // Create default users
             ensureUserPassword("admin", "1234", "Admin");
             ensureUserPassword("prof", "1234", "Faculty");
+            ensureUserPassword("prof.cruz", "1234", "Faculty");
             ensureUserPassword("dean", "1234", "Dean");
         } catch (Exception e) {
             System.err.println("Database Init Error: " + e.getMessage());
@@ -373,12 +374,19 @@ public class DatabaseSetupService {
             tryExecute("ALTER TABLE class_sections ADD COLUMN section_status VARCHAR(30) NOT NULL DEFAULT 'Open'");
             tryExecute("ALTER TABLE class_sections ADD COLUMN semester_number INT NULL");
             tryExecute("ALTER TABLE class_sections ADD COLUMN block_id INT NULL");
+            tryExecute("ALTER TABLE class_sections ADD KEY idx_cs_term_faculty (term_id, faculty_id)");
+            tryExecute("ALTER TABLE class_sections ADD KEY idx_cs_term_status (term_id, section_status)");
+            tryExecute("ALTER TABLE class_sections ADD UNIQUE KEY uk_cs_term_section_course (term_id, section_code, course_id)");
             tryExecute("ALTER TABLE class_schedules ADD COLUMN section_id INT NULL");
             tryExecute("ALTER TABLE class_schedules ADD COLUMN room_id INT NULL");
             tryExecute("ALTER TABLE class_schedules ADD COLUMN schedule_type VARCHAR(30) NULL");
             tryExecute("ALTER TABLE class_schedules ADD COLUMN is_unlocked TINYINT(1) DEFAULT 0");
             tryExecute("ALTER TABLE class_schedules ADD COLUMN faculty_id INT NULL");
             tryExecute("ALTER TABLE class_schedules MODIFY COLUMN day_of_week INT NULL");
+            tryExecute("ALTER TABLE class_schedules ADD KEY idx_sched_section_day (section_id, day_of_week)");
+            tryExecute("ALTER TABLE class_schedules ADD KEY idx_sched_room_day (room_id, day_of_week)");
+            tryExecute("ALTER TABLE class_schedules ADD KEY idx_sched_faculty_day (faculty_id, day_of_week)");
+            tryExecute("ALTER TABLE class_schedules ADD KEY idx_sched_day_time (day_of_week, start_time, end_time)");
         } catch (Exception e) {
             System.err.println("Academic builder schema setup failed: " + e.getMessage());
         }

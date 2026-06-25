@@ -15,7 +15,7 @@
 USE eacdb;
 SET SQL_SAFE_UPDATES = 0;
 
-SET @pwd = '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2';
+SET @pwd = '$2a$10$/l9Hb.SsSN5IBm7xyF/t4uen1KPG6uqBTxkF1hfczWNf9apIcOCKK';
 SET @dept_id = COALESCE(
     (SELECT department_id FROM programs WHERE program_code = 'BSIT' LIMIT 1),
     (SELECT department_id FROM departments ORDER BY department_id LIMIT 1),

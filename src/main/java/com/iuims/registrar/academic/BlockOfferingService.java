@@ -165,9 +165,13 @@ public class BlockOfferingService {
             blockId = db.queryForObject("SELECT LAST_INSERT_ID()", Integer.class);
         }
 
-        MaterializeResult result = materializeBlockCourses(blockId);
-        return "SUCCESS: Block " + program + "-" + yearLevel + "-" + semesterNumber + "-" + group
-            + " — created " + result.created + " course slot(s), linked " + result.linked + ", skipped " + result.skipped + ".";
+        try {
+            MaterializeResult result = materializeBlockCourses(blockId);
+            return "SUCCESS: Block " + program + "-" + yearLevel + "-" + semesterNumber + "-" + group
+                + " — created " + result.created + " course slot(s), linked " + result.linked + ", skipped " + result.skipped + ".";
+        } catch (IllegalStateException e) {
+            return "ERROR: " + e.getMessage();
+        }
     }
 
     @Transactional
@@ -231,11 +235,32 @@ public class BlockOfferingService {
         }
 
         List<Map<String, Object>> courses = db.queryForList(
-            "SELECT cc.course_id FROM curriculum_courses cc " +
+            "SELECT cc.course_id, " +
+            "CASE WHEN c.is_coordinator_based = 1 AND c.coordinator_equivalent_units IS NOT NULL " +
+            "  THEN c.coordinator_equivalent_units ELSE c.credit_units END AS load_units " +
+            "FROM curriculum_courses cc " +
             "JOIN courses c ON c.course_id = cc.course_id " +
             "WHERE cc.curriculum_id = ? AND cc.year_level = ? AND cc.semester_number = ? " +
             "AND COALESCE(c.onlist, c.active_status, 1) = 1 ORDER BY c.course_code",
             curriculumId, yearLevel, semester);
+
+        if (facultyId != null && facultyId > 0) {
+            int pendingUnits = 0;
+            for (Map<String, Object> course : courses) {
+                int courseId = ((Number) course.get("course_id")).intValue();
+                List<Map<String, Object>> existing = db.queryForList(
+                    "SELECT 1 FROM class_sections WHERE course_id = ? AND term_id = ? AND section_code = ? LIMIT 1",
+                    courseId, termId, sectionCode);
+                if (existing.isEmpty()) {
+                    pendingUnits += course.get("load_units") instanceof Number n ? n.intValue() : 0;
+                }
+            }
+            String loadConflict = new ScheduleConflictValidator(db)
+                .validateFacultyLoadCap(facultyId, termId, pendingUnits, null);
+            if (loadConflict != null) {
+                throw new IllegalStateException(loadConflict);
+            }
+        }
 
         int created = 0, linked = 0, skipped = 0;
         for (Map<String, Object> course : courses) {

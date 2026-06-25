@@ -127,6 +127,39 @@
                 </div>
             </div>
 
+            <div th:if="${assignmentAudit != null and assignmentAudit.needs_attention}" class="alert alert-danger" style="margin-bottom: 1.5rem; align-items: flex-start;">
+                <i class="ti ti-shield-x" aria-hidden="true"></i>
+                <div>
+                    <strong>Scheduling integrity warning.</strong>
+                    <div style="margin-top: 0.35rem;">
+                        Faculty-load data for this term is showing integrity signals that can distort overload and conflict decisions.
+                    </div>
+                    <div th:if="${assignmentAudit.suspicious_assignment_concentration}" style="margin-top: 0.35rem;">
+                        <span th:text="${assignmentAudit.top_faculty_name}">Faculty</span>
+                        owns
+                        <strong th:text="${assignmentAudit.top_faculty_assigned_sections}">0</strong>
+                        of
+                        <strong th:text="${assignmentAudit.assigned_sections}">0</strong>
+                        assigned sections for this term
+                        (<span th:text="${assignmentAudit.top_faculty_assigned_share_pct}">0</span>%).
+                    </div>
+                    <div th:if="${assignmentAudit.duplicate_section_groups > 0}" style="margin-top: 0.35rem;">
+                        Duplicate course/term/section tuples detected:
+                        <strong th:text="${assignmentAudit.duplicate_section_rows}">0</strong>
+                        row(s) across
+                        <strong th:text="${assignmentAudit.duplicate_section_groups}">0</strong>
+                        duplicate group(s).
+                    </div>
+                    <div style="margin-top: 0.5rem;">
+                        Open
+                        <a th:href="@{/admin/faculty-load(termId=${termId})}" style="font-weight: 700; color: inherit; text-decoration: underline;">
+                            Faculty Load
+                        </a>
+                        to review or repair the term before trusting the scheduling dashboard.
+                    </div>
+                </div>
+            </div>
+
             <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <h1 class="page-title">Class Scheduling</h1>

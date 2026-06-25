@@ -1765,10 +1765,19 @@ public class AcademicGradingService {
             section.setCourseId(courseId);
             section.setTermId(termId);
             section.setSectionCode(sectionCode);
-            section.setFacultyId((facultyId == null || facultyId == 0) ? null : facultyId);
+            section.setFacultyId(null);
             section.setMaxCapacity(maxCapacity);
             section.setSectionStatus("Open");
             classSectionRepository.saveAndFlush(section);
+            if (facultyId != null && facultyId != 0) {
+                String facultyAssignment = assignFaculty(section.getSectionId(), facultyId);
+                if (!"SUCCESS".equals(facultyAssignment)) {
+                    throw new IllegalArgumentException(
+                        facultyAssignment.startsWith("ERROR: ")
+                            ? facultyAssignment.substring("ERROR: ".length())
+                            : facultyAssignment);
+                }
+            }
             return "SUCCESS";
         } catch (Exception e) { return "ERROR: " + e.getMessage(); }
     }

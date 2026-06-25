@@ -59,8 +59,15 @@ The applications currently integrate primarily through shared database tables. T
 | Official fee scope | Exact `program_fee_settings.term_id + program + year + semester` |
 | Scholarship activation | Financial effect begins at `POSTED`, not merely `APPROVED` |
 | Room assignment | A schedule may remain tentative/TBA and receive a room later |
+| Seeded future terms | Non-active calendar terms may carry sections and fees, but faculty assignments stay empty until those terms are intentionally scheduled |
 
 Do not restore `NULL` enlistment status as official enrollment. Do not restore legacy fee fallback behavior for live assessment.
+
+Update 2026-06-25:
+
+- The bootstrap baseline still permits TBA rooms.
+- The separate registrar feature demo overlay seeds concrete rooms for `BSIT-1-1-A`, `BSCPE-1-1-A`, and the specific `IRREG-A` courses used in live demo flows.
+- The same overlay seeds Maria `2026-1001` with an admission bridge, printable history, and inline-viewable applicant document files.
 
 ## 5. Academic builder dependency chain
 
@@ -86,6 +93,9 @@ Deleting or changing an upstream record can invalidate downstream scheduling and
 - blank curriculum creation as an inactive editable draft, separate from readiness placeholders
 - block sections and irregular/open course sections
 - class-scheduling filters for block attributes and server-side course/section/faculty/schedule/day/room criteria
+- faculty max-load enforcement on assignment paths, alongside same-term room/faculty/section overlap blocking
+- seeded schedule cleanup that clears blanket room stamps to TBA, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
+- faculty-load integrity auditing for suspicious term-wide assignment concentration, with a guarded repair path for corrupted faculty stamps
 - Slot Monitoring for per-section committed counts, staged pre-registration counts, capacity updates, and current-canon close actions
 - committed-only official class counts and rosters
 - Student Profile with registrar-editable data, curriculum status, alerts, history, and ledger visibility
@@ -109,7 +119,8 @@ Deleting or changing an upstream record can invalidate downstream scheduling and
 | Dean versus Admin/VPAA grade approval semantics | Pending decision |
 | Faculty permission levels: none/view/encode | Pending role/access audit |
 | TOR PDF upload/OCR and automated equivalency | Out of scope |
-| Automatic schedule generation/optimization | Out of scope; manually entered room and faculty overlaps are blocked and existing conflicts are shown |
+| Automatic schedule generation/optimization | Out of scope; manually entered room/faculty overlaps and faculty load-cap violations are blocked, and existing conflicts are shown |
+| Corrupted legacy faculty stamps on existing rows | Treated as data repair, not valid scheduling state; the faculty-load audit banner and `setup/sql/06_clean_schedule_dataset.sql` are the current recovery tools |
 | CI/CD, secrets, HTTPS, backups, monitoring | Not implemented |
 | Cross-application schema versioning | Not implemented |
 | Enrollment `RESERVED` schema warning | Enrollment-side investigation required before hard finance UAT |
@@ -147,8 +158,9 @@ Production requires completed Sessions C-E, official fee/policy confirmation, au
 
 ## 10. Canonical documents
 
-1. `FINAL_SYSTEM_DOCUMENTATION_20260618.md` - current system and scope.
-2. `FINAL_DEMO_AND_TEST_MANUAL_20260618.md` - setup, demo script, and acceptance tests.
-3. `FINAL_HANDOVER_20260618.md` - successor instructions, risks, and release gates.
+1. `REGISTRAR_SYSTEM_SPECIFICATION_20260625.md` - front-door specification for ownership, workflows, boundaries, modules, and current operating rules.
+2. `FINAL_SYSTEM_DOCUMENTATION_20260618.md` - current release-state system and scope summary.
+3. `FINAL_DEMO_AND_TEST_MANUAL_20260618.md` - setup, demo script, and acceptance tests.
+4. `FINAL_HANDOVER_20260618.md` - successor instructions, risks, and release gates.
 
-Older documents under `handoffNew` are supporting history. The three files above take precedence where statements conflict.
+Older documents under `handoffNew` are supporting history. The four files above take precedence where statements conflict.

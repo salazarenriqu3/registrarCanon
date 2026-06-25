@@ -38,16 +38,19 @@ public class AcademicController {
     private final BlockOfferingService blockOfferingService;
     private final StudentCurriculumService studentCurriculumService;
     private final SlotMonitoringService slotMonitoringService;
+    private final FacultyLoadService facultyLoadService;
 
     public AcademicController(AcademicGradingService academicService, TermFeeAdminService termFeeAdminService,
                               BlockOfferingService blockOfferingService,
                               StudentCurriculumService studentCurriculumService,
-                              SlotMonitoringService slotMonitoringService) {
+                              SlotMonitoringService slotMonitoringService,
+                              FacultyLoadService facultyLoadService) {
         this.academicService = academicService;
         this.termFeeAdminService = termFeeAdminService;
         this.blockOfferingService = blockOfferingService;
         this.studentCurriculumService = studentCurriculumService;
         this.slotMonitoringService = slotMonitoringService;
+        this.facultyLoadService = facultyLoadService;
     }
 
 
@@ -356,6 +359,7 @@ public class AcademicController {
         var conflictPreview = academicService.getScheduleConflictPreview(termId, 50);
         model.addAttribute("scheduleConflicts", conflictPreview.conflicts());
         model.addAttribute("scheduleConflictsTruncated", conflictPreview.truncated());
+        model.addAttribute("assignmentAudit", facultyLoadService.getTermAssignmentAudit(termId));
         if (msg != null) model.addAttribute("msg", msg);
         return "admin_class_scheduling";
     }

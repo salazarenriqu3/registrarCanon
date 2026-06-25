@@ -13,7 +13,7 @@ Companion to **`HUMAN_UAT_CHECKLIST.md`** and **`MASTER_DEMO_UAT_MANUAL.md`** �
 | **2 — TTRNS** | Y2 transferee → completes remaining years | `TTRNS-*` | Irregular (`IRREG-A`) |
 | **3 — TSHFT** | Y1 regular BSCPE → **program shift at 2nd sem** | `TSHFT-*` | Block S1, then irregular after shift |
 
-**Grading:** All tracks use **`prof.cruz` / `1234`** on Registrar. Fresh setup already assigns Cruz to all active-term sections (`registrar/setup/sql/03_assign_prof_cruz_demo.sql`).
+**Grading:** All tracks use **`prof.cruz` / `1234`** on Registrar. Fresh setup already seeds a curated active-term faculty mix and keeps Cruz grading-ready (`registrar/setup/sql/03_assign_prof_cruz_demo.sql`).
 
 **Active term:** `1120242025` (A.Y. 2024–25, **1st Semester**). Y1 golden-path block: **`BSCPE-1-1-A`**.
 
@@ -41,7 +41,7 @@ Scope note: the old Registrar Dean / Faculty irregular new-enrollee advising bri
 
 ## Part 0 — One-time setup (included in fresh bootstrap)
 
-### 0A. Assign all active-term sections to Prof. Cruz
+### 0A. Restore the demo faculty assignment mix
 
 **Already done** if you ran `RUN_FRESH_SETUP.cmd`. Re-run only if needed:
 
@@ -51,18 +51,7 @@ Scope note: the old Registrar Dean / Faculty irregular new-enrollee advising bri
 ```sql
 USE eacdb;
 
-SET @fac_cruz = (SELECT faculty_id FROM faculty WHERE employee_number = 'prof.cruz' LIMIT 1);
-SET @term_id  = (SELECT term_id FROM academic_terms WHERE is_active = 1 LIMIT 1);
-
-UPDATE class_sections cs
-SET cs.faculty_id = @fac_cruz
-WHERE cs.term_id = @term_id
-  AND @fac_cruz IS NOT NULL;
-
-UPDATE class_schedules sch
-JOIN class_sections cs ON cs.section_id = sch.section_id
-SET sch.faculty_id = cs.faculty_id
-WHERE cs.term_id = @term_id;
+SET @term_id = (SELECT term_id FROM academic_terms WHERE is_active = 1 LIMIT 1);
 
 SELECT f.employee_number, COUNT(*) AS sections
 FROM class_sections cs
@@ -71,7 +60,7 @@ WHERE cs.term_id = @term_id
 GROUP BY f.employee_number;
 ```
 
-**Pass when:** `prof.cruz` owns all (or nearly all) sections for the active term.
+**Pass when:** the active term has assignments across multiple faculty, and `prof.cruz` still has one or more grading-ready classes.
 
 ### 0B. Confirm grading windows are open
 

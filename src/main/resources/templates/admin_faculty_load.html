@@ -92,9 +92,51 @@
                 </div>
             </div>
 
+            <div class="card" th:if="${msg != null}" style="margin-bottom: 1.5rem; border-left: 4px solid var(--primary-color);">
+                <div style="font-weight: 600; color: var(--text-primary);" th:text="${msg}">Update completed.</div>
+            </div>
+
+            <div class="card" th:if="${assignmentAudit != null and assignmentAudit.needs_attention}" style="margin-bottom: 1.5rem; border-left: 4px solid var(--danger-color);">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap;">
+                    <div style="max-width: 780px;">
+                        <div style="font-weight: 800; color: var(--danger-color); margin-bottom: 0.5rem;">
+                            Scheduling integrity warning
+                        </div>
+                        <p style="margin: 0 0 0.65rem; color: var(--text-primary);">
+                            This term has integrity signals that can distort faculty load and conflict checks.
+                        </p>
+                        <p style="margin: 0; color: var(--text-muted); font-size: 0.9rem;"
+                           th:if="${assignmentAudit.suspicious_assignment_concentration}">
+                            <span th:text="${assignmentAudit.top_faculty_name}">Faculty</span>
+                            currently owns
+                            <strong th:text="${assignmentAudit.top_faculty_assigned_sections}">0</strong>
+                            of
+                            <strong th:text="${assignmentAudit.assigned_sections}">0</strong>
+                            assigned sections in this term
+                            (<span th:text="${assignmentAudit.top_faculty_assigned_share_pct}">0</span>%).
+                            That usually indicates a bulk faculty stamp rather than valid scheduling data.
+                        </p>
+                        <p style="margin: 0.5rem 0 0; color: var(--text-muted); font-size: 0.9rem;"
+                           th:if="${assignmentAudit.duplicate_section_groups > 0}">
+                            Duplicate course/term/section tuples detected:
+                            <strong th:text="${assignmentAudit.duplicate_section_rows}">0</strong>
+                            row(s) across
+                            <strong th:text="${assignmentAudit.duplicate_section_groups}">0</strong>
+                            duplicate group(s).
+                        </p>
+                    </div>
+                    <form th:if="${assignmentAudit.suspicious_assignment_concentration}" th:action="@{/admin/faculty-load/repair-suspicious}" method="post" style="margin: 0;">
+                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                        <button type="submit" class="btn btn-outline" onclick="return confirm('Clear suspicious faculty assignments for this term? This resets faculty_id on affected sections and schedule rows.');">
+                            <i class="ti ti-shield-x" aria-hidden="true"></i> Clear Suspicious Assignments
+                        </button>
+                    </form>
+                </div>
+            </div>
+
             <!-- Filters -->
             <div class="card" style="margin-bottom: 2rem;">
-                <form method="get" action="/admin/faculty-load" style="margin: 0; display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end;">
+                <form method="get" th:action="@{/admin/faculty-load}" style="margin: 0; display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end;">
                     <div style="flex: 1; min-width: 200px;">
                         <label class="form-label">Academic Term</label>
                         <select name="termId" id="termSelect" class="form-control">
@@ -232,7 +274,8 @@ function showDetail(btn) {
         </div>`;
     document.getElementById('detailModal').classList.add('show');
 
-    fetch('/api/faculty/' + facultyId + '/load?termId=' + termId)
+    const basePath = (typeof contextPath !== 'undefined' && contextPath) ? contextPath : '/registrar/';
+    fetch(basePath + 'api/faculty/' + facultyId + '/load?termId=' + termId)
         .then(r => r.json())
         .then(data => {
             const s = data.summary;

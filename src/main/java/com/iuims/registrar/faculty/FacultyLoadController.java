@@ -38,6 +38,7 @@ public class FacultyLoadController {
     public String facultyLoadDashboard(
             @RequestParam(required = false) Integer termId,
             @RequestParam(required = false) Integer departmentId,
+            @RequestParam(required = false) String msg,
             HttpSession session, Model model) {
 
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
@@ -58,7 +59,19 @@ public class FacultyLoadController {
         model.addAttribute("selectedTermId",  termId);
         model.addAttribute("selectedDeptId",  departmentId);
         model.addAttribute("activeTerm",  activeTerm);
+        model.addAttribute("assignmentAudit", loadService.getTermAssignmentAudit(termId));
+        model.addAttribute("msg", msg);
         return "admin_faculty_load";
+    }
+
+    @PostMapping("/admin/faculty-load/repair-suspicious")
+    public String repairSuspiciousAssignments(@RequestParam int termId, HttpSession session) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+
+        Map<String, Object> result = loadService.repairSuspiciousTermAssignments(termId);
+        String message = String.valueOf(result.getOrDefault("message", "Repair attempt completed."));
+        return "redirect:/admin/faculty-load?termId=" + termId + "&msg=" +
+            java.net.URLEncoder.encode(message, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     // ------------------------------------------------------------------

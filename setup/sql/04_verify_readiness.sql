@@ -75,10 +75,71 @@ FROM class_sections cs
 JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
 WHERE NOT EXISTS (SELECT 1 FROM class_schedules sch WHERE sch.section_id = cs.section_id);
 
+SELECT 'ROOM CONFLICTS active term' AS check_name, COUNT(*) AS cnt
+FROM class_schedules s1
+JOIN class_schedules s2
+  ON s1.schedule_id < s2.schedule_id
+ AND s1.room_id IS NOT NULL
+ AND s1.room_id = s2.room_id
+ AND s1.day_of_week = s2.day_of_week
+ AND s1.start_time < s2.end_time
+ AND s2.start_time < s1.end_time
+JOIN class_sections a ON a.section_id = s1.section_id
+JOIN class_sections b ON b.section_id = s2.section_id AND b.term_id = a.term_id
+JOIN academic_terms t ON t.term_id = a.term_id AND t.is_active = 1;
+
+SELECT 'FACULTY CONFLICTS active term' AS check_name, COUNT(*) AS cnt
+FROM class_schedules s1
+JOIN class_schedules s2
+  ON s1.schedule_id < s2.schedule_id
+ AND s1.faculty_id IS NOT NULL
+ AND s1.faculty_id = s2.faculty_id
+ AND s1.day_of_week = s2.day_of_week
+ AND s1.start_time < s2.end_time
+ AND s2.start_time < s1.end_time
+JOIN class_sections a ON a.section_id = s1.section_id
+JOIN class_sections b ON b.section_id = s2.section_id AND b.term_id = a.term_id
+JOIN academic_terms t ON t.term_id = a.term_id AND t.is_active = 1;
+
+SELECT 'SECTION SELF-OVERLAPS active term' AS check_name, COUNT(*) AS cnt
+FROM class_schedules s1
+JOIN class_schedules s2
+  ON s1.schedule_id < s2.schedule_id
+ AND s1.section_id = s2.section_id
+ AND s1.day_of_week = s2.day_of_week
+ AND s1.start_time < s2.end_time
+ AND s2.start_time < s1.end_time
+JOIN class_sections cs ON cs.section_id = s1.section_id
+JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1;
+
 -- ── Faculty & grading ───────────────────────────────────────────────────────
 SELECT 'FACULTY SEEDED' AS check_name, employee_number, CONCAT(first_name,' ',last_name) AS name
 FROM faculty WHERE employee_number LIKE 'prof.%' OR employee_number = 'prof'
 ORDER BY employee_number;
+
+SELECT 'ACTIVE TERM FACULTY ASSIGNMENTS' AS check_name,
+       COUNT(*) AS assigned_sections,
+       COUNT(DISTINCT cs.faculty_id) AS distinct_faculty
+FROM class_sections cs
+JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
+WHERE cs.faculty_id IS NOT NULL;
+
+SELECT 'INACTIVE TERM FACULTY ASSIGNMENTS' AS check_name, COUNT(*) AS cnt
+FROM class_sections cs
+JOIN academic_terms t ON t.term_id = cs.term_id
+WHERE COALESCE(t.is_active, 0) = 0
+  AND cs.faculty_id IS NOT NULL;
+
+SELECT 'OVERLOADED FACULTY active term' AS check_name, COUNT(*) AS cnt
+FROM (
+  SELECT cs.faculty_id
+  FROM class_sections cs
+  JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
+  JOIN faculty f ON f.faculty_id = cs.faculty_id
+  JOIN courses c ON c.course_id = cs.course_id
+  GROUP BY cs.faculty_id, f.max_teaching_units
+  HAVING SUM(COALESCE(c.coordinator_equivalent_units, c.credit_units, 0)) > f.max_teaching_units
+) overloaded;
 
 SELECT 'PROF CRUZ SECTIONS active term' AS check_name, COUNT(*) AS cnt
 FROM class_sections cs

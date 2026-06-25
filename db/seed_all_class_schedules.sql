@@ -1,7 +1,9 @@
 -- =============================================================================
--- SEED ALL CLASS SCHEDULES (no TBA)
+-- SEED ALL CLASS SCHEDULES (time slots first; rooms may remain TBA)
 -- Run on eacdb after class_sections exist.
 -- Safe to re-run: replaces schedules for all sections; upserts rooms/faculty.
+-- Room conflicts are intentionally avoided by leaving room_id NULL until a room
+-- is assigned deliberately through scheduling.
 -- =============================================================================
 USE eacdb;
 SET SQL_SAFE_UPDATES = 0;
@@ -45,11 +47,10 @@ WHERE NOT EXISTS (SELECT 1 FROM faculty f WHERE f.employee_number = v.emp);
 DELETE FROM class_schedules;
 
 -- ── 4. One conflict-free slot per section within each block (term + section_code)
-INSERT INTO class_schedules (section_id, room_id, faculty_id, day_of_week, start_time, end_time, schedule_type, status)
+INSERT INTO class_schedules (section_id, faculty_id, day_of_week, start_time, end_time, schedule_type, status)
 SELECT
     slot.section_id,
-    (SELECT MIN(room_id) FROM rooms) AS room_id,
-    (SELECT MIN(faculty_id) FROM faculty) AS faculty_id,
+    NULL AS faculty_id,
     MOD(slot.slot_no - 1, 5) + 1 AS day_of_week,
     CASE FLOOR((slot.slot_no - 1) / 5) MOD 5
         WHEN 0 THEN '07:30:00'
@@ -81,34 +82,48 @@ FROM (
 ) slot;
 
 -- ── 5. Second weekly meeting for 3-unit lecture courses (realistic contact hours)
-INSERT INTO class_schedules (section_id, room_id, faculty_id, day_of_week, start_time, end_time, schedule_type, status)
+INSERT INTO class_schedules (section_id, faculty_id, day_of_week, start_time, end_time, schedule_type, status)
 SELECT
-    cs.section_id,
-    (SELECT MIN(room_id) FROM rooms) AS room_id,
-    (SELECT MIN(faculty_id) FROM faculty) AS faculty_id,
-    MOD(cs.section_id + c.course_id + COALESCE(cs.term_id, 0), 5) + 1 AS day_of_week,
-    CASE MOD(cs.section_id + c.course_id, 5)
-        WHEN 0 THEN '13:00:00'
-        WHEN 1 THEN '14:30:00'
-        WHEN 2 THEN '15:00:00'
-        WHEN 3 THEN '16:00:00'
-        ELSE '17:00:00'
-    END AS start_time,
-    CASE MOD(cs.section_id + c.course_id, 5)
-        WHEN 0 THEN '14:30:00'
-        WHEN 1 THEN '16:00:00'
-        WHEN 2 THEN '16:30:00'
-        WHEN 3 THEN '17:30:00'
-        ELSE '18:30:00'
-    END AS end_time,
+    extra.section_id,
+    NULL AS faculty_id,
+    extra.day_of_week,
+    extra.start_time,
+    extra.end_time,
     'Lecture',
     'OPEN'
-FROM class_sections cs
-JOIN courses c ON c.course_id = cs.course_id
-WHERE COALESCE(c.lab_units, 0) = 0
-  AND COALESCE(c.lec_units, c.credit_units, 0) >= 3
-  AND (SELECT COUNT(*) FROM class_schedules s WHERE s.section_id = cs.section_id) = 1
-  AND MOD(cs.section_id + c.course_id, 3) = 0;
+FROM (
+    SELECT
+        cs.section_id,
+        MOD(cs.section_id + c.course_id + COALESCE(cs.term_id, 0), 5) + 1 AS day_of_week,
+        CASE MOD(cs.section_id + c.course_id, 5)
+            WHEN 0 THEN '13:00:00'
+            WHEN 1 THEN '14:30:00'
+            WHEN 2 THEN '15:00:00'
+            WHEN 3 THEN '16:00:00'
+            ELSE '17:00:00'
+        END AS start_time,
+        CASE MOD(cs.section_id + c.course_id, 5)
+            WHEN 0 THEN '14:30:00'
+            WHEN 1 THEN '16:00:00'
+            WHEN 2 THEN '16:30:00'
+            WHEN 3 THEN '17:30:00'
+            ELSE '18:30:00'
+        END AS end_time
+    FROM class_sections cs
+    JOIN courses c ON c.course_id = cs.course_id
+    WHERE COALESCE(c.lab_units, 0) = 0
+      AND COALESCE(c.lec_units, c.credit_units, 0) >= 3
+      AND (SELECT COUNT(*) FROM class_schedules s WHERE s.section_id = cs.section_id) = 1
+      AND MOD(cs.section_id + c.course_id, 3) = 0
+) extra
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM class_schedules existing
+    WHERE existing.section_id = extra.section_id
+      AND existing.day_of_week = extra.day_of_week
+      AND existing.start_time < extra.end_time
+      AND existing.end_time > extra.start_time
+);
 
 -- ── 6. Keep sections open (faculty assignment: run seed_faculty_professors_and_grading.sql next)
 UPDATE class_sections cs
