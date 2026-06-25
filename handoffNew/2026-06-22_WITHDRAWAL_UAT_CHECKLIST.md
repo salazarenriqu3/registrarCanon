@@ -1,10 +1,10 @@
-# 2026-06-21 Withdrawal UAT Checklist
+# 2026-06-25 Withdrawal UAT Checklist
 
-Purpose: run a focused registrar-only withdrawal test on the active canonical project copy.
+Purpose: run a focused registrar-only withdrawal test on the active canonical project copy after the restored 25% / 50% / 100% charge rules.
 
 Base repo:
 
-- `C:\newer\registrarCanon_canon`
+- `D:\registrarCanon_canon`
 
 Base URL:
 
@@ -32,20 +32,31 @@ Cleanup file:
 
 - `handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/21_withdrawal_uat_cleanup.sql`
 
-## 1. Prerequisites
+## 1. What this demo must prove
 
-- [ ] Registrar app starts from `C:\newer\registrarCanon_canon` using `mvn spring-boot:run`
+- Single-subject withdrawal is requested from Student Profile, approved from the Registrar queue, and archived with a reason trail.
+- Full-student withdrawal is requested from Student Profile, approved from the Registrar queue, and marks the student withdrawn.
+- Outstanding balance visibly changes after approval because formal withdrawal charges now flow back into the finance summary.
+- The affected class slot frees up and `slots_left` increases by 1 after approval.
+- Withdrawal charges follow the restored rule set:
+  - first-week subjects = `25% charge / 75% refund`
+  - second to third week subjects = `50% charge / 50% refund`
+  - after three weeks = `100% charge / 0% refund`
+
+## 2. Prerequisites
+
+- [ ] Registrar app starts from `D:\registrarCanon_canon` using `.\mvnw.cmd spring-boot:run`
 - [ ] Login page opens at `/registrar/login`
 - [ ] `admin / 1234` logs in successfully
 - [ ] Active term remains `1120242025`
 - [ ] Student `SPRINT-DEMO-2026-001` exists in `students`
 
-## 2. Seed the Withdrawal Test Data
+## 3. Seed the withdrawal test data
 
 Run:
 
 ```sql
-SOURCE C:/newer/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/20_withdrawal_uat_seed.sql;
+SOURCE D:/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/20_withdrawal_uat_seed.sql;
 ```
 
 Expected result:
@@ -53,18 +64,20 @@ Expected result:
 - [ ] Student `SPRINT-DEMO-2026-001` is marked active/enrolled
 - [ ] Student has 3 committed current-term subjects
 - [ ] Current committed sections are `CC101-A`, `CC102-A`, and `GE101-A`
-- [ ] Old withdrawal requests for the same student are cleared
+- [ ] Seeded enrolled-day buckets are about `3`, `10`, and `22` days respectively
+- [ ] Withdrawal policy settings are `7 / 21 / 25 / 50` for half threshold, full threshold, first-week charge, and half-charge percent
+- [ ] Old withdrawal requests and prior withdrawal ledger artifacts for the same student are cleared
 
-## 3. Route Smoke Check
+## 4. Route smoke check
 
 - [ ] Open `/registrar/admin/withdrawals`
 - [ ] Page title shows `Registrar Withdrawal Queue`
 - [ ] Subtitle says class and full-student requests wait for Registrar approval
-- [ ] `/registrar/faculty/withdrawals` is not part of the withdrawal workflow
+- [ ] `/registrar/faculty/withdrawals` is not part of the workflow
 - [ ] Open `/registrar/admin/withdrawals/report`
 - [ ] Page title shows `Withdrawal History`
 
-## 4. Student Profile Wiring Check
+## 5. Student Profile wiring check
 
 - [ ] Open Student Profile
 - [ ] Search `SPRINT-DEMO-2026-001`
@@ -75,7 +88,7 @@ Expected result:
 - [ ] Full-student button says `Request Full Withdrawal`
 - [ ] Page no longer suggests direct instant dropping
 
-## 5. Single-Subject Withdrawal Flow
+## 6. Single-subject withdrawal flow
 
 Action:
 
@@ -85,7 +98,7 @@ Action:
 4. Enter remarks like `UAT single-subject withdrawal`
 5. Click `Request Withdrawal`
 
-Expected:
+Expected after request:
 
 - [ ] Success message says the class request was submitted for Registrar approval
 - [ ] Subject remains on the current load before Registrar approval
@@ -95,15 +108,20 @@ Registrar queue:
 
 1. Open `/registrar/admin/withdrawals`
 2. Locate the same request
-3. Click registrar approve
+3. Click `Registrar Approve`
 
-Expected:
+Expected after approval:
 
 - [ ] Request completes successfully
 - [ ] Flash message reports request number, subject count, and applied charge
+- [ ] The applied charge matches the section's seeded timing bucket:
+  - `CC101-A` should behave like the `25%` bucket
+  - `CC102-A` should behave like the `50%` bucket
+  - `GE101-A` should behave like the `100%` bucket
 - [ ] Student current load decreases by 1 subject
 - [ ] Student remains active and not fully withdrawn
 - [ ] Registrar username and approval timestamp are preserved
+- [ ] Student finance summary changes after approval
 
 History:
 
@@ -115,12 +133,12 @@ Expected:
 - [ ] Reason is preserved
 - [ ] Status is approved/completed
 
-## 6. Full Current-Term Withdrawal Flow
+## 7. Full current-term withdrawal flow
 
 Reset first:
 
 ```sql
-SOURCE C:/newer/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/20_withdrawal_uat_seed.sql;
+SOURCE D:/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/20_withdrawal_uat_seed.sql;
 ```
 
 Action:
@@ -130,7 +148,7 @@ Action:
 3. Enter remarks like `UAT full current-term withdrawal`
 4. Click `Request Full Withdrawal`
 
-Expected:
+Expected after request:
 
 - [ ] Success message says full-student withdrawal was submitted for Registrar approval
 - [ ] Student subjects remain on the load before Registrar approval
@@ -143,19 +161,20 @@ Registrar queue:
 2. Locate the same request
 3. Click `Execute Full Withdrawal`
 
-Expected:
+Expected after approval:
 
 - [ ] Completion flash message appears
 - [ ] All current-term committed subjects are removed from current load
 - [ ] Request history is archived
 - [ ] Student is marked withdrawn from the current term
+- [ ] The total charge reflects the mixed 25% / 50% / 100% buckets captured on the 3 line items
 
-## 7. Data Verification Checks
+## 8. Data verification checks
 
 Optional SQL verification:
 
 ```sql
-SELECT request_id, student_number, withdrawal_scope, status, subject_count
+SELECT request_id, student_number, withdrawal_scope, status, subject_count, estimated_charge
 FROM student_withdrawal_requests
 WHERE student_number = 'SPRINT-DEMO-2026-001'
 ORDER BY request_id DESC;
@@ -179,25 +198,27 @@ Expected:
 - [ ] `registrar_approved_by`, `registrar_approved_at`, and `completed_at` are populated after approval
 - [ ] Final student status reflects the full-current-term withdrawal case
 
-## 8. Pass Criteria
+## 9. Pass criteria
 
 - [ ] Registrar queue is reachable and usable
 - [ ] Student Profile sends formal requests instead of doing direct drop
 - [ ] Single-subject withdrawal completes end to end
 - [ ] Full current-term withdrawal completes end to end
 - [ ] Withdrawal history/report preserves archived records
+- [ ] Finance summary reflects formal withdrawal charges
 - [ ] No Dean route or Dean approval is required for withdrawal
 
-## 9. Cleanup
+## 10. Cleanup
 
 Run:
 
 ```sql
-SOURCE C:/newer/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/21_withdrawal_uat_cleanup.sql;
+SOURCE D:/registrarCanon_canon/handoffNew/2026-06-18_FINAL_DEMO_PACKAGE/03_TEST_DATA/21_withdrawal_uat_cleanup.sql;
 ```
 
 Expected:
 
 - [ ] Withdrawal requests for `SPRINT-DEMO-2026-001` are cleared
 - [ ] Student committed enlistments for this focused UAT are cleared
+- [ ] Withdrawal ledger artifacts for this focused UAT are cleared
 - [ ] Student row remains available for future test reseeding

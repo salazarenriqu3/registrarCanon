@@ -17,6 +17,7 @@ public class FinancePolicyService {
         "enrollment_session_minutes",
         "drop_penalty_days_half",
         "drop_penalty_days_full",
+        "drop_penalty_first_week_percent",
         "drop_penalty_half_percent",
         "rle_hours_per_unit"
     );
@@ -62,8 +63,9 @@ public class FinancePolicyService {
             "('max_units_regular', '27', 'Legacy max units; year-level policy is authoritative in Registrar'), " +
             "('max_units_graduating_bonus', '6', 'Graduating bonus'), " +
             "('enrollment_session_minutes', '15', 'Session timeout'), " +
-            "('drop_penalty_days_half', '7', 'Half withdrawal charge after days'), " +
-            "('drop_penalty_days_full', '14', 'Full withdrawal charge after days'), " +
+            "('drop_penalty_days_half', '7', '50% withdrawal charge after first week'), " +
+            "('drop_penalty_days_full', '21', '100% withdrawal charge after three weeks'), " +
+            "('drop_penalty_first_week_percent', '25', 'First-week withdrawal charge percent'), " +
             "('drop_penalty_half_percent', '50', 'Half withdrawal charge percent'), " +
             "('rle_hours_per_unit', '51', 'RLE hours per unit')");
     }
@@ -118,7 +120,8 @@ public class FinancePolicyService {
             case "max_units_graduating_bonus" -> "6";
             case "enrollment_session_minutes" -> "15";
             case "drop_penalty_days_half" -> "7";
-            case "drop_penalty_days_full" -> "14";
+            case "drop_penalty_days_full" -> "21";
+            case "drop_penalty_first_week_percent" -> "25";
             case "drop_penalty_half_percent" -> "50";
             case "rle_hours_per_unit" -> "51";
             default -> "0";

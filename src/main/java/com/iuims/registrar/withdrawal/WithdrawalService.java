@@ -659,7 +659,7 @@ public class WithdrawalService {
         boolean afterMidterm = isAfterMidterm(termId, requestedOn);
         double units = enlistment.get("credit_units") instanceof Number n ? n.doubleValue() : 0.0;
         double originalCost = units * safeTuitionRate(studentNumber);
-        int halfDays = readEnrollmentSettingInt("drop_penalty_days_half", 14);
+        int halfDays = readEnrollmentSettingInt("drop_penalty_days_half", 7);
         int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 21);
         double firstWeekPct = readEnrollmentSettingDouble("drop_penalty_first_week_percent", 25.0);
         double halfPct = readEnrollmentSettingDouble("drop_penalty_half_percent", 50.0);
@@ -686,12 +686,12 @@ public class WithdrawalService {
             return new WithdrawalPolicySnapshot(
                 requestedOn, enlistedAt, daysEnrolled, "PARTIAL_FIRST_WEEK",
                 firstWeekPct, originalCost * (firstWeekPct / 100.0), false,
-                String.format("%.0f%% tuition charge applies within the first two weeks.", firstWeekPct));
+                String.format("%.0f%% tuition charge applies within the first week.", firstWeekPct));
         }
         return new WithdrawalPolicySnapshot(
-            requestedOn, enlistedAt, daysEnrolled, "NO_CHARGE",
-            0.0, 0.0, false,
-            "No withdrawal tuition charge applies on the enlistment date.");
+            requestedOn, enlistedAt, daysEnrolled, "PARTIAL_FIRST_WEEK",
+            firstWeekPct, originalCost * (firstWeekPct / 100.0), false,
+            String.format("%.0f%% tuition charge applies within the first week.", firstWeekPct));
     }
 
     private LocalDateTime toLocalDateTime(Object raw) {

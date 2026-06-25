@@ -12,6 +12,7 @@ import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import java.sql.Timestamp;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -25,6 +26,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class WithdrawalServiceDirectDropTest {
+
+    private static final String DEMO_USER = "demo.registrar";
 
     private JdbcTemplate db;
     private ScholarEnrollmentService enrollmentService;
@@ -123,7 +126,7 @@ class WithdrawalServiceDirectDropTest {
         seedStudentWithSubjects(2);
 
         long requestId = service.createRequest(
-            "2026-0001", 101, "ACADEMIC_LOAD", "Registrar class review", "records.registrar");
+            "2026-0001", 101, "ACADEMIC_LOAD", "Registrar class review", DEMO_USER);
 
         assertThat(db.queryForMap(
             "SELECT status, withdrawal_scope, subject_count, approval_source " +
@@ -138,7 +141,7 @@ class WithdrawalServiceDirectDropTest {
         assertThat(db.queryForObject("SELECT COUNT(*) FROM student_enlistments", Integer.class)).isEqualTo(2);
 
         WithdrawalService.DirectDropResult result =
-            service.approveAndExecuteRequest(requestId, "chief.registrar");
+            service.approveAndExecuteRequest(requestId, DEMO_USER);
 
         assertThat(result.subjectsDropped()).isEqualTo(1);
         assertThat(db.queryForObject("SELECT COUNT(*) FROM student_enlistments", Integer.class)).isEqualTo(1);
@@ -146,7 +149,37 @@ class WithdrawalServiceDirectDropTest {
             "SELECT status, registrar_approved_by, registrar_approved_at, completed_at " +
                 "FROM student_withdrawal_requests WHERE request_id = ?", requestId))
             .containsEntry("STATUS", "APPROVED")
-            .containsEntry("REGISTRAR_APPROVED_BY", "chief.registrar");
+            .containsEntry("REGISTRAR_APPROVED_BY", DEMO_USER);
+    }
+
+    @Test
+    void firstWeekWithdrawalCharges25PercentAndRefunds75Percent() {
+        seedStudentWithSubjects(1, 0);
+
+        long requestId = service.createRequest(
+            "2026-0001", 101, "ACADEMIC_LOAD", "First week policy", DEMO_USER);
+
+        assertPolicyLine(requestId, "PARTIAL_FIRST_WEEK", 25.0, 750.0);
+    }
+
+    @Test
+    void secondAndThirdWeekWithdrawalCharges50PercentAndRefunds50Percent() {
+        seedStudentWithSubjects(1, 8);
+
+        long requestId = service.createRequest(
+            "2026-0001", 101, "ACADEMIC_LOAD", "Third week policy", DEMO_USER);
+
+        assertPolicyLine(requestId, "PARTIAL_HALF", 50.0, 1500.0);
+    }
+
+    @Test
+    void afterThreeWeeksWithdrawalChargesFullTuitionAndRefundsNothing() {
+        seedStudentWithSubjects(1, 21);
+
+        long requestId = service.createRequest(
+            "2026-0001", 101, "ACADEMIC_LOAD", "Past three weeks policy", DEMO_USER);
+
+        assertPolicyLine(requestId, "FULL_CHARGE", 100.0, 3000.0);
     }
 
     @Test
@@ -154,7 +187,7 @@ class WithdrawalServiceDirectDropTest {
         seedStudentWithSubjects(3);
 
         long requestId = service.createFullCurrentTermRequest(
-            "2026-0001", "TRANSFER", "Registrar full-student review", "records.registrar");
+            "2026-0001", "TRANSFER", "Registrar full-student review", DEMO_USER);
 
         assertThat(db.queryForMap(
             "SELECT status, withdrawal_scope, subject_count FROM student_withdrawal_requests WHERE request_id = ?",
@@ -166,12 +199,32 @@ class WithdrawalServiceDirectDropTest {
             "SELECT COUNT(*) FROM student_withdrawal_request_lines WHERE request_id = ?",
             Integer.class, requestId)).isEqualTo(3);
 
-        service.approveAndExecuteRequest(requestId, "chief.registrar");
+        service.approveAndExecuteRequest(requestId, DEMO_USER);
 
         assertThat(db.queryForObject("SELECT COUNT(*) FROM student_enlistments", Integer.class)).isZero();
         assertThat(db.queryForObject(
             "SELECT admission_status FROM students WHERE student_number = '2026-0001'", String.class))
             .isEqualTo("WITHDRAWN");
+    }
+
+    @Test
+    void demoRegistrarCanSubmitAndApproveSingleCourseWithdrawal() {
+        seedStudentWithSubjects(2);
+
+        long requestId = service.createRequest(
+            "2026-0001", 101, "ACADEMIC_LOAD", "Demo registrar flow", DEMO_USER);
+
+        WithdrawalService.DirectDropResult result = service.approveAndExecuteRequest(requestId, DEMO_USER);
+
+        assertThat(result.subjectsDropped()).isEqualTo(1);
+        assertThat(db.queryForObject("SELECT COUNT(*) FROM student_enlistments", Integer.class)).isEqualTo(1);
+        assertThat(db.queryForMap(
+            "SELECT status, requested_by, registrar_approved_by, approval_source " +
+                "FROM student_withdrawal_requests WHERE request_id = ?", requestId))
+            .containsEntry("STATUS", "APPROVED")
+            .containsEntry("REQUESTED_BY", DEMO_USER)
+            .containsEntry("REGISTRAR_APPROVED_BY", DEMO_USER)
+            .containsEntry("APPROVAL_SOURCE", "REGISTRAR_WORKFLOW");
     }
 
     private void createSchema() {
@@ -189,9 +242,23 @@ class WithdrawalServiceDirectDropTest {
     }
 
     private void seedStudentWithSubjects(int subjectCount) {
+        seedStudentWithSubjects(subjectCount, 0);
+    }
+
+    private void assertPolicyLine(long requestId, String bucket, double chargePercent, double estimatedCharge) {
+        Map<String, Object> row = db.queryForMap(
+            "SELECT timing_bucket, charge_percent, estimated_charge " +
+                "FROM student_withdrawal_request_lines WHERE request_id = ?", requestId);
+        assertThat(row.get("TIMING_BUCKET")).isEqualTo(bucket);
+        assertThat(((Number) row.get("CHARGE_PERCENT")).doubleValue()).isEqualTo(chargePercent);
+        assertThat(((Number) row.get("ESTIMATED_CHARGE")).doubleValue()).isEqualTo(estimatedCharge);
+    }
+
+    private void seedStudentWithSubjects(int subjectCount, int daysEnrolled) {
         db.update("INSERT INTO students (student_number, reference_number, admission_status) VALUES ('2026-0001', 'REF-1', 'ENROLLED')");
         db.update("INSERT INTO sys_users (username, admission_status) VALUES ('2026-0001', 'ENROLLED')");
         db.update("INSERT INTO applicants VALUES ('REF-1', 'ENROLLED', CURRENT_TIMESTAMP)");
+        Timestamp enlistedAt = Timestamp.valueOf(LocalDateTime.now().minusDays(daysEnrolled));
         for (int index = 1; index <= subjectCount; index++) {
             int courseId = index;
             int sectionId = 100 + index;
@@ -200,7 +267,7 @@ class WithdrawalServiceDirectDropTest {
             db.update("""
                 INSERT INTO student_enlistments (student_id, course_id, section_id, enlisted_date)
                 VALUES ('2026-0001', ?, ?, ?)
-                """, courseId, sectionId, Timestamp.valueOf(LocalDateTime.now()));
+                """, courseId, sectionId, enlistedAt);
         }
     }
 }

@@ -806,12 +806,30 @@ public class TermFeeAdminService {
 
     private String curriculumLifecycleSql(String alias) {
         String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
-        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
-            "CASE " +
-            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
-            "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
+        String approvalExpr = columnExists("curriculum_templates", "approval_status")
+            ? "UPPER(COALESCE(" + prefix + "approval_status,''))"
+            : "''";
+        String derivedLifecycle = "CASE " +
+            "WHEN " + approvalExpr + " IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
+            "WHEN " + approvalExpr + " IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
             "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
-            "ELSE 'LEGACY' END))";
+            "ELSE 'LEGACY' END";
+        if (!columnExists("curriculum_templates", "lifecycle_status")) {
+            return "UPPER(" + derivedLifecycle + ")";
+        }
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " + derivedLifecycle + "))";
+    }
+
+    private boolean columnExists(String table, String column) {
+        try {
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.columns " +
+                    "WHERE table_schema = DATABASE() AND table_name = ? AND column_name = ?",
+                Integer.class, table, column);
+            return count != null && count > 0;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private static boolean isTruthy(Object value) {

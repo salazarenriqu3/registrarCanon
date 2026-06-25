@@ -163,14 +163,15 @@ public class CourseCatalogService {
 
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("course", courses.get(0));
+        String curriculumLifecycleSql = lifecycleSql("ct");
         result.put("curricula", tableExists("curriculum_courses")
             ? db.queryForList(
                 "SELECT ct.curriculum_id, p.program_code, p.program_name, ct.curriculum_name, ct.academic_year, " +
                     "ct.approval_status, COALESCE(ct.is_active, 0) AS is_active, " +
-                    lifecycleSql("ct") + " AS lifecycle_status, cc.year_level, cc.semester_number " +
+                    curriculumLifecycleSql + " AS lifecycle_status, cc.year_level, cc.semester_number " +
                     "FROM curriculum_courses cc JOIN curriculum_templates ct ON ct.curriculum_id = cc.curriculum_id " +
                     "JOIN programs p ON p.program_id = ct.program_id WHERE cc.course_id = ? " +
-                    "ORDER BY CASE " + lifecycleSql("ct") + " WHEN 'CURRENT' THEN 0 WHEN 'LEGACY' THEN 1 WHEN 'DRAFT' THEN 2 ELSE 3 END, " +
+                    "ORDER BY CASE " + curriculumLifecycleSql + " WHEN 'CURRENT' THEN 0 WHEN 'LEGACY' THEN 1 WHEN 'DRAFT' THEN 2 ELSE 3 END, " +
                     "p.program_code, ct.academic_year DESC",
                 courseId)
             : List.of());
@@ -239,12 +240,15 @@ public class CourseCatalogService {
 
     private String lifecycleSql(String alias) {
         String prefix = alias == null || alias.isBlank() ? "" : alias + ".";
-        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " +
-            "CASE " +
+        String derivedLifecycle = "CASE " +
             "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED' " +
             "WHEN UPPER(COALESCE(" + prefix + "approval_status,'')) IN ('DRAFT','PLACEHOLDER') AND COALESCE(" + prefix + "is_active, 0) = 0 THEN 'DRAFT' " +
             "WHEN COALESCE(" + prefix + "is_active, 0) = 1 THEN 'CURRENT' " +
-            "ELSE 'LEGACY' END))";
+            "ELSE 'LEGACY' END";
+        if (!columnExists("curriculum_templates", "lifecycle_status")) {
+            return "UPPER(" + derivedLifecycle + ")";
+        }
+        return "UPPER(COALESCE(NULLIF(" + prefix + "lifecycle_status, ''), " + derivedLifecycle + "))";
     }
 
     private int tableUsageCount(String table, String condition, Object... args) {
@@ -264,6 +268,17 @@ public class CourseCatalogService {
                 "WHERE LOWER(table_schema) = LOWER(SCHEMA()) AND LOWER(table_name) = LOWER(?)",
             Integer.class,
             table);
+        return count != null && count > 0;
+    }
+
+    private boolean columnExists(String table, String column) {
+        Integer count = db.queryForObject(
+            "SELECT COUNT(*) FROM information_schema.columns " +
+                "WHERE LOWER(table_schema) = LOWER(SCHEMA()) AND LOWER(table_name) = LOWER(?) " +
+                "AND LOWER(column_name) = LOWER(?)",
+            Integer.class,
+            table,
+            column);
         return count != null && count > 0;
     }
 

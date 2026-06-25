@@ -16,6 +16,24 @@ WHERE student_number = 'SPRINT-DEMO-2026-001';
 DELETE FROM student_enlistments
 WHERE student_id = 'SPRINT-DEMO-2026-001';
 
+DELETE FROM student_ledger
+WHERE student_id = 'SPRINT-DEMO-2026-001'
+  AND (
+      transaction_type = 'DROP_PENALTY'
+      OR (transaction_type = 'REFUND' AND description LIKE 'Withdrawn Subject:%')
+      OR transaction_type IN (
+          'TUITION_ASSESSMENT', 'MISC_ASSESSMENT', 'OTHER_ASSESSMENT', 'RLE_ASSESSMENT'
+      )
+  );
+
+DELETE FROM student_document_events
+WHERE student_number = 'SPRINT-DEMO-2026-001'
+  AND document_type = 'WITHDRAWAL';
+
+DELETE FROM student_reg_form_events
+WHERE student_number = 'SPRINT-DEMO-2026-001'
+  AND event_type LIKE 'WITHDRAWAL%';
+
 SELECT student_number, real_name, status, is_active
 FROM students
 WHERE student_number = 'SPRINT-DEMO-2026-001';

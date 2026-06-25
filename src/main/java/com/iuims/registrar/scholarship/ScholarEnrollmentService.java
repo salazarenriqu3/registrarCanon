@@ -207,10 +207,26 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     public double getOutstandingBalanceNet(String studentNumber) {
         TermFeeBreakdown fees = computeCurrentTermFees(studentNumber);
         double forwardNet = getForwardedBalanceNet(studentNumber);
-        double totalAssessment = fees.totalFees() + forwardNet;
+        double totalAssessment = fees.totalFees() + forwardNet + getCurrentTermDropPenaltyNet(studentNumber);
         double totalPaid = sumCompletedPaymentsForCurrentTerm(studentNumber);
         double scholarDiscount = computeScholarDiscount(studentNumber, totalAssessment);
         return Math.max(0, totalAssessment - (totalPaid + scholarDiscount));
+    }
+
+    /** Formal withdrawal charges still owed in the student's current term. */
+    public double getCurrentTermDropPenaltyNet(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) return 0.0;
+        try {
+            List<Object> keys = ledgerKeysForStudent(studentNumber);
+            String in = "student_id IN (" + ledgerInClause(keys.size()) + ")";
+            Double net = db.queryForObject(
+                "SELECT COALESCE(SUM(debit), 0) - COALESCE(SUM(credit), 0) FROM student_ledger " +
+                    "WHERE " + in + " AND transaction_type = 'DROP_PENALTY'",
+                Double.class, keys.toArray());
+            return net != null ? Math.max(0.0, net) : 0.0;
+        } catch (Exception e) {
+            return 0.0;
+        }
     }
 
     /** Enlist block: prior-term forwarded debt only (matches enrollment cashier). */
@@ -220,7 +236,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     private static final String CLOSABLE_LEDGER_TYPES =
         "'TUITION_ASSESSMENT', 'MISC_ASSESSMENT', 'OTHER_ASSESSMENT', 'RLE_ASSESSMENT', " +
-        "'SUBJECT_ADD', 'FORWARDED_BALANCE', 'REFUND'";
+        "'SUBJECT_ADD', 'DROP_PENALTY', 'FORWARDED_BALANCE', 'REFUND'";
 
     private static final String ASSESSMENT_DEBIT_TYPES =
         "'TUITION_ASSESSMENT', 'MISC_ASSESSMENT', 'OTHER_ASSESSMENT', 'RLE_ASSESSMENT', 'SUBJECT_ADD'";
@@ -277,7 +293,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         }
 
         TermFeeBreakdown computed = computeCurrentTermFees(studentNumber);
-        double assessCharges = computed.totalFees();
+        double assessCharges = computed.totalFees() + getCurrentTermDropPenaltyNet(studentNumber);
         if (assessCharges <= 0.01 && ledgerAssessDebits > 0.01) {
             assessCharges = ledgerAssessDebits;
         }
@@ -832,7 +848,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     private double computeDropRefundCredit(String studentNumber, double originalCost, double penaltyAmount) {
         TermFeeBreakdown fees = computeCurrentTermFees(studentNumber);
         double forwardNet = getForwardedBalanceNet(studentNumber);
-        double totalDue = fees.totalFees() + forwardNet + penaltyAmount;
+        double totalDue = fees.totalFees() + forwardNet + getCurrentTermDropPenaltyNet(studentNumber) + penaltyAmount;
         double scholarDiscount = computeScholarDiscount(studentNumber, totalDue);
         double termPayments = sumCompletedPaymentsForCurrentTerm(studentNumber);
         double stillOwed = totalDue - scholarDiscount - termPayments;
@@ -843,7 +859,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     private double computeDropPenalty(double originalCost, long daysEnrolled) {
         int halfDays = readEnrollmentSettingInt("drop_penalty_days_half", 7);
-        int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 14);
+        int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 21);
+        double firstWeekPct = readEnrollmentSettingDouble("drop_penalty_first_week_percent", 25.0);
         double halfPct = readEnrollmentSettingDouble("drop_penalty_half_percent", 50.0);
         if (daysEnrolled >= fullDays) {
             return originalCost;
@@ -851,23 +868,24 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         if (daysEnrolled >= halfDays) {
             return originalCost * (halfPct / 100.0);
         }
-        return 0.0;
+        return originalCost * (firstWeekPct / 100.0);
     }
 
     private String formatDropPenaltyMessage(long daysEnrolled, double penaltyAmount, double originalCost) {
         if (penaltyAmount <= 0.01) {
             return "";
         }
-        int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 14);
+        int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 21);
         int halfDays = readEnrollmentSettingInt("drop_penalty_days_half", 7);
+        double firstWeekPct = readEnrollmentSettingDouble("drop_penalty_first_week_percent", 25.0);
         double halfPct = readEnrollmentSettingDouble("drop_penalty_half_percent", 50.0);
         if (daysEnrolled >= fullDays) {
-            return " (100% Penalty - Over " + fullDays + " Days)";
+            return " (100% Charge - No Refund After " + fullDays + " Days)";
         }
         if (daysEnrolled >= halfDays) {
-            return " (" + (int) halfPct + "% Penalty Applied)";
+            return " (" + (int) halfPct + "% Charge - 50% Refund)";
         }
-        return "";
+        return " (" + (int) firstWeekPct + "% Charge - 75% Refund)";
     }
 
     private int readEnrollmentSettingInt(String key, int defaultValue) {
@@ -1520,7 +1538,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             String sid = (String) user.get("username");
             TermFeeBreakdown fees = computeCurrentTermFees(sid);
             double forwarded = getForwardedBalanceNet(sid);
-            double totalAssessment = fees.totalFees() + forwarded;
+            double totalAssessment = fees.totalFees() + forwarded + getCurrentTermDropPenaltyNet(sid);
             double totalPaid = sumCompletedPaymentsForCurrentTerm(sid);
             double scholarDiscount = computeScholarDiscount(sid, totalAssessment);
             double outstanding = Math.max(0, totalAssessment - (totalPaid + scholarDiscount));

@@ -354,8 +354,9 @@ public class FinanceAdmissionService {
         double other = fees.other;
         double termFees = fees.totalFees();
         double balanceForwarded = scholarEnrollmentService.getForwardedBalanceNet(studentNumber);
+        double withdrawalCharges = scholarEnrollmentService.getCurrentTermDropPenaltyNet(studentNumber);
         double pendingTermCredit = scholarEnrollmentService.getPendingTermCredit(studentNumber);
-        double totalAssessment = termFees + balanceForwarded;
+        double totalAssessment = termFees + balanceForwarded + withdrawalCharges;
         double totalPaid = scholarEnrollmentService.sumCompletedPaymentsForCurrentTerm(studentNumber);
 
         double scholarDiscount = 0.0;
@@ -395,6 +396,7 @@ public class FinanceAdmissionService {
         m.put("misc_fee", misc);
         m.put("other_fee", other);
         m.put("balance_forwarded", balanceForwarded);
+        m.put("withdrawal_charges", withdrawalCharges);
         m.put("pending_term_credit", pendingTermCredit);
         m.put("has_pending_overpay", pendingTermCredit > 0.01);
         m.put("term_fees", termFees);

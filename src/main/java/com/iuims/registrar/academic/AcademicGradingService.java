@@ -2086,9 +2086,12 @@ public class AcademicGradingService {
     private boolean syncAcademicTermsActiveFlag(int targetTermId) {
         if (targetTermId <= 0) return false;
         try {
-            int deactivated = academicTermRepository.deactivateAllExcept(targetTermId);
-            int activated = academicTermRepository.activateTerm(targetTermId);
-            academicTermRepository.flush();
+            db.update(
+                "UPDATE academic_terms SET is_active = 0, status = 'INACTIVE' WHERE term_id <> ?",
+                targetTermId);
+            int activated = db.update(
+                "UPDATE academic_terms SET is_active = 1, status = 'ACTIVE' WHERE term_id = ?",
+                targetTermId);
             return activated > 0;
         } catch (Exception ignored) {}
         return false;
