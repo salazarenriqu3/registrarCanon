@@ -1,6 +1,6 @@
 # Current State Map
 
-Last updated: 2026-06-26
+Last updated: 2026-06-27
 
 > **For current status, roadmap, and UAT progress read `PROJECT_STATUS_AND_ROADMAP.md` first.**  
 > Changelog: **`HANDOFF_UPDATES_20260609.md`** (§13–15 = UI contrast, doc sync, UAT decisions).  
@@ -57,6 +57,8 @@ Important implication:
 - Room Monitoring is separate from Slot Monitoring: Slot Monitoring answers capacity questions, while Room Monitoring answers physical-room assignment, utilization, and conflict questions.
 - The Class Scheduling warning banner includes a registrar repair action that clears conflicting room assignments for rescheduling, removes section-internal overlap rows, and unassigns faculty from overlapping sections for the selected term.
 - Program shifting now has a distinct current-term load cleanup path. It can remove the student's final enrolled subject and archive the class-line snapshots, but it does not call the full school-withdrawal status change.
+- Student Profile exposes that cleanup as **Clear Subject Load for Shift**. It uses one registrar-selected reason for all current enrolled subjects, archives the withdrawal lines as `SHIFT_PROGRAM_CLEANUP`, and keeps the student active/enrolled for the actual program shift.
+- Program Shift filters Destination Curriculum options to the selected Target Program. Shift submissions also redirect back to Student Profile with a flash error instead of exposing Whitelabel on backend validation or rollback failures.
 - Academic Scholarship is registrar-owned and academic-only. Eligibility reads official grade rows, configurable GWA/period caps, assigned curriculum term units, and blocks students still taking PE/NSTP in 3rd or 4th year.
 - Student Profile now has Archive & Custody Tracking for the physical record room workflow. It records request, release, evaluation completion, scan submission to MIS, return, and refile events, then mirrors those actions into the unified Document Trail.
 
