@@ -46,7 +46,6 @@ public class ScholarshipController {
         model.addAttribute("terms", scholarEnrollmentService.getScholarshipTermOptions());
         model.addAttribute("selectedTermId", selectedTermId);
         model.addAttribute("policy", scholarEnrollmentService.getScholarshipPolicySettings());
-        model.addAttribute("scholarshipTypes", scholarEnrollmentService.getAllScholarshipTypes());
         model.addAttribute("candidates", scholarEnrollmentService.evaluateAcademicScholarshipCandidates(selectedTermId));
         if (success != null && !success.isBlank()) model.addAttribute("successMessage", success);
         if (error != null && !error.isBlank()) model.addAttribute("errorMessage", error);
@@ -69,15 +68,7 @@ public class ScholarshipController {
                                       HttpSession session,
                                       RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        scholarEnrollmentService.saveScholarshipType(
-            params.get("classification"),
-            params.get("displayName"),
-            params.get("discountMode"),
-            parseDouble(params.get("defaultDiscountPct")),
-            parseDouble(params.get("defaultAmount")),
-            params.containsKey("isInternal"),
-            params.containsKey("isActive"));
-        ra.addAttribute("success", "Scholarship type saved.");
+        ra.addAttribute("error", "Manual scholarship type maintenance is retired. Registrar manages academic scholarship only.");
         appendTermId(ra, params.get("termId"));
         return "redirect:/admin/scholarships";
     }
@@ -86,27 +77,13 @@ public class ScholarshipController {
     public String grantExternalScholarship(
             @RequestParam(value = "studentNumber", required = false) String studentNumber,
             @RequestParam(value = "sysUserId", required = false) String sysUserId,
-            @RequestParam("classification") String classification,
-            @RequestParam("discountPct") double discountPct,
+            @RequestParam(value = "classification", required = false) String classification,
+            @RequestParam(value = "discountPct", required = false, defaultValue = "0") double discountPct,
             @RequestParam(value = "scholarshipAmount", required = false, defaultValue = "0") double scholarshipAmount,
-            @RequestParam("status") String status,
+            @RequestParam(value = "status", required = false, defaultValue = "RETIRED") String status,
             @RequestParam(value = "returnTo", required = false) String returnTo,
             RedirectAttributes ra) {
-        String resolvedRef = studentNumber != null && !studentNumber.isBlank() ? studentNumber : sysUserId;
-        if (!scholarEnrollmentService.isManualExternalScholarshipType(classification)) {
-            ra.addFlashAttribute("message", "ERROR: Internal academic scholarships must use the review and posting workflow.");
-            if ("student-manager".equals(returnTo) && studentNumber != null && !studentNumber.isBlank()) {
-                return "redirect:/admin/student-manager?username=" + URLEncoder.encode(studentNumber, StandardCharsets.UTF_8);
-            }
-            return "redirect:/admin/scholarships";
-        }
-        String result = scholarEnrollmentService.grantExternalScholarship(
-            resolvedRef, classification, discountPct, scholarshipAmount, status);
-        if (result != null && result.startsWith("SUCCESS")) {
-            ra.addFlashAttribute("successMessage", "Scholarship updated successfully.");
-        } else {
-            ra.addFlashAttribute("message", result != null ? result : "ERROR: Unable to update scholarship.");
-        }
+        ra.addFlashAttribute("message", "ERROR: Manual scholarship grants are retired. Use Academic Scholarship Review.");
         if ("student-manager".equals(returnTo) && studentNumber != null && !studentNumber.isBlank()) {
             return "redirect:/admin/student-manager?username=" + URLEncoder.encode(studentNumber, StandardCharsets.UTF_8);
         }
@@ -205,13 +182,6 @@ public class ScholarshipController {
         return "SYSTEM";
     }
 
-    private double parseDouble(String raw) {
-        try {
-            return raw == null || raw.isBlank() ? 0.0 : Double.parseDouble(raw.trim());
-        } catch (Exception e) {
-            return 0.0;
-        }
-    }
 }
 
 

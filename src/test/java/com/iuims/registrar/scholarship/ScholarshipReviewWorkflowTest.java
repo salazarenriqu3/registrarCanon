@@ -82,6 +82,17 @@ class ScholarshipReviewWorkflowTest {
         assertThat(candidate.get("completed_units_fmt")).isEqualTo("30");
     }
 
+    @Test
+    void academicEligibilityBlocksLatePeNstpForUpperYearStudents() {
+        db.update("UPDATE students SET year_level = 3 WHERE student_number = '2026-0001'");
+        db.update("UPDATE courses SET course_code = 'PE3 21', course_title = 'PE 3 PATHFit' WHERE course_id = 101");
+
+        Map<String, Object> candidate = onlyCandidate();
+
+        assertThat(candidate.get("eligible")).isEqualTo(false);
+        assertThat((String) candidate.get("reason")).contains("PE/NSTP is still being taken in 3rd/4th year");
+    }
+
     private String reviewStatus() {
         return db.queryForObject(
             "SELECT status FROM scholarship_review_workflow WHERE student_number = '2026-0001' AND term_id = 15",
@@ -118,7 +129,7 @@ class ScholarshipReviewWorkflowTest {
 
         db.execute("CREATE TABLE sys_users (user_id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(100), real_name VARCHAR(100))");
         db.execute("CREATE TABLE academic_terms (term_id INT PRIMARY KEY, term_name VARCHAR(100), status VARCHAR(20), is_active TINYINT)");
-        db.execute("CREATE TABLE courses (course_id INT PRIMARY KEY, credit_units DECIMAL(5,2))");
+        db.execute("CREATE TABLE courses (course_id INT PRIMARY KEY, course_code VARCHAR(30), course_title VARCHAR(120), credit_units DECIMAL(5,2))");
         db.execute("CREATE TABLE class_sections (section_id INT PRIMARY KEY, term_id INT NOT NULL, course_id INT NOT NULL)");
         db.execute("""
             CREATE TABLE students (
@@ -141,7 +152,7 @@ class ScholarshipReviewWorkflowTest {
         for (int i = 1; i <= 9; i++) {
             int courseId = 100 + i;
             int sectionId = 500 + i;
-            db.update("INSERT INTO courses VALUES (?, 3)", courseId);
+            db.update("INSERT INTO courses VALUES (?, ?, ?, 3)", courseId, "SCH" + i, "Scholarship Demo Course " + i);
             db.update("INSERT INTO class_sections VALUES (?, 15, ?)", sectionId, courseId);
             db.update("INSERT INTO grades (student_id, course_id, section_id, status, remarks, prelim, midterm, final_grade, semestral_grade) VALUES ('2026-0001', ?, ?, 'SUBMITTED', 'Passed', 1.50, 1.50, 1.50, 1.50)", courseId, sectionId);
         }

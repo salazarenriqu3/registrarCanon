@@ -5,8 +5,8 @@ USE eacdb;
 -- Purpose:
 -- - Creates two demo students with official grade rows for the active term.
 -- - The eligible student has 27 completed units and grades within policy.
--- - The ineligible student has only 24 completed units.
--- - This lets Registrar demo Scholarship Eligibility without building or running
+-- - The ineligible student has only 18 completed units.
+-- - This lets Registrar demo Academic Scholarship Review without building or running
 --   the full faculty grading/finalization workflow.
 
 SET @term_id := (
@@ -138,7 +138,7 @@ SELECT
     1.50, 'PASSED', 'APPROVED', 'PASSED'
 FROM courses c
 JOIN class_sections cs ON cs.course_id = c.course_id
-WHERE c.course_code IN ('SCH101','SCH102','SCH103','SCH104','SCH105','SCH106','SCH107','SCH108')
+WHERE c.course_code IN ('SCH101','SCH102','SCH103','SCH104','SCH105','SCH106')
   AND cs.term_id = @term_id
   AND cs.section_code = CONCAT('SCH-DEMO-', c.course_code)
   AND NOT EXISTS (
@@ -152,4 +152,4 @@ SELECT
     'Scholarship demo seed complete' AS result,
     @term_id AS term_id,
     'SCH-UAT-ELIGIBLE should be eligible with 27 units' AS eligible_case,
-    'SCH-UAT-LOWUNITS should be blocked by completed units' AS blocked_case;
+    'SCH-UAT-LOWUNITS should be blocked by curriculum-required units with 18 completed units' AS blocked_case;

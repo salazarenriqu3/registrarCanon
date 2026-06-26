@@ -8,6 +8,7 @@ CREATE DATABASE IF NOT EXISTS eacdb
   COLLATE utf8mb4_unicode_ci;
 
 USE eacdb;
+SET SQL_SAFE_UPDATES = 0;
 
 SET NAMES utf8mb4;
 SET FOREIGN_KEY_CHECKS = 0;
@@ -31,6 +32,9 @@ DROP TABLE IF EXISTS eac_application_logs;
 DROP TABLE IF EXISTS applicants;
 DROP TABLE IF EXISTS student_scholarships;
 DROP TABLE IF EXISTS scholarship_types;
+DROP TABLE IF EXISTS student_archive_custody_events;
+DROP TABLE IF EXISTS student_archive_files;
+DROP TABLE IF EXISTS student_document_events;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS applicant_payments;
 DROP TABLE IF EXISTS admission_applications;
@@ -270,12 +274,7 @@ CREATE TABLE scholarship_types (
 INSERT INTO scholarship_types
     (classification, display_name, discount_mode, default_discount_percentage, default_scholarship_amount, is_internal, requires_id, is_active)
 VALUES
-    ('ACADEMIC', 'Academic Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1),
-    ('BARANGAY', 'Barangay Scholarship', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('LGU', 'LGU Scholarship', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('ATHLETE', 'Athlete Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1),
-    ('EMPLOYEE_DEPENDENT', 'Employee Dependent', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('OTHER', 'Other / Miscellaneous', 'FLAT', 0.00, 0.00, 0, 1, 1)
+    ('ACADEMIC', 'Academic Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1)
 ON DUPLICATE KEY UPDATE
     display_name = VALUES(display_name),
     discount_mode = VALUES(discount_mode),
@@ -8327,12 +8326,7 @@ ALTER TABLE scholarship_types
 INSERT INTO scholarship_types
     (classification, display_name, discount_mode, default_discount_percentage, default_scholarship_amount, is_internal, requires_id, is_active)
 VALUES
-    ('ACADEMIC', 'Academic Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1),
-    ('BARANGAY', 'Barangay Scholarship', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('LGU', 'LGU Scholarship', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('ATHLETE', 'Athlete Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1),
-    ('EMPLOYEE_DEPENDENT', 'Employee Dependent', 'PERCENT', 50.00, 0.00, 0, 1, 1),
-    ('OTHER', 'Other / Miscellaneous', 'FLAT', 0.00, 0.00, 0, 1, 1)
+    ('ACADEMIC', 'Academic Scholarship', 'FULL', 100.00, 0.00, 1, 1, 1)
 ON DUPLICATE KEY UPDATE
     display_name = VALUES(display_name),
     discount_mode = VALUES(discount_mode),
@@ -8341,6 +8335,51 @@ ON DUPLICATE KEY UPDATE
     is_internal = VALUES(is_internal),
     requires_id = VALUES(requires_id),
     is_active = VALUES(is_active);
+
+CREATE TABLE IF NOT EXISTS student_document_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NULL,
+    reference_number VARCHAR(100) NULL,
+    document_scope VARCHAR(40) NOT NULL,
+    document_type VARCHAR(60) NOT NULL,
+    event_type VARCHAR(80) NOT NULL,
+    event_summary VARCHAR(180) NOT NULL,
+    event_details VARCHAR(500) NULL,
+    actor VARCHAR(100) NULL,
+    related_request_id BIGINT NULL,
+    source_table VARCHAR(80) NULL,
+    source_id VARCHAR(80) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sdet_student_created (student_number, created_at),
+    KEY idx_sdet_ref_created (reference_number, created_at),
+    KEY idx_sdet_scope_created (document_scope, created_at),
+    KEY idx_sdet_type_created (document_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_archive_files (
+    student_number VARCHAR(100) PRIMARY KEY,
+    archive_status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE_FILE',
+    storage_location VARCHAR(160) NULL,
+    retention_policy_code VARCHAR(80) NOT NULL DEFAULT 'PERMANENT',
+    retention_until DATE NULL,
+    current_holder VARCHAR(100) NULL,
+    last_action_at TIMESTAMP NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_archive_custody_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NOT NULL,
+    event_type VARCHAR(50) NOT NULL,
+    actor VARCHAR(100) NULL,
+    counterpart VARCHAR(100) NULL,
+    purpose VARCHAR(255) NULL,
+    storage_location VARCHAR(160) NULL,
+    remarks VARCHAR(500) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sace_student_created (student_number, created_at),
+    KEY idx_sace_event_created (event_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ---------------------------------------------------------------------------
 -- 4. programs.level (Admission portal tabs)
@@ -9127,6 +9166,7 @@ INSERT IGNORE INTO class_sections (course_id, term_id, section_code, max_capacit
 -- CURRENT = one actively offered curriculum used for new/default assignments.
 -- LEGACY = historical but still assignable to returning old-curriculum students.
 -- DRAFT = editable working copy. ARCHIVED = retained record, not assignable.
+SET SQL_SAFE_UPDATES = 0;
 UPDATE curriculum_templates
 SET lifecycle_status = CASE
     WHEN UPPER(COALESCE(approval_status,'')) IN ('ARCHIVED','RETIRED') THEN 'ARCHIVED'

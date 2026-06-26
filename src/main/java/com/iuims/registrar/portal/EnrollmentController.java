@@ -15,6 +15,7 @@ import com.iuims.registrar.finance.FinancePolicyService;
 import com.iuims.registrar.finance.OverpayDispositionService;
 import com.iuims.registrar.finance.TermFeeAdminService;
 import com.iuims.registrar.forms.RegFormEventService;
+import com.iuims.registrar.forms.StudentArchiveCustodyService;
 import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.core.DatabaseSetupService;
 import com.iuims.registrar.jaypee.JaypeeIntegrationService;
@@ -65,6 +66,7 @@ public class EnrollmentController {
     private final OverpayDispositionService overpayDispositionService;
     private final WithdrawalService withdrawalService;
     private final RegFormEventService regFormEventService;
+    private final StudentArchiveCustodyService archiveCustodyService;
     private final StudentDocumentTrailService documentTrailService;
     private final StudentProfileService studentProfileService;
     private final ApplicantDocumentReadService applicantDocumentReadService;
@@ -76,6 +78,7 @@ public class EnrollmentController {
                                 OverpayDispositionService overpayDispositionService,
                                 WithdrawalService withdrawalService,
                                 RegFormEventService regFormEventService,
+                                StudentArchiveCustodyService archiveCustodyService,
                                 StudentDocumentTrailService documentTrailService,
                                 StudentProfileService studentProfileService,
                                 ApplicantDocumentReadService applicantDocumentReadService) {
@@ -90,6 +93,7 @@ public class EnrollmentController {
         this.overpayDispositionService = overpayDispositionService;
         this.withdrawalService = withdrawalService;
         this.regFormEventService = regFormEventService;
+        this.archiveCustodyService = archiveCustodyService;
         this.documentTrailService = documentTrailService;
         this.studentProfileService = studentProfileService;
         this.applicantDocumentReadService = applicantDocumentReadService;
@@ -120,6 +124,10 @@ public class EnrollmentController {
                     applicantDocumentReadService.getAdmissionSnapshot(actualStudentNumber));
                 model.addAttribute("applicantDocuments",
                     applicantDocumentReadService.listDocuments(actualStudentNumber));
+                model.addAttribute("archiveSummary",
+                    archiveCustodyService.getSummary(actualStudentNumber));
+                model.addAttribute("archiveEvents",
+                    archiveCustodyService.listRecentEvents(actualStudentNumber));
                 model.addAttribute("enrollmentCashierUrl",
                     "/enrollment/admin/cashier?keyword=" +
                         UriUtils.encodeQueryParam(actualStudentNumber, StandardCharsets.UTF_8));
@@ -157,7 +165,6 @@ public class EnrollmentController {
                 model.addAttribute("curriculumDeficiencyCount", curriculumDeficiencies.size());
                 model.addAttribute("shiftCarryOver",
                     studentCurriculumService.getShiftCarryOverSummary(actualStudentNumber));
-                model.addAttribute("scholarshipTypes", scholarEnrollmentService.getActiveScholarshipTypes());
                 model.addAttribute("selectedOfferingSchool", offeringSchool != null ? offeringSchool : "__DEFAULT__");
                 model.addAttribute("selectedOfferingProgram", offeringProgram != null ? offeringProgram : "__ALL__");
                 model.addAttribute("offeringQ", offeringQ != null ? offeringQ : "");
@@ -268,8 +275,7 @@ public class EnrollmentController {
                 int total = 0; for(Map<String,Object> cls : crossLoad) { if(cls.get("units") != null) total += ((Number)cls.get("units")).intValue(); }
                 model.addAttribute("totalUnits", total);
                 model.addAttribute("maxUnits", academicService.getDynamicMaxUnits(sid));
-                String progCode = (String) s.get("program_code");
-                model.addAttribute("isGraduating", academicService.isGraduating(progCode, yrLvl));
+                model.addAttribute("isGraduating", academicService.isGraduatingStudent(actualStudentNumber));
                 model.addAttribute("finance", finSummary);
                 model.addAttribute("ledger", financeService.getStudentLedger(actualStudentNumber));
             } else { model.addAttribute("message", "Student not found."); }
@@ -886,6 +892,32 @@ public class EnrollmentController {
             session,
             "student_installment_plans",
             String.valueOf(installmentTermId));
+        return "redirect:/admin/student-manager?username=" + studentNumber.trim();
+    }
+
+    @PostMapping("/admin/student-manager/archive-custody")
+    public String recordArchiveCustody(@RequestParam String studentNumber,
+                                       @RequestParam String eventType,
+                                       @RequestParam(required = false) String counterpart,
+                                       @RequestParam(required = false) String purpose,
+                                       @RequestParam(required = false) String storageLocation,
+                                       @RequestParam(required = false) String remarks,
+                                       HttpSession session,
+                                       RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        String result = archiveCustodyService.recordEvent(
+            studentNumber,
+            eventType,
+            currentUsername(session),
+            counterpart,
+            purpose,
+            storageLocation,
+            remarks);
+        if ("SUCCESS".equals(result)) {
+            ra.addFlashAttribute("successMessage", "Archive custody movement recorded.");
+        } else {
+            ra.addFlashAttribute("errorMessage", result);
+        }
         return "redirect:/admin/student-manager?username=" + studentNumber.trim();
     }
 

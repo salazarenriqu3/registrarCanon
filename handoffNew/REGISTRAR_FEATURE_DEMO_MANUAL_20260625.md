@@ -81,6 +81,7 @@ Use this order. It keeps the least destructive pages first and the heavily mutat
    - faculty conflicts blocked
    - same-section overlaps blocked
    - faculty max-load enforced
+8. If the warning banner is visible, show **Repair Current-Term Conflicts** and explain that it normalizes the term by clearing conflicted room stamps to TBA, deleting overlapping extra slots inside one section, and unassigning faculty from overlapping sections.
 
 Expected result:
 
@@ -100,15 +101,19 @@ Student: `2026-1001`
    - Good Moral
    - PSA Birth Certificate
    - ID Picture
-6. Return to Student Profile.
-7. Open `/admin/document-trail?query=2026-1001`.
-8. Show the new admission-document view events and the older admission application logs for `DEMO-SANTOS-001`.
+6. Expand `Archive & Custody Tracking`.
+7. Record a `REQUESTED` event with purpose `TOR generation`.
+8. Record a `RELEASED` event with counterpart `evaluator.one`.
+9. Return to Student Profile.
+10. Open `/admin/document-trail?query=2026-1001`.
+11. Show the new admission-document view events, archive custody events, and the older admission application logs for `DEMO-SANTOS-001`.
 
 Expected result:
 
 - Maria is visibly tied back to a passed admission record
 - the uploaded files open inline
 - document viewing creates registrar-side trail entries
+- physical-file custody movements are stored and visible in Document Trail
 
 ### Part C. Registration form, history, COG, and TOR printing
 
@@ -195,29 +200,32 @@ Expected result:
 - program code changes
 - the action is auditable
 - the page continues to show coherent curriculum context after the shift
+- if the student had a current-term load, the load is cleared for the shift without marking the student withdrawn from school
+- document trail shows `SHIFT_LOAD_CLEARED` separately from full withdrawal
 
 ### Part G. Withdrawal workflow
 
 Student: `SPRINT-DEMO-2026-001`
 
 1. Open `/admin/student-manager?username=SPRINT-DEMO-2026-001`.
-2. In the withdrawal area, submit one single-subject withdrawal.
-3. Open `/admin/withdrawals`.
-4. Approve the request as Registrar.
-5. Return to the profile and confirm the load changed.
-6. Open `/admin/withdrawals/report`.
-7. Open `/admin/document-trail?query=SPRINT-DEMO-2026-001`.
+2. In the withdrawal area, execute one single-subject withdrawal immediately.
+3. Return to the profile and confirm the load changed at once.
+4. Open `/admin/withdrawals` to review the archive.
+5. Open `/admin/withdrawals/report`.
+6. Open `/admin/document-trail?query=SPRINT-DEMO-2026-001`.
 
 Optional second pass:
 
 1. Re-run `setup\LOAD_FULL_REGISTRAR_DEMO_DATA.cmd` to reset.
-2. Submit a full-student withdrawal instead.
+2. Execute a full-student withdrawal instead.
 
 Expected result:
 
-- no direct drop is used
-- the request goes through the formal Registrar queue
+- the registrar executes the withdrawal directly
+- the action is archived immediately
 - report and trail pages show the same outcome
+- single-subject withdrawal can remove the final current-term subject without changing the student to school-withdrawn status
+- full-student withdrawal remains the intentional school-exit action and still marks the student withdrawn/inactive
 
 ### Part H. Scholarship workflow
 
@@ -227,16 +235,21 @@ Students:
 - `SCH-UAT-LOWUNITS`
 
 1. Open `/admin/scholarships`.
-2. Search or inspect `SCH-UAT-ELIGIBLE`.
-3. Confirm the student is eligible.
-4. Submit, approve, and post.
-5. Inspect `SCH-UAT-LOWUNITS`.
-6. Confirm the rejection reason is the missing completed-unit threshold.
+2. Confirm the screen is academic-only and no manual scholarship type catalog is visible.
+3. Confirm GWA and period-grade caps are configurable, while the unit requirement is shown as taken units versus assigned curriculum load.
+4. Search or inspect `SCH-UAT-ELIGIBLE`.
+5. Confirm the student is eligible.
+6. Submit, approve, and post.
+7. Inspect `SCH-UAT-LOWUNITS`.
+8. Confirm the rejection reason is the missing assigned-curriculum unit load.
+9. If testing a 3rd/4th-year PE/NSTP row, confirm the student is blocked even with passing/high grades.
 
 Expected result:
 
 - Sofia progresses through `PENDING -> APPROVED -> POSTED`
-- Liam remains blocked by units
+- Liam remains blocked by curriculum-required units
+- late PE/NSTP remains a hard academic-scholarship disqualifier for 3rd/4th year
+- finance effect begins only after `POSTED`
 
 ### Part I. Faculty grading
 

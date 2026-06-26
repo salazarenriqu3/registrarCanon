@@ -7,6 +7,7 @@ import com.iuims.registrar.admission.FinanceAdmissionService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
 import com.iuims.registrar.core.EnlistmentSchemaService;
+import com.iuims.registrar.curriculum.CurriculumLoadPolicyService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.LedgerTransactionTypes;
@@ -59,9 +60,10 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     private final StudentCurriculumService studentCurriculumService;
     private final TermFeeAdminService termFeeAdminService;
     private final YearLevelLoadPolicyService yearLevelLoadPolicyService;
+    private final CurriculumLoadPolicyService curriculumLoadPolicyService;
 
     @Autowired
-    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService, YearLevelLoadPolicyService yearLevelLoadPolicyService) {
+    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService, YearLevelLoadPolicyService yearLevelLoadPolicyService, CurriculumLoadPolicyService curriculumLoadPolicyService) {
         this.db = db;
         this.academicService = academicService;
         this.globalTermService = globalTermService;
@@ -69,11 +71,12 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         this.studentCurriculumService = studentCurriculumService;
         this.termFeeAdminService = termFeeAdminService;
         this.yearLevelLoadPolicyService = yearLevelLoadPolicyService;
+        this.curriculumLoadPolicyService = curriculumLoadPolicyService;
     }
 
     public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService) {
         this(db, academicService, globalTermService, enlistmentSchemaService, studentCurriculumService,
-            termFeeAdminService, null);
+            termFeeAdminService, null, null);
     }
 
 
@@ -385,16 +388,14 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "SELECT scholarship_approved, scholarship_type, scholarship_amount, discount_percentage FROM students WHERE student_number = ?",
                 studentNumber);
             if (!truthy(sData.get("scholarship_approved"))) return 0.0;
-            Integer fails = db.queryForObject(
-                "SELECT COUNT(*) FROM grades g WHERE g.student_id = ? AND " + GradeOutcomeSql.failedOrInc("g"),
-                Integer.class, studentNumber);
+            Integer fails = countScholarshipBlockingGradesForTerm(studentNumber, getDefaultScholarshipTermId());
             if (fails != null && fails > 0) return 0.0;
             String type = (String) sData.get("scholarship_type");
             if (type == null) return 0.0;
             type = type.toUpperCase();
             Double amount = numericDouble(sData.get("scholarship_amount"));
             Double pct = numericDouble(sData.get("discount_percentage"));
-            if ("ACADEMIC".equals(type) || "ATHLETE".equals(type)) return assessCharges;
+            if ("ACADEMIC".equals(type)) return computeAcademicScholarshipDiscount(assessCharges, amount, pct);
             if (amount != null && amount > 0) return Math.min(amount, assessCharges);
             if ("DISCOUNT".equals(type)) return amount != null ? amount : 0.0;
             if (pct != null && pct > 0) return assessCharges * (pct / 100.0);
@@ -417,16 +418,14 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "SELECT scholarship_approved, scholarship_type, scholarship_amount, discount_percentage FROM students WHERE student_number = ?",
                 studentNumber);
             if (!truthy(sData.get("scholarship_approved"))) return 0.0;
-            Integer fails = db.queryForObject(
-                "SELECT COUNT(*) FROM grades g WHERE g.student_id = ? AND " + GradeOutcomeSql.failedOrInc("g"),
-                Integer.class, studentNumber);
+            Integer fails = countScholarshipBlockingGradesForTerm(studentNumber, getDefaultScholarshipTermId());
             if (fails != null && fails > 0) return 0.0;
             String type = (String) sData.get("scholarship_type");
             if (type == null) return 0.0;
             type = type.toUpperCase();
             Double amount = numericDouble(sData.get("scholarship_amount"));
             Double pct = numericDouble(sData.get("discount_percentage"));
-            if ("ACADEMIC".equals(type) || "ATHLETE".equals(type)) return totalAssessment;
+            if ("ACADEMIC".equals(type)) return computeAcademicScholarshipDiscount(totalAssessment, amount, pct);
             if (amount != null && amount > 0) return Math.min(amount, totalAssessment);
             if ("DISCOUNT".equals(type)) return amount != null ? amount : 0.0;
             if (pct != null) return totalAssessment * (pct / 100.0);
@@ -439,6 +438,38 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         if (value instanceof Boolean b) return b;
         if (value instanceof Number n) return n.intValue() != 0;
         return value != null && Boolean.parseBoolean(value.toString());
+    }
+
+    public int countScholarshipBlockingGradesForTerm(String studentNumber, Integer termId) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return 0;
+        }
+        try {
+            if (termId != null && termId > 0) {
+                Integer count = db.queryForObject(
+                    "SELECT COUNT(*) FROM grades g " +
+                        "JOIN class_sections cs ON cs.section_id = g.section_id " +
+                        "WHERE g.student_id = ? AND cs.term_id = ? AND " + GradeOutcomeSql.failedOrInc("g"),
+                    Integer.class, studentNumber, termId);
+                return count != null ? count : 0;
+            }
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM grades g WHERE g.student_id = ? AND " + GradeOutcomeSql.failedOrInc("g"),
+                Integer.class, studentNumber);
+            return count != null ? count : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private double computeAcademicScholarshipDiscount(double assessment, Double amount, Double pct) {
+        if (amount != null && amount > 0) {
+            return Math.min(amount, assessment);
+        }
+        if (pct != null && pct > 0) {
+            return assessment * (Math.min(100.0, pct) / 100.0);
+        }
+        return assessment;
     }
 
     private Double numericDouble(Object value) {
@@ -674,45 +705,16 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         return computeCurrentTermFees(studentNumber).rate;
     }
 
-    /** Registrar-owned year-level cap, with the legacy global rule retained as a fallback. */
+    /** Student-specific curriculum assignment is required for live registrar load decisions. */
     public double getMaxAllowedUnits(String programCode, int studentYearLevel) {
-        if (yearLevelLoadPolicyService != null) {
-            return yearLevelLoadPolicyService.resolve(studentYearLevel).maximumUnits().doubleValue();
-        }
-        double max = readEnrollmentSettingInt("max_units_regular", 24);
-        try {
-            Integer maxYear = db.queryForObject(
-                "SELECT MAX(cc.year_level) FROM curriculum_courses cc " +
-                    "JOIN curriculum_templates ct ON cc.curriculum_id = ct.curriculum_id " +
-                    "JOIN programs p ON ct.program_id = p.program_id " +
-                    "WHERE p.program_code = ?",
-                Integer.class, programCode);
-            if (maxYear != null && studentYearLevel >= maxYear) {
-                max += readEnrollmentSettingInt("max_units_graduating_bonus", 6);
-            }
-        } catch (Exception ignored) {
-        }
-        return max;
+        throw new IllegalStateException("Max units now require the student's assigned curriculum.");
     }
 
     public double getMaxAllowedUnitsForStudent(String studentNumber, String programCode, int studentYearLevel) {
-        if (yearLevelLoadPolicyService != null) {
-            return yearLevelLoadPolicyService.resolve(studentYearLevel).maximumUnits().doubleValue();
+        if (curriculumLoadPolicyService == null) {
+            throw new IllegalStateException("Curriculum load policy service is required for max-unit checks.");
         }
-        double max = readEnrollmentSettingInt("max_units_regular", 24);
-        try {
-            Integer curriculumId = studentCurriculumService.findCurrentCurriculumId(studentNumber);
-            Integer maxYear = curriculumId != null
-                ? db.queryForObject(
-                    "SELECT MAX(year_level) FROM curriculum_courses WHERE curriculum_id = ?",
-                    Integer.class, curriculumId)
-                : null;
-            if (maxYear != null && studentYearLevel >= maxYear) {
-                max += readEnrollmentSettingInt("max_units_graduating_bonus", 6);
-            }
-        } catch (Exception ignored) {
-        }
-        return max;
+        return curriculumLoadPolicyService.effectiveMaximumUnits(studentNumber).doubleValue();
     }
 
     public boolean isOfficialEnrollment(String studentNumber) {
@@ -1047,11 +1049,6 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             try { db.execute("ALTER TABLE scholarship_types ADD COLUMN requires_id TINYINT(1) DEFAULT 1"); } catch (Exception ignored) {}
             try { db.execute("ALTER TABLE scholarship_types ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1"); } catch (Exception ignored) {}
             seedScholarshipType("ACADEMIC", "Academic Scholarship", "FULL", 100.0, 0.0, true);
-            seedScholarshipType("BARANGAY", "Barangay Scholarship", "PERCENT", 50.0, 0.0, false);
-            seedScholarshipType("LGU", "LGU Scholarship", "PERCENT", 50.0, 0.0, false);
-            seedScholarshipType("ATHLETE", "Athlete Scholarship", "FULL", 100.0, 0.0, true);
-            seedScholarshipType("EMPLOYEE_DEPENDENT", "Employee Dependent", "PERCENT", 50.0, 0.0, false);
-            seedScholarshipType("OTHER", "Other / Miscellaneous", "FLAT", 0.0, 0.0, false);
         } catch (Exception ignored) {
         }
     }
@@ -1146,7 +1143,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         double maxPrelim = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_PRELIM_GRADE)).doubleValue();
         double maxMidterm = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_MIDTERM_GRADE)).doubleValue();
         double maxFinals = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MAX_FINALS_GRADE)).doubleValue();
-        int minUnits = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS)).intValue();
+        int fallbackMinUnits = ((Number) policy.get(PolicySettings.SCHOLARSHIP_MIN_COMPLETED_UNITS)).intValue();
         boolean blockInc = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_INC));
         boolean blockFailed = Boolean.TRUE.equals(policy.get(PolicySettings.SCHOLARSHIP_DISQUALIFY_FAILED));
 
@@ -1160,7 +1157,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
         List<Map<String, Object>> rows = db.queryForList(
             "SELECT s.student_number, COALESCE(NULLIF(s.real_name, ''), NULLIF(u.real_name, ''), s.student_number) AS student_name, " +
-                "s.program_code, COALESCE(s.scholarship_approved, 0) AS scholarship_approved, " +
+                "s.program_code, COALESCE(s.year_level, 1) AS year_level, COALESCE(s.semester, 1) AS semester, " +
+                "COALESCE(s.scholarship_approved, 0) AS scholarship_approved, " +
                 "COALESCE(s.scholarship_type, 'NONE') AS scholarship_type, COALESCE(s.discount_percentage, 0) AS discount_percentage, " +
                 "COUNT(g.id) AS subject_count, " +
                 "COALESCE(SUM(COALESCE(c.credit_units, 0)), 0) AS completed_units, " +
@@ -1179,7 +1177,7 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "WHERE cs.term_id = ? " +
                 "AND (" + finalPoint + " IS NOT NULL " +
                 "OR " + GradeOutcomeSql.outcome("g") + " IN ('FAILED', 'INC', 'PASSED')) " +
-                "GROUP BY s.student_number, s.real_name, u.real_name, s.program_code, s.scholarship_approved, s.scholarship_type, s.discount_percentage " +
+                "GROUP BY s.student_number, s.real_name, u.real_name, s.program_code, s.year_level, s.semester, s.scholarship_approved, s.scholarship_type, s.discount_percentage " +
                 "ORDER BY student_name, s.student_number",
             resolvedTermId);
 
@@ -1197,11 +1195,21 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             double highestMidterm = numericOrZero(row.get("highest_midterm"));
             double highestFinals = numericOrZero(row.get("highest_finals"));
             double units = numericOrZero(row.get("completed_units"));
+            int yearLevel = intOrZero(row.get("year_level"));
             int failed = intOrZero(row.get("failed_count"));
             int inc = intOrZero(row.get("inc_count"));
+            ScholarshipLoadRequirement loadRequirement =
+                scholarshipLoadRequirement(String.valueOf(row.get("student_number")), fallbackMinUnits);
 
             List<String> reasons = new ArrayList<>();
-            if (units < minUnits) reasons.add("Needs at least " + minUnits + " graded/taken unit(s)");
+            if (loadRequirement.blocking()) reasons.add(loadRequirement.note());
+            if (units < loadRequirement.requiredUnits()) {
+                reasons.add("Needs " + formatUnits(loadRequirement.requiredUnits())
+                    + " graded/taken unit(s) from assigned curriculum load");
+            }
+            if (hasLatePeNstpForTerm(String.valueOf(row.get("student_number")), resolvedTermId, yearLevel)) {
+                reasons.add("PE/NSTP is still being taken in 3rd/4th year");
+            }
             if (blockFailed && failed > 0) reasons.add(failed + " failed grade(s)");
             if (blockInc && inc > 0) reasons.add(inc + " INC grade(s)");
             if (gwa <= 0 || gwa > maxGwa) reasons.add("GWA " + formatGrade(gwa) + " exceeds " + formatGrade(maxGwa));
@@ -1215,6 +1223,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             row.put("highest_midterm_fmt", formatOptionalGrade(row.get("highest_midterm")));
             row.put("highest_finals_fmt", formatOptionalGrade(row.get("highest_finals")));
             row.put("completed_units_fmt", formatUnits(units));
+            row.put("required_units_fmt", formatUnits(loadRequirement.requiredUnits()));
+            row.put("unit_policy_source", loadRequirement.source());
             row.put("eligible", reasons.isEmpty());
             row.put("scholarship_granted", truthy(row.get("scholarship_approved")));
             Map<String, Object> review = reviewsByStudent.get(String.valueOf(row.get("student_number")));
@@ -1223,6 +1233,60 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             row.put("reason", reasons.isEmpty() ? "Meets configured scholarship policy." : String.join("; ", reasons));
         }
         return rows;
+    }
+
+    private ScholarshipLoadRequirement scholarshipLoadRequirement(String studentNumber, int fallbackMinUnits) {
+        if (curriculumLoadPolicyService == null) {
+            return new ScholarshipLoadRequirement(fallbackMinUnits, "Configured fallback unit policy", false, "");
+        }
+        try {
+            CurriculumLoadPolicyService.StudentLoadPolicy loadPolicy =
+                curriculumLoadPolicyService.resolveForStudent(studentNumber);
+            return new ScholarshipLoadRequirement(
+                loadPolicy.baseUnits().doubleValue(),
+                "Assigned curriculum Year " + loadPolicy.yearLevel() + ", Semester " + loadPolicy.semester(),
+                false,
+                "");
+        } catch (Exception e) {
+            return new ScholarshipLoadRequirement(
+                Math.max(0, fallbackMinUnits),
+                "Assigned curriculum load unresolved",
+                true,
+                "Assigned curriculum load is missing; scholarship units cannot be validated.");
+        }
+    }
+
+    private boolean hasLatePeNstpForTerm(String studentNumber, Integer termId, int yearLevel) {
+        if (yearLevel < 3 || studentNumber == null || termId == null) return false;
+        try {
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM grades g " +
+                    "JOIN class_sections cs ON cs.section_id = g.section_id " +
+                    "LEFT JOIN courses c ON c.course_id = COALESCE(g.course_id, cs.course_id) " +
+                    "WHERE g.student_id = ? AND cs.term_id = ? AND (" +
+                    "UPPER(COALESCE(c.course_code, '')) LIKE 'PE%' OR " +
+                    "UPPER(COALESCE(c.course_code, '')) LIKE 'NSTP%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%PE %' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%PHYSICAL EDUCATION%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%PATHFIT%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%NSTP%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%ROTC%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%CWTS%' OR " +
+                    "UPPER(COALESCE(c.course_title, '')) LIKE '%LTS%')",
+                Integer.class,
+                studentNumber,
+                termId);
+            return count != null && count > 0;
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
+    private record ScholarshipLoadRequirement(
+        double requiredUnits,
+        String source,
+        boolean blocking,
+        String note) {
     }
 
     private String gradePointSql(String expression) {

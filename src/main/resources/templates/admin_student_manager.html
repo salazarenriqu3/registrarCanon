@@ -370,6 +370,95 @@
                         No admission document metadata is available for this student.
                     </div>
                 </div>
+
+                <details class="card profile-collapse" th:if="${student != null}" style="border-left: 4px solid #334155; margin: 0;">
+                    <summary>
+                        <div>
+                            <h5 class="card-title" style="margin: 0; color: #334155;">
+                                <i class="ti ti-archive" aria-hidden="true"></i> Archive & Custody Tracking
+                            </h5>
+                            <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">
+                                Tracks physical file request, release, evaluation, scanning handoff, return, and refile.
+                            </div>
+                        </div>
+                        <span class="btn btn-ghost" style="border: 1px solid #334155; color: #334155; pointer-events: none;">
+                            <i class="ti ti-chevron-down toggle-icon" aria-hidden="true"></i> Expand
+                        </span>
+                    </summary>
+                    <div style="padding: 1.25rem;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+                            <div>
+                                <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Status</div>
+                                <div style="font-weight: 800;" th:text="${archiveSummary != null ? archiveSummary['archive_status'] : 'ACTIVE_FILE'}">ACTIVE_FILE</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Location</div>
+                                <div style="font-weight: 700;" th:text="${archiveSummary != null and archiveSummary['storage_location'] != null ? archiveSummary['storage_location'] : 'Not set'}">Not set</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Retention</div>
+                                <div style="font-weight: 700;" th:text="${archiveSummary != null ? archiveSummary['retention_policy_code'] : 'PERMANENT'}">PERMANENT</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.7rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Current Holder</div>
+                                <div style="font-weight: 700;" th:text="${archiveSummary != null and archiveSummary['current_holder'] != null ? archiveSummary['current_holder'] : 'Records custody'}">Records custody</div>
+                            </div>
+                        </div>
+
+                        <form th:action="@{/admin/student-manager/archive-custody}" method="post"
+                              style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 0.65rem; align-items: end; background: var(--bg-tertiary); border-radius: var(--radius-md); padding: 0.9rem; margin-bottom: 1rem;">
+                            <input type="hidden" name="studentNumber" th:value="${student.username}">
+                            <div>
+                                <label style="font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Movement</label>
+                                <select name="eventType" class="form-control" required>
+                                    <option value="REQUESTED">Requested</option>
+                                    <option value="RELEASED">Released</option>
+                                    <option value="EVALUATION_COMPLETED">Evaluation completed</option>
+                                    <option value="SCAN_SUBMITTED">Scan submitted to MIS</option>
+                                    <option value="RETURNED">Returned to custodian</option>
+                                    <option value="REFILED">Refiled</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Counterpart</label>
+                                <input name="counterpart" class="form-control" placeholder="Evaluator / MIS / Custodian">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Purpose</label>
+                                <input name="purpose" class="form-control" placeholder="TOR generation, digitization">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Location</label>
+                                <input name="storageLocation" class="form-control" placeholder="EAC Cavite records room">
+                            </div>
+                            <div style="grid-column: span 2;">
+                                <label style="font-size: 0.72rem; font-weight: 800; color: var(--text-muted); text-transform: uppercase;">Remarks</label>
+                                <input name="remarks" class="form-control" placeholder="Chain-of-custody note">
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="height: 38px;">
+                                <i class="ti ti-device-floppy" aria-hidden="true"></i> Record Custody
+                            </button>
+                        </form>
+
+                        <div th:if="${archiveEvents != null and !archiveEvents.isEmpty()}" style="display: grid; gap: 0.5rem;">
+                            <div th:each="event : ${archiveEvents}" style="border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.65rem 0.75rem;">
+                                <div style="display: flex; justify-content: space-between; gap: 1rem; flex-wrap: wrap;">
+                                    <strong th:text="${event['event_type']}">REQUESTED</strong>
+                                    <span style="font-size: 0.78rem; color: var(--text-muted);" th:text="${event['created_at']}"></span>
+                                </div>
+                                <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                    <span th:text="${event['actor'] ?: 'registrar'}"></span>
+                                    <span th:if="${event['counterpart'] != null}" th:text="${' -> ' + event['counterpart']}"></span>
+                                    <span th:if="${event['purpose'] != null}" th:text="${' | ' + event['purpose']}"></span>
+                                </div>
+                                <div th:if="${event['remarks'] != null}" style="font-size: 0.82rem; margin-top: 0.25rem;" th:text="${event['remarks']}"></div>
+                            </div>
+                        </div>
+                        <div th:if="${archiveEvents == null or archiveEvents.isEmpty()}" style="color: var(--text-muted); font-size: 0.9rem;">
+                            No archive custody movement has been recorded yet.
+                        </div>
+                    </div>
+                </details>
             </div>
 
             <details class="card profile-collapse" th:if="${student != null}">
@@ -620,7 +709,7 @@
                                         <td th:text="${c.units}"></td>
                                         <td style="font-size: 0.85rem; color: var(--text-muted);" th:text="${c.pretty_schedule}"></td>
                                         <td style="text-align: right; min-width: 260px;">
-                                            <form th:action="@{/admin/withdrawals/request}" method="post" style="display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0;" onsubmit="return confirm('Submit this class withdrawal for Registrar approval?');">
+                                            <form th:action="@{/admin/withdrawals/drop-subject}" method="post" style="display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0;" onsubmit="return confirm('Execute this class withdrawal immediately as the Registrar?');">
                                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                                 <input type="hidden" name="scheduleId" th:value="${c.schedule_id}">
                                                 <select name="reasonCode" class="form-control" required style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">
@@ -629,7 +718,7 @@
                                                 </select>
                                                 <div style="display: flex; gap: 0.35rem;">
                                                     <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Remarks" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">
-                                                    <button type="submit" class="btn btn-ghost" style="color: #DC2626; border: 1px solid rgba(220,38,38,0.2); padding: 0.2rem 0.45rem; font-size: 0.75rem; white-space: nowrap;"><i class="ti ti-file-minus"></i> Request</button>
+                                                    <button type="submit" class="btn btn-ghost" style="color: #DC2626; border: 1px solid rgba(220,38,38,0.2); padding: 0.2rem 0.45rem; font-size: 0.75rem; white-space: nowrap;"><i class="ti ti-file-minus"></i> Withdraw Now</button>
                                                 </div>
                                             </form>
                                         </td>
@@ -646,11 +735,11 @@
                         <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); background: rgba(220,38,38,0.035);">
                             <div style="font-weight: 700; color: #B91C1C; margin-bottom: 0.35rem;">Withdraw Student From School</div>
                             <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem;">
-                                This creates one tracked full-student case with an archived line for every current-term class. The load remains until Registrar approval.
+                                This immediately withdraws the student from every current-term class and archives one case row per subject.
                             </p>
-                            <form th:action="@{/admin/withdrawals/request-student}" method="post"
+                            <form th:action="@{/admin/withdrawals/drop-student}" method="post"
                                   style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
-                                  onsubmit="return confirm('Submit a full-student withdrawal for Registrar approval? Approval removes every current-term class and deactivates the student account.');">
+                                  onsubmit="return confirm('Withdraw this student immediately as the Registrar? This removes every current-term class and deactivates the student account.');">
                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                 <select name="reasonCode" class="form-control" required style="flex: 1 1 180px;">
                                     <option value="" disabled selected>Withdrawal reason</option>
@@ -658,7 +747,7 @@
                                 </select>
                                 <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Case reference / remarks" style="flex: 2 1 220px;">
                                 <button type="submit" class="btn" style="background: #B91C1C; color: #fff; white-space: nowrap;">
-                                    <i class="ti ti-user-minus" aria-hidden="true"></i> Request Full Withdrawal
+                                    <i class="ti ti-user-minus" aria-hidden="true"></i> Withdraw Student
                                 </button>
                             </form>
                         </div>
@@ -667,8 +756,8 @@
                     <!-- Withdrawal Requests -->
                     <div class="card" th:if="${studentWithdrawalRequests != null and !#lists.isEmpty(studentWithdrawalRequests)}" style="border-left: 4px solid #DC2626;">
                         <div class="card-header">
-                            <h5 class="card-title" style="color: #DC2626; margin: 0;"><i class="ti ti-file-minus" aria-hidden="true"></i> Withdrawal Requests</h5>
-                            <a th:href="@{/admin/withdrawals}" class="btn btn-outline" style="font-size: 0.8rem;">Registrar Queue</a>
+                            <h5 class="card-title" style="color: #DC2626; margin: 0;"><i class="ti ti-file-minus" aria-hidden="true"></i> Withdrawal History</h5>
+                            <a th:href="@{/admin/withdrawals}" class="btn btn-outline" style="font-size: 0.8rem;">Open Archive</a>
                         </div>
                         <div style="overflow-x: auto;">
                             <table class="table-eac" style="margin: 0;">
@@ -1183,59 +1272,39 @@
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Reason / Note</label>
                                     <input type="text" name="reason" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" placeholder="Optional">
                                 </div>
-                                <button type="submit" class="btn btn-primary" style="width: 100%; background: #DC2626; border-color: #DC2626;" onclick="return confirm('Shift this student to the selected program and mark them Irregular? Current-term staged enlistments will be cleared.');">
+                                <button type="submit" class="btn btn-primary" style="width: 100%; background: #DC2626; border-color: #DC2626;" onclick="return confirm('Shift this student to the selected program and mark them Irregular? Current-term enrolled and staged subjects will be cleared for the shift, but this will not withdraw the student from school.');">
                                     <i class="ti ti-device-floppy" aria-hidden="true"></i> Apply Program Shift
                                 </button>
                             </form>
                         </div>
                     </div>
 
-                    <!-- Scholarship Management -->
+                    <!-- Academic Scholarship Summary -->
                     <div class="card" style="border-left: 4px solid var(--primary-color);">
                         <div class="card-header">
-                            <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-award" aria-hidden="true"></i> Manual Scholarship Control</h5>
+                            <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-award" aria-hidden="true"></i> Academic Scholarship</h5>
                         </div>
                         <div style="padding: 1.5rem;">
-                            <form th:action="@{/admin/scholarships/grant}" method="post">
-                                <input type="hidden" name="studentNumber" th:value="${student.username}">
-                                <input type="hidden" name="returnTo" value="student-manager">
-                                <div style="margin-bottom: 0.75rem;">
-                                    <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Classification</label>
-                                    <select name="classification" id="scholarshipTypeSelect" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" required>
-                                        <option th:each="type : ${scholarshipTypes}" th:value="${type.classification}" th:text="${type.display_name + ' (' + type.discount_mode + ')'}" th:attr="data-mode=${type.discount_mode},data-pct=${type.default_discount_percentage},data-amount=${type.default_scholarship_amount}"></option>
-                                        <option value="NONE">None</option>
-                                    </select>
+                            <div style="display: grid; gap: 0.75rem; margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; gap: 1rem;">
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Posted Status</span>
+                                    <span style="font-weight: 700; color: var(--text-primary);" th:text="${student['scholarship_approved'] == 1 ? 'Posted' : 'Not posted'}">Not posted</span>
                                 </div>
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                    <div>
-                                        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Discount %</label>
-                                        <input type="number" name="discountPct" id="scholarshipDiscountPct" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" min="0" max="100" step="0.01" value="0" required>
-                                    </div>
-                                    <div>
-                                        <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Flat Amount</label>
-                                        <input type="number" name="scholarshipAmount" id="scholarshipAmount" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" min="0" step="0.01" value="0" required>
-                                    </div>
+                                <div style="display: flex; justify-content: space-between; gap: 1rem;">
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Type</span>
+                                    <span style="font-weight: 700; color: var(--primary-color);" th:text="${student['scholarship_type'] != null ? student['scholarship_type'] : 'NONE'}">NONE</span>
                                 </div>
-                                <div id="scholarshipModeHelp" style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem;">Manual scholarships can be maintained here. Academic scholarships use the Scholarship Eligibility review workflow.</div>
-                                <div style="margin-bottom: 1rem;">
-                                    <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Toggle Status</label>
-                                    <select name="status" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" required>
-                                        <option value="ACTIVE">GRANT (ACTIVE)</option>
-                                        <option value="REVOKED">REVOKE</option>
-                                    </select>
+                                <div style="display: flex; justify-content: space-between; gap: 1rem;">
+                                    <span style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Discount</span>
+                                    <span style="font-weight: 700;" th:text="${student['discount_percentage'] != null ? student['discount_percentage'] + '%' : '0%'}">0%</span>
                                 </div>
-                                <button type="submit" class="btn btn-primary" style="width: 100%;">
-                                    <i class="ti ti-device-floppy" aria-hidden="true"></i> Update Scholarship
-                                </button>
-                            </form>
-                            <hr style="margin: 1.5rem 0; border-color: var(--border-color);">
-                            <form th:action="@{/admin/scholarships/evaluate}" method="post">
-                                <input type="hidden" name="currentSemester" th:value="${student.semester}">
-                                <input type="hidden" name="currentYear" th:value="${student.year_level}">
-                                <button type="submit" class="btn btn-ghost" style="width: 100%; border: 1px solid #D97706; color: #D97706;">
-                                    <i class="ti ti-refresh" aria-hidden="true"></i> Trigger Auto-Renewal
-                                </button>
-                            </form>
+                            </div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 1rem;">
+                                Academic scholarships are evaluated from official grade records and activated only after registrar posting.
+                            </div>
+                            <a th:href="@{/admin/scholarships}" class="btn btn-primary" style="width: 100%;">
+                                <i class="ti ti-list-check" aria-hidden="true"></i> Open Academic Scholarship Review
+                            </a>
                         </div>
                     </div>
 
@@ -1309,27 +1378,6 @@
         if (badge) badge.textContent = query ? visible + ' / ' + rows.length + ' shown' : rows.length + ' subjects';
     }
     document.addEventListener('DOMContentLoaded', filterSubjects);
-
-    function syncScholarshipDefaults() {
-        const select = document.getElementById('scholarshipTypeSelect');
-        if (!select) return;
-        const option = select.options[select.selectedIndex];
-        const mode = option?.dataset?.mode || 'NONE';
-        const pct = option?.dataset?.pct || '0';
-        const amount = option?.dataset?.amount || '0';
-        const pctInput = document.getElementById('scholarshipDiscountPct');
-        const amountInput = document.getElementById('scholarshipAmount');
-        const help = document.getElementById('scholarshipModeHelp');
-        if (pctInput) pctInput.value = mode === 'FLAT' ? '0' : pct;
-        if (amountInput) amountInput.value = mode === 'FLAT' ? amount : '0';
-        if (help) {
-            help.textContent = mode === 'FLAT'
-                ? 'Flat amount will be deducted from the assessment.'
-                : (mode === 'FULL' ? 'Full mode stores a 100% discount.' : 'Percent mode deducts the configured percentage.');
-        }
-    }
-    document.getElementById('scholarshipTypeSelect')?.addEventListener('change', syncScholarshipDefaults);
-    document.addEventListener('DOMContentLoaded', syncScholarshipDefaults);
 
     (function () {
         const tbody = document.getElementById('studentInstallmentRows');

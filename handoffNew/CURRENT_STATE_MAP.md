@@ -1,10 +1,26 @@
 # Current State Map
 
-Last updated: 2026-06-21
+Last updated: 2026-06-26
 
 > **For current status, roadmap, and UAT progress read `PROJECT_STATUS_AND_ROADMAP.md` first.**  
 > Changelog: **`HANDOFF_UPDATES_20260609.md`** (§13–15 = UI contrast, doc sync, UAT decisions).  
 > Historical closure: **`READINESS_CLOSURE_20260608.md`**.
+
+## 2026-06-26 Cross-System Boundary Correction
+
+The older registrar-first handoff language around irregular pre-registration and fee ownership is no longer the intended canon.
+
+Use this corrected business ownership model for future work:
+
+- Admission owns applicant intake and qualification.
+- Enrollment3 owns irregular/transferee pre-advising, dean review, irregular pre-registration generation, fee authoring, cashier/accounting, and enrollment finalization.
+- Registrar owns academic master data, downstream academic enforcement, and official academic posting/approval where registrar authority is required.
+
+Important implication:
+
+- registrar-side irregular advising and fee authoring code still exists, but should be treated as historical or transitional unless the user explicitly reopens that scope
+- see `CROSS_SYSTEM_ALIGNMENT_REANALYSIS_20260626.md`
+- see `IMPLEMENTATION_PLAN_CROSS_SYSTEM_REALIGNMENT_20260626.md`
 
 ## Live Overlay (2026-06-15)
 
@@ -17,8 +33,13 @@ Last updated: 2026-06-21
 | Program Builder | Live; Registrar owns core program master data separately from curriculum mapping |
 | Course Catalog | Live; lecture/laboratory units and usage drilldown are exposed in the Registrar UI |
 | Curriculum readiness | Current-offering lifecycle labels implemented; legacy curricula remain assignable to returning students |
-| Schedule collision rules | Live; schedule saves reject same-term room, faculty, and same-section overlaps while allowing TBA rooms |
+| Student load caps | Live max units resolve from assigned curriculum + year level + semester; legacy year-level/global caps are reference only |
+| Schedule collision rules | Live; schedule saves require a room and reject same-term room, faculty, and same-section overlaps |
 | Slot Monitoring | Live; committed counts, staged pre-registration counts, capacity edits, and close actions are visible per section |
+| Room Monitoring | Live; active rooms, utilization, concrete room schedule rows, room conflicts, missing room rows, and no-faculty/no-schedule exceptions are visible per term |
+| Program shift load cleanup | Live; post-enrollment shifts clear all current-term enrolled/staged subjects without marking the student withdrawn from school |
+| Academic scholarship | Live; registrar grants academic scholarship only, using SQL-seeded official grades, configurable GWA/period-grade caps, assigned-curriculum unit load, and 3rd/4th-year PE/NSTP disqualification |
+| Archive custody tracking | Live; Student Profile records physical file request/release/evaluation/scanning/return/refile movements and mirrors them to Document Trail |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
 | Registrar Spring Security | **Deferred** — proposal only |
 | UI | Higher-contrast alerts/cards (2026-06-10) |
@@ -32,7 +53,12 @@ Last updated: 2026-06-21
 - A working draft remains inactive until **Publish & Set Current** is selected; publishing moves the prior current offering to `LEGACY`, not `ARCHIVED`.
 - Import and repair controls are administrative recovery tools, not normal curriculum creation actions.
 - Course Catalog is the shared course master. **Where Used** expands concrete curriculum placements, class sections, student/academic records, and prerequisite links before a shared course is edited.
-- Class Scheduling save paths hard-block same-term room, faculty, and same-section overlaps. A room may remain TBA and be assigned later.
+- Class Scheduling save paths now require a concrete room and hard-block same-term room, faculty, and same-section overlaps.
+- Room Monitoring is separate from Slot Monitoring: Slot Monitoring answers capacity questions, while Room Monitoring answers physical-room assignment, utilization, and conflict questions.
+- The Class Scheduling warning banner includes a registrar repair action that clears conflicting room assignments for rescheduling, removes section-internal overlap rows, and unassigns faculty from overlapping sections for the selected term.
+- Program shifting now has a distinct current-term load cleanup path. It can remove the student's final enrolled subject and archive the class-line snapshots, but it does not call the full school-withdrawal status change.
+- Academic Scholarship is registrar-owned and academic-only. Eligibility reads official grade rows, configurable GWA/period caps, assigned curriculum term units, and blocks students still taking PE/NSTP in 3rd or 4th year.
+- Student Profile now has Archive & Custody Tracking for the physical record room workflow. It records request, release, evaluation completion, scan submission to MIS, return, and refile events, then mirrors those actions into the unified Document Trail.
 
 ## 2026-06-17 Registrar Scope Overlay
 
@@ -327,6 +353,7 @@ Practical reading:
 These are the best current watchpoints before making new changes:
 
 - deprecated registrar enrollment/payment screens still contain old paths and should remain out of scope unless deliberately reactivated
+- registrar scholarship is now academic-only in the live UI; manual/non-academic scholarship type maintenance is retired and should not be revived without explicit scope approval
 - legacy `jp_*` mirror writes are retired from active Java source; remaining legacy fixtures should be treated as archive/cleanup work
 - app baselines differ: registrar is Java 17/Spring Boot 3.x, enrollment is Java 21/Spring Boot 4.0.0
 - older notes still mention term 2 after a transition run; the current doc-pack canon for demos/UAT is term `1120242025` unless staff intentionally advances the term
