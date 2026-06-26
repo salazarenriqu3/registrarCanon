@@ -165,6 +165,8 @@ public class EnrollmentController {
                 model.addAttribute("curriculumDeficiencyCount", curriculumDeficiencies.size());
                 model.addAttribute("shiftCarryOver",
                     studentCurriculumService.getShiftCarryOverSummary(actualStudentNumber));
+                model.addAttribute("transferCreditRequests",
+                    creditGradeService.listRequestsForStudent(actualStudentNumber));
                 model.addAttribute("selectedOfferingSchool", offeringSchool != null ? offeringSchool : "__DEFAULT__");
                 model.addAttribute("selectedOfferingProgram", offeringProgram != null ? offeringProgram : "__ALL__");
                 model.addAttribute("offeringQ", offeringQ != null ? offeringQ : "");
@@ -566,22 +568,12 @@ public class EnrollmentController {
                                       HttpSession session) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String username = studentNumber != null ? studentNumber.trim() : "";
-        String result = creditGradeService.creditCourse(username, courseId, numericGrade, sourceSchool, note);
-        if (result.startsWith("SUCCESS:")) {
-            redir.addFlashAttribute("successMessage", result);
-            recordTrail(
-                username,
-                "TRANSFER_CREDIT",
-                "TRANSFER_CREDIT_RECORDED",
-                "Transfer/TOR credit recorded",
-                "Course #" + courseId + (sourceSchool != null && !sourceSchool.isBlank() ? " from " + sourceSchool.trim() : "") +
-                    (numericGrade != null ? " | numeric=" + numericGrade : "") +
-                    (note != null && !note.isBlank() ? " | " + note.trim() : ""),
-                session,
-                "grades",
-                String.valueOf(courseId));
+        CreditGradeService.CreditRequestActionResult result =
+            creditGradeService.submitCreditRequest(username, courseId, numericGrade, sourceSchool, note, currentUsername(session));
+        if (result.ok()) {
+            redir.addFlashAttribute("successMessage", result.message());
         } else {
-            redir.addFlashAttribute("message", result);
+            redir.addFlashAttribute("message", result.message());
         }
         redir.addAttribute("username", username);
         return "redirect:/admin/student-manager";
@@ -596,24 +588,50 @@ public class EnrollmentController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String username = studentNumber != null ? studentNumber.trim() : "";
         CreditGradeService.BulkCreditResult result =
-            creditGradeService.bulkCreditFromCsv(username, bulkCreditCsv, defaultSourceSchool);
-        String summary = "Bulk credit: " + result.credited() + " credited, " + result.skipped() + " skipped.";
+            creditGradeService.submitBulkCreditRequestsFromCsv(username, bulkCreditCsv, defaultSourceSchool, currentUsername(session));
+        String summary = "Bulk TOR request: " + result.credited() + " submitted, " + result.skipped() + " skipped.";
         if (result.credited() > 0) {
             redir.addFlashAttribute("successMessage", summary);
-            recordTrail(
-                username,
-                "TRANSFER_CREDIT",
-                "BULK_TRANSFER_CREDIT_RECORDED",
-                "Bulk transfer/TOR credit recorded",
-                summary + (defaultSourceSchool != null && !defaultSourceSchool.isBlank() ? " Default source: " + defaultSourceSchool.trim() : ""),
-                session,
-                "grades",
-                username);
         } else {
             redir.addFlashAttribute("message", summary);
         }
         redir.addFlashAttribute("bulkCreditLines", result.lines());
         redir.addAttribute("username", username);
+        return "redirect:/admin/student-manager";
+    }
+
+    @PostMapping("/admin/student-manager/approve-credit-request")
+    public String approveTransferCreditRequest(@RequestParam long requestId,
+                                               @RequestParam String studentNumber,
+                                               RedirectAttributes redir,
+                                               HttpSession session) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        CreditGradeService.CreditRequestActionResult result =
+            creditGradeService.approveCreditRequest(requestId, currentUsername(session));
+        if (result.ok()) {
+            redir.addFlashAttribute("successMessage", result.message());
+        } else {
+            redir.addFlashAttribute("message", result.message());
+        }
+        redir.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
+        return "redirect:/admin/student-manager";
+    }
+
+    @PostMapping("/admin/student-manager/reject-credit-request")
+    public String rejectTransferCreditRequest(@RequestParam long requestId,
+                                              @RequestParam String studentNumber,
+                                              @RequestParam(required = false) String rejectionReason,
+                                              RedirectAttributes redir,
+                                              HttpSession session) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        CreditGradeService.CreditRequestActionResult result =
+            creditGradeService.rejectCreditRequest(requestId, currentUsername(session), rejectionReason);
+        if (result.ok()) {
+            redir.addFlashAttribute("successMessage", result.message());
+        } else {
+            redir.addFlashAttribute("message", result.message());
+        }
+        redir.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
         return "redirect:/admin/student-manager";
     }
 

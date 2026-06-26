@@ -260,7 +260,7 @@ WHERE su.username = @sn;
 
 http://localhost:8083/registrar/admin/student-manager?username=`@sn`
 
-**Single credit:** TOR & Transfer Crediting → pick a course → numeric grade e.g. `1.75` → Credit.
+**Single credit:** TOR & Transfer Crediting → pick a course → numeric grade e.g. `1.75` → Submit → approve in `Accreditation Requests`.
 
 **Bulk CSV** (paste into bulk import):
 
@@ -271,7 +271,7 @@ PE1 11,2.0,Prior College,
 ANS1 11,1.50,Prior College,
 ```
 
-Credit enough Y1-equivalent courses so Y2 irregular offerings are manageable (3–6 courses is enough for demo).
+Approve enough Y1-equivalent credit requests so Y2 irregular offerings are manageable (3–6 courses is enough for demo).
 
 #### 3.3 Enroll each year (Y2 → Y4)
 

@@ -714,7 +714,7 @@ Start from a student already created by the external Admission / Cashier flow. I
 
 ### TRANS-T02 — Single TOR credit
 
-Student Manager → **TOR & Transfer Crediting** → Credit one row. Assert: `remarks = Passed`, `grade_lock_reason LIKE 'TRANSFER_CREDIT%'`, deficiency drops off.
+Student Manager → **TOR & Transfer Crediting** → submit one row → approve it in **Accreditation Requests**. Assert: request first appears as `PENDING`, then after registrar approval the credited course appears in history, `grade_lock_reason LIKE 'TRANSFER_CREDIT%'`, and deficiency pressure drops.
 
 ### TRANS-T03 — Bulk TOR CSV
 
@@ -724,7 +724,7 @@ AECO 11,1.75,Prior College,TOR 2024
 PATHFIT 1,2.0,,
 ```
 
-Paste → **Import bulk credits**. Assert summary + skip reasons.
+Paste → **Submit bulk request** → approve pending rows in **Accreditation Requests**. Assert summary + skip reasons + approval/posting events.
 
 ### TRANS-T04 — Irregular curriculum scope
 

@@ -2,6 +2,7 @@ package com.iuims.registrar.curriculum;
 
 import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.forms.RegFormEventService;
+import com.iuims.registrar.forms.StudentDocumentTrailService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,6 +12,7 @@ import java.io.StringReader;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CreditGradeService {
@@ -19,19 +21,55 @@ public class CreditGradeService {
 
     public record BulkCreditResult(int credited, int skipped, List<BulkCreditLineResult> lines) {}
 
+    public record CreditRequestActionResult(boolean ok, Long requestId, String message) {}
+
     private final JdbcTemplate db;
     private final StudentCurriculumService studentCurriculumService;
     private final RegFormEventService regFormEventService;
+    private final StudentDocumentTrailService documentTrailService;
     private final TransferCreditGradePort transferCreditGradePort;
 
     public CreditGradeService(JdbcTemplate db,
                               StudentCurriculumService studentCurriculumService,
                               RegFormEventService regFormEventService,
+                              StudentDocumentTrailService documentTrailService,
                               TransferCreditGradePort transferCreditGradePort) {
         this.db = db;
         this.studentCurriculumService = studentCurriculumService;
         this.regFormEventService = regFormEventService;
+        this.documentTrailService = documentTrailService;
         this.transferCreditGradePort = transferCreditGradePort;
+    }
+
+    public void ensureSchema() {
+        db.execute("""
+            CREATE TABLE IF NOT EXISTS transfer_credit_requests (
+                request_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                student_number VARCHAR(100) NOT NULL,
+                curriculum_id INT NULL,
+                course_id INT NOT NULL,
+                course_code VARCHAR(100) NOT NULL,
+                numeric_grade DECIMAL(5,2) NULL,
+                source_school VARCHAR(180) NULL,
+                note VARCHAR(500) NULL,
+                status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+                requested_by VARCHAR(100) NULL,
+                requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                approved_by VARCHAR(100) NULL,
+                approved_at TIMESTAMP NULL,
+                rejected_by VARCHAR(100) NULL,
+                rejected_at TIMESTAMP NULL,
+                rejection_reason VARCHAR(500) NULL
+            )
+            """);
+        try {
+            db.execute("CREATE INDEX idx_tcr_student_status ON transfer_credit_requests (student_number, status, requested_at)");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("CREATE INDEX idx_tcr_course_student ON transfer_credit_requests (student_number, course_id, status)");
+        } catch (Exception ignored) {
+        }
     }
 
     @Transactional
@@ -48,7 +86,7 @@ public class CreditGradeService {
         if (courseCode == null) {
             return "ERROR: Course not found.";
         }
-        return creditCourseInternal(sn, courseId, courseCode, numericGrade, sourceSchool, note);
+        return creditCourseInternal(sn, courseId, courseCode, numericGrade, sourceSchool, note, "registrar");
     }
 
     @Transactional
@@ -65,7 +103,7 @@ public class CreditGradeService {
         if (courseId == null) {
             return "ERROR: Course code not found: " + courseCode.trim();
         }
-        return creditCourseInternal(sn, courseId, courseCode.trim(), numericGrade, sourceSchool, note);
+        return creditCourseInternal(sn, courseId, courseCode.trim(), numericGrade, sourceSchool, note, "registrar");
     }
 
     @Transactional
@@ -128,19 +166,291 @@ public class CreditGradeService {
         return new BulkCreditResult(credited, skipped, lines);
     }
 
-    private String creditCourseInternal(String sn, int courseId, String courseCode,
-                                        Double numericGrade, String sourceSchool, String note) {
+    @Transactional
+    public CreditRequestActionResult submitCreditRequest(String studentNumber,
+                                                         int courseId,
+                                                         Double numericGrade,
+                                                         String sourceSchool,
+                                                         String note,
+                                                         String requestedBy) {
+        ensureSchema();
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return new CreditRequestActionResult(false, null, "ERROR: Student number is required.");
+        }
+        if (courseId <= 0) {
+            return new CreditRequestActionResult(false, null, "ERROR: Invalid course.");
+        }
+        String sn = studentNumber.trim();
+        String courseCode = lookupCourseCode(courseId);
+        if (courseCode == null) {
+            return new CreditRequestActionResult(false, null, "ERROR: Course not found.");
+        }
+        String validation = validateCreditable(sn, courseId, courseCode, true);
+        if (validation != null) {
+            return new CreditRequestActionResult(false, null, validation);
+        }
         Integer curriculumId = studentCurriculumService.findCurrentCurriculumId(sn);
-        if (curriculumId == null) {
-            return "ERROR: No curriculum assigned for this student.";
-        }
-        if (!courseInCurriculum(curriculumId, courseId)) {
-            return "ERROR: Course is not part of the student's assigned curriculum.";
-        }
-        if (isCoursePassed(sn, courseId)) {
-            return "ERROR: Student already has a passing grade for this course.";
-        }
+        db.update("""
+                INSERT INTO transfer_credit_requests
+                    (student_number, curriculum_id, course_id, course_code, numeric_grade,
+                     source_school, note, status, requested_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                """,
+            sn,
+            curriculumId,
+            courseId,
+            courseCode,
+            numericGrade != null ? BigDecimal.valueOf(numericGrade) : null,
+            cleanNullable(sourceSchool, 180),
+            cleanNullable(note, 500),
+            cleanNullable(requestedBy, 100));
+        Long requestId = db.queryForObject(
+            "SELECT request_id FROM transfer_credit_requests WHERE student_number = ? AND course_id = ? ORDER BY request_id DESC LIMIT 1",
+            Long.class,
+            sn,
+            courseId);
+        String detail = buildRequestDetail(courseCode, sourceSchool, note, numericGrade);
+        regFormEventService.recordEvent(
+            sn,
+            "TRANSFER_CREDIT_REQUESTED",
+            "Transfer/TOR credit submitted for approval",
+            requestId,
+            detail,
+            requestedBy);
+        documentTrailService.recordStudentEvent(
+            sn,
+            "STUDENT",
+            "TRANSFER_CREDIT",
+            "TRANSFER_CREDIT_REQUESTED",
+            "Transfer/TOR credit submitted for approval",
+            detail,
+            requestedBy,
+            requestId,
+            "transfer_credit_requests",
+            requestId != null ? String.valueOf(requestId) : null);
+        return new CreditRequestActionResult(true, requestId, "SUCCESS: Transfer/TOR credit request submitted for approval.");
+    }
 
+    @Transactional
+    public BulkCreditResult submitBulkCreditRequestsFromCsv(String studentNumber,
+                                                            String csvText,
+                                                            String defaultSourceSchool,
+                                                            String requestedBy) {
+        ensureSchema();
+        List<BulkCreditLineResult> lines = new ArrayList<>();
+        int requested = 0;
+        int skipped = 0;
+        if (studentNumber == null || studentNumber.isBlank()) {
+            lines.add(new BulkCreditLineResult("", false, "Student number is required."));
+            return new BulkCreditResult(0, 1, lines);
+        }
+        if (csvText == null || csvText.isBlank()) {
+            lines.add(new BulkCreditLineResult("", false, "CSV is empty."));
+            return new BulkCreditResult(0, 1, lines);
+        }
+        try (BufferedReader reader = new BufferedReader(new StringReader(csvText))) {
+            String line;
+            int row = 0;
+            while ((line = reader.readLine()) != null) {
+                row++;
+                String trimmed = line.trim();
+                if (trimmed.isEmpty()) continue;
+                if (row == 1 && trimmed.toLowerCase().startsWith("course_code")) continue;
+
+                String[] parts = trimmed.split(",", -1);
+                String code = parts.length > 0 ? parts[0].trim() : "";
+                if (code.isEmpty()) {
+                    skipped++;
+                    lines.add(new BulkCreditLineResult("", false, "Row " + row + ": missing course_code"));
+                    continue;
+                }
+                Integer courseId = lookupCourseId(code);
+                if (courseId == null) {
+                    skipped++;
+                    lines.add(new BulkCreditLineResult(code, false, "Row " + row + ": course code not found"));
+                    continue;
+                }
+                Double numericGrade = null;
+                if (parts.length > 1 && !parts[1].trim().isEmpty()) {
+                    try {
+                        numericGrade = Double.parseDouble(parts[1].trim());
+                    } catch (NumberFormatException e) {
+                        skipped++;
+                        lines.add(new BulkCreditLineResult(code, false, "Row " + row + ": invalid numeric_grade"));
+                        continue;
+                    }
+                }
+                String sourceSchool = parts.length > 2 && !parts[2].trim().isEmpty()
+                    ? parts[2].trim()
+                    : defaultSourceSchool;
+                String note = parts.length > 3 ? parts[3].trim() : null;
+
+                CreditRequestActionResult result =
+                    submitCreditRequest(studentNumber, courseId, numericGrade, sourceSchool, note, requestedBy);
+                if (result.ok()) {
+                    requested++;
+                    lines.add(new BulkCreditLineResult(code, true, result.message()));
+                } else {
+                    skipped++;
+                    lines.add(new BulkCreditLineResult(code, false, result.message()));
+                }
+            }
+        } catch (Exception e) {
+            lines.add(new BulkCreditLineResult("", false, "CSV parse error: " + e.getMessage()));
+            skipped++;
+        }
+        if (requested > 0) {
+            regFormEventService.recordEvent(
+                studentNumber.trim(),
+                "BULK_TRANSFER_CREDIT_REQUESTED",
+                "Bulk transfer/TOR credit submitted for approval",
+                null,
+                "Bulk request submitted: " + requested + " course(s)." +
+                    (defaultSourceSchool != null && !defaultSourceSchool.isBlank() ? " Default source: " + defaultSourceSchool.trim() : ""),
+                requestedBy);
+        }
+        return new BulkCreditResult(requested, skipped, lines);
+    }
+
+    @Transactional
+    public CreditRequestActionResult approveCreditRequest(long requestId, String approvedBy) {
+        ensureSchema();
+        Map<String, Object> row = findRequest(requestId);
+        if (row == null) {
+            return new CreditRequestActionResult(false, requestId, "ERROR: Transfer credit request not found.");
+        }
+        if (!"PENDING".equalsIgnoreCase(String.valueOf(row.getOrDefault("status", "")))) {
+            return new CreditRequestActionResult(false, requestId, "ERROR: Only pending requests can be approved.");
+        }
+        String studentNumber = String.valueOf(row.getOrDefault("student_number", "")).trim();
+        int courseId = ((Number) row.get("course_id")).intValue();
+        String courseCode = String.valueOf(row.getOrDefault("course_code", "")).trim();
+        Double numericGrade = row.get("numeric_grade") instanceof Number
+            ? ((Number) row.get("numeric_grade")).doubleValue()
+            : null;
+        String sourceSchool = row.get("source_school") != null ? row.get("source_school").toString() : null;
+        String note = row.get("note") != null ? row.get("note").toString() : null;
+        String validation = validateCreditable(studentNumber, courseId, courseCode, false);
+        if (validation != null) {
+            return new CreditRequestActionResult(false, requestId, validation);
+        }
+        String result = creditCourseInternal(studentNumber, courseId, courseCode, numericGrade, sourceSchool, note, approvedBy);
+        if (!result.startsWith("SUCCESS:")) {
+            return new CreditRequestActionResult(false, requestId, result);
+        }
+        db.update("""
+                UPDATE transfer_credit_requests
+                SET status = 'APPROVED',
+                    approved_by = ?,
+                    approved_at = CURRENT_TIMESTAMP,
+                    rejected_by = NULL,
+                    rejected_at = NULL,
+                    rejection_reason = NULL
+                WHERE request_id = ? AND status = 'PENDING'
+                """,
+            cleanNullable(approvedBy, 100),
+            requestId);
+        String detail = buildRequestDetail(courseCode, sourceSchool, note, numericGrade);
+        regFormEventService.recordEvent(
+            studentNumber,
+            "TRANSFER_CREDIT_APPROVED",
+            "Transfer/TOR credit approved",
+            requestId,
+            detail,
+            approvedBy);
+        documentTrailService.recordStudentEvent(
+            studentNumber,
+            "STUDENT",
+            "TRANSFER_CREDIT",
+            "TRANSFER_CREDIT_APPROVED",
+            "Transfer/TOR credit approved",
+            detail,
+            approvedBy,
+            requestId,
+            "transfer_credit_requests",
+            String.valueOf(requestId));
+        return new CreditRequestActionResult(true, requestId, "SUCCESS: Transfer/TOR credit approved and posted.");
+    }
+
+    @Transactional
+    public CreditRequestActionResult rejectCreditRequest(long requestId, String rejectedBy, String reason) {
+        ensureSchema();
+        Map<String, Object> row = findRequest(requestId);
+        if (row == null) {
+            return new CreditRequestActionResult(false, requestId, "ERROR: Transfer credit request not found.");
+        }
+        if (!"PENDING".equalsIgnoreCase(String.valueOf(row.getOrDefault("status", "")))) {
+            return new CreditRequestActionResult(false, requestId, "ERROR: Only pending requests can be rejected.");
+        }
+        String cleanReason = cleanNullable(reason, 500);
+        if (cleanReason == null) {
+            cleanReason = "Registrar review rejected the request.";
+        }
+        db.update("""
+                UPDATE transfer_credit_requests
+                SET status = 'REJECTED',
+                    rejected_by = ?,
+                    rejected_at = CURRENT_TIMESTAMP,
+                    rejection_reason = ?
+                WHERE request_id = ? AND status = 'PENDING'
+                """,
+            cleanNullable(rejectedBy, 100),
+            cleanReason,
+            requestId);
+        String studentNumber = String.valueOf(row.getOrDefault("student_number", "")).trim();
+        String courseCode = String.valueOf(row.getOrDefault("course_code", "")).trim();
+        regFormEventService.recordEvent(
+            studentNumber,
+            "TRANSFER_CREDIT_REJECTED",
+            "Transfer/TOR credit rejected",
+            requestId,
+            courseCode + " | " + cleanReason,
+            rejectedBy);
+        documentTrailService.recordStudentEvent(
+            studentNumber,
+            "STUDENT",
+            "TRANSFER_CREDIT",
+            "TRANSFER_CREDIT_REJECTED",
+            "Transfer/TOR credit rejected",
+            courseCode + " | " + cleanReason,
+            rejectedBy,
+            requestId,
+            "transfer_credit_requests",
+            String.valueOf(requestId));
+        return new CreditRequestActionResult(true, requestId, "SUCCESS: Transfer/TOR credit request rejected.");
+    }
+
+    public List<Map<String, Object>> listRequestsForStudent(String studentNumber) {
+        ensureSchema();
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return List.of();
+        }
+        return db.queryForList("""
+            SELECT request_id, student_number, curriculum_id, course_id, course_code,
+                   numeric_grade, source_school, note, status,
+                   requested_by, requested_at, approved_by, approved_at,
+                   rejected_by, rejected_at, rejection_reason
+            FROM transfer_credit_requests
+            WHERE student_number = ?
+            ORDER BY
+                CASE status
+                    WHEN 'PENDING' THEN 0
+                    WHEN 'APPROVED' THEN 1
+                    WHEN 'REJECTED' THEN 2
+                    ELSE 9
+                END,
+                requested_at DESC,
+                request_id DESC
+            """, studentNumber.trim());
+    }
+
+    private String creditCourseInternal(String sn, int courseId, String courseCode,
+                                        Double numericGrade, String sourceSchool, String note,
+                                        String triggeredBy) {
+        String validation = validateCreditable(sn, courseId, courseCode, false);
+        if (validation != null) {
+            return validation;
+        }
         transferCreditGradePort.saveTransferCredit(
             sn,
             courseId,
@@ -166,10 +476,30 @@ public class CreditGradeService {
                 "Transfer/TOR credit recorded",
                 null,
                 remarks.toString(),
-                "registrar");
+                triggeredBy);
         } catch (Exception ignored) {
         }
         return "SUCCESS: Credited " + courseCode + " as transfer/prior-school credit.";
+    }
+
+    private String validateCreditable(String studentNumber,
+                                      int courseId,
+                                      String courseCode,
+                                      boolean checkPending) {
+        Integer curriculumId = studentCurriculumService.findCurrentCurriculumId(studentNumber);
+        if (curriculumId == null) {
+            return "ERROR: No curriculum assigned for this student.";
+        }
+        if (!courseInCurriculum(curriculumId, courseId)) {
+            return "ERROR: Course is not part of the student's assigned curriculum.";
+        }
+        if (isCoursePassed(studentNumber, courseId)) {
+            return "ERROR: Student already has a passing grade for this course.";
+        }
+        if (checkPending && hasPendingRequest(studentNumber, courseId)) {
+            return "ERROR: There is already a pending transfer/TOR credit request for " + courseCode + ".";
+        }
+        return null;
     }
 
     private String lookupCourseCode(int courseId) {
@@ -220,6 +550,36 @@ public class CreditGradeService {
         } catch (Exception e) {
             return false;
         }
+    }
+
+    private boolean hasPendingRequest(String studentNumber, int courseId) {
+        ensureSchema();
+        try {
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM transfer_credit_requests WHERE student_number = ? AND course_id = ? AND status = 'PENDING'",
+                Integer.class,
+                studentNumber,
+                courseId);
+            return count != null && count > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private Map<String, Object> findRequest(long requestId) {
+        ensureSchema();
+        List<Map<String, Object>> rows = db.queryForList(
+            """
+                SELECT request_id, student_number, curriculum_id, course_id, course_code,
+                       numeric_grade, source_school, note, status,
+                       requested_by, requested_at, approved_by, approved_at,
+                       rejected_by, rejected_at, rejection_reason
+                FROM transfer_credit_requests
+                WHERE request_id = ?
+                LIMIT 1
+                """,
+            requestId);
+        return rows.isEmpty() ? null : rows.get(0);
     }
 
     private String resolveStudentName(String studentNumber) {
@@ -273,5 +633,30 @@ public class CreditGradeService {
         }
         sb.append(')');
         return sb.toString();
+    }
+
+    private String buildRequestDetail(String courseCode,
+                                      String sourceSchool,
+                                      String note,
+                                      Double numericGrade) {
+        StringBuilder remarks = new StringBuilder(courseCode);
+        if (sourceSchool != null && !sourceSchool.isBlank()) {
+            remarks.append(" from ").append(sourceSchool.trim());
+        }
+        if (numericGrade != null) {
+            remarks.append(" | numeric=").append(numericGrade);
+        }
+        if (note != null && !note.isBlank()) {
+            remarks.append(" | ").append(note.trim());
+        }
+        return remarks.toString();
+    }
+
+    private String cleanNullable(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String cleaned = value.trim();
+        return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
     }
 }

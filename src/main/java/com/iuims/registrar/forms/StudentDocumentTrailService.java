@@ -370,7 +370,7 @@ public class StudentDocumentTrailService {
         return """
             CASE
                 WHEN event_type IN ('SUBJECT_ADD', 'ENROLLMENT_ACTIVATED', 'BLOCK_ENROLL_COMPLETED', 'FORCE_ENROLL_COMPLETED') THEN 'ENROLLMENT'
-                WHEN event_type IN ('TRANSFER_CREDIT', 'BULK_TRANSFER_CREDIT') THEN 'TRANSFER_CREDIT'
+                WHEN event_type LIKE 'TRANSFER_CREDIT%' OR event_type LIKE 'BULK_TRANSFER_CREDIT%' THEN 'TRANSFER_CREDIT'
                 WHEN event_type IN ('CURRICULUM_ASSIGNED', 'PROGRAM_SHIFT') THEN 'CURRICULUM'
                 WHEN event_type LIKE 'OVERPAY_%' THEN 'FINANCE'
                 ELSE 'REG_FORM'

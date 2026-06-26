@@ -926,11 +926,92 @@
                                 <textarea name="bulkCreditCsv" class="form-control" rows="4" placeholder="course_code,numeric_grade,source_school,note&#10;AECO 11,1.75,Prior College,TOR 2024&#10;MATH 101,2.0,," style="font-size: 0.8rem; font-family: monospace; margin-bottom: 0.5rem;"></textarea>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                                     <input type="text" name="defaultSourceSchool" placeholder="Default prior school" class="form-control" style="font-size: 0.8rem; max-width: 220px;">
-                                    <button type="submit" class="btn btn-primary" style="background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Import bulk credits</button>
+                                    <button type="submit" class="btn btn-primary" style="background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Submit bulk request</button>
                                 </div>
                             </form>
                             <div th:if="${bulkCreditLines != null}" style="margin-top: 0.75rem; font-size: 0.78rem; max-height: 120px; overflow-y: auto;">
                                 <div th:each="line : ${bulkCreditLines}" th:style="${line.ok} ? 'color: var(--success-color);' : 'color: #DC2626;'" th:text="${line.courseCode + ': ' + line.detail}"></div>
+                            </div>
+                        </div>
+
+                        <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
+                                <div>
+                                    <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">ACCREDITATION REQUESTS</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Registrar approves or rejects TOR/prior-school credits here before they are posted into the academic record.</div>
+                                </div>
+                                <div th:if="${transferCreditRequests != null}" style="font-size: 0.78rem; color: var(--text-muted);">
+                                    <span th:text="${#lists.size(transferCreditRequests)}"></span> request(s)
+                                </div>
+                            </div>
+                            <div th:if="${transferCreditRequests != null and !#lists.isEmpty(transferCreditRequests)}" style="margin-top: 0.75rem; max-height: 240px; overflow: auto;">
+                                <table class="table-eac" style="margin: 0; min-width: 920px;">
+                                    <thead style="background: var(--bg-tertiary); position: sticky; top: 0;">
+                                        <tr>
+                                            <th>Course</th>
+                                            <th>Source</th>
+                                            <th>Grade</th>
+                                            <th>Status</th>
+                                            <th>Requested</th>
+                                            <th>Decision</th>
+                                            <th style="min-width: 260px;">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:each="req : ${transferCreditRequests}">
+                                            <td>
+                                                <div style="font-weight: 700;" th:text="${req.course_code}"></div>
+                                                <div style="font-size: 0.76rem; color: var(--text-muted);" th:text="${req.note != null and !#strings.isEmpty(req.note) ? req.note : 'No note provided.'}"></div>
+                                            </td>
+                                            <td th:text="${req.source_school != null and !#strings.isEmpty(req.source_school) ? req.source_school : '—'}"></td>
+                                            <td th:text="${req.numeric_grade != null ? #numbers.formatDecimal(req.numeric_grade, 1, 'POINT', 2, 'POINT') : '—'}"></td>
+                                            <td>
+                                                <span class="sched-tag"
+                                                      th:style="${req.status == 'APPROVED'} ? 'border-color:#BBF7D0;color:#166534;background:#F0FDF4;' :
+                                                                (${req.status == 'REJECTED'} ? 'border-color:#FECACA;color:#991B1B;background:#FEF2F2;' :
+                                                                'border-color:#FDE68A;color:#92400E;background:#FFFBEB;')"
+                                                      th:text="${req.status}"></span>
+                                            </td>
+                                            <td style="font-size: 0.78rem;">
+                                                <div th:text="${req.requested_by != null ? req.requested_by : 'registrar'}"></div>
+                                                <div style="color: var(--text-muted);" th:text="${req.requested_at}"></div>
+                                            </td>
+                                            <td style="font-size: 0.78rem;">
+                                                <div th:if="${req.status == 'APPROVED'}">
+                                                    <div th:text="${req.approved_by != null ? req.approved_by : 'registrar'}"></div>
+                                                    <div style="color: var(--text-muted);" th:text="${req.approved_at}"></div>
+                                                </div>
+                                                <div th:if="${req.status == 'REJECTED'}">
+                                                    <div th:text="${req.rejected_by != null ? req.rejected_by : 'registrar'}"></div>
+                                                    <div style="color: var(--text-muted);" th:text="${req.rejected_at}"></div>
+                                                    <div style="color: #991B1B;" th:text="${req.rejection_reason != null ? req.rejection_reason : 'No rejection note.'}"></div>
+                                                </div>
+                                                <div th:if="${req.status == 'PENDING'}" style="color: var(--text-muted);">Awaiting registrar approval</div>
+                                            </td>
+                                            <td>
+                                                <div th:if="${req.status == 'PENDING'}" style="display: flex; flex-direction: column; gap: 0.4rem;">
+                                                    <form th:action="@{/admin/student-manager/approve-credit-request}" method="post" style="display: flex; gap: 0.35rem; align-items: center;">
+                                                        <input type="hidden" name="requestId" th:value="${req.request_id}">
+                                                        <input type="hidden" name="studentNumber" th:value="${student.username}">
+                                                        <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.55rem; background: var(--success-color); border-color: var(--success-color);">Approve &amp; Post</button>
+                                                    </form>
+                                                    <form th:action="@{/admin/student-manager/reject-credit-request}" method="post" style="display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap;">
+                                                        <input type="hidden" name="requestId" th:value="${req.request_id}">
+                                                        <input type="hidden" name="studentNumber" th:value="${student.username}">
+                                                        <input type="text" name="rejectionReason" class="form-control" placeholder="Rejection note" style="font-size: 0.75rem; max-width: 180px;">
+                                                        <button type="submit" class="btn btn-primary" style="padding: 0.25rem 0.55rem; background: #DC2626; border-color: #DC2626;">Reject</button>
+                                                    </form>
+                                                </div>
+                                                <div th:if="${req.status != 'PENDING'}" style="font-size: 0.78rem; color: var(--text-muted);">
+                                                    Workflow complete
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div th:if="${transferCreditRequests == null or #lists.isEmpty(transferCreditRequests)}" style="margin-top: 0.75rem; font-size: 0.82rem; color: var(--text-muted);">
+                                No accreditation requests yet.
                             </div>
                         </div>
 
@@ -959,7 +1040,8 @@
                                                 <input type="hidden" name="courseId" th:value="${d.course_id}">
                                                 <input type="text" name="sourceSchool" placeholder="Prior school" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: 100px; min-width: 100px;">
                                                 <input type="number" name="numericGrade" step="0.01" min="1" max="5" placeholder="Grade" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: 64px; min-width: 64px;">
-                                                <button type="submit" class="btn btn-primary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Credit</button>
+                                                <input type="text" name="note" placeholder="Note" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: 88px; min-width: 88px;">
+                                                <button type="submit" class="btn btn-primary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Submit</button>
                                             </form>
                                         </td>
                                     </tr>
@@ -970,7 +1052,7 @@
                             No curriculum deficiencies — assigned catalog is fully credited/passed.
                         </div>
                         <div style="padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border-color);">
-                            Credit prior-school/TOR rows here or via bulk CSV. Credited courses count as passed for prerequisites and irregular enrollment.
+                            Submit prior-school/TOR rows here or via bulk CSV. Approved credits are posted into grades and then count as passed for prerequisites, curriculum carry-over, and irregular enrollment.
                         </div>
                     </div>
 

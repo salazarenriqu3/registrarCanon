@@ -81,6 +81,7 @@ Use this order. It keeps the least destructive pages first and the heavily mutat
    - faculty conflicts blocked
    - same-section overlaps blocked
    - faculty max-load enforced
+8. If the warning banner is visible, show **Repair Current-Term Conflicts** and explain that it normalizes the term by clearing conflicted room stamps to TBA, deleting overlapping extra slots inside one section, and unassigning faculty from overlapping sections.
 
 Expected result:
 
@@ -166,16 +167,18 @@ GE102,1.75,Legacy College,TOR Batch 1
 PE101,1.50,Legacy College,TOR Batch 1
 ```
 
-4. Click `Import bulk credits`.
-5. Scroll to academic history and deficiency areas.
-6. Open `/admin/reg-form-history?studentNumber=TTRNS-2026-001`.
-7. Open `/admin/document-trail?query=TTRNS-2026-001`.
+4. Click `Submit bulk request`.
+5. In `Accreditation Requests`, approve the pending rows.
+6. Scroll to academic history and deficiency areas.
+7. Open `/admin/reg-form-history?studentNumber=TTRNS-2026-001`.
+8. Open `/admin/document-trail?query=TTRNS-2026-001`.
 
 Expected result:
 
-- the imported credits appear in history
+- the submitted requests appear first as pending, then as approved after registrar action
+- the approved credits appear in history
 - deficiency pressure is reduced
-- bulk transfer-credit events are recorded
+- transfer-credit request, approval, and posting events are recorded
 
 ### Part F. Program shift
 
@@ -201,22 +204,21 @@ Expected result:
 Student: `SPRINT-DEMO-2026-001`
 
 1. Open `/admin/student-manager?username=SPRINT-DEMO-2026-001`.
-2. In the withdrawal area, submit one single-subject withdrawal.
-3. Open `/admin/withdrawals`.
-4. Approve the request as Registrar.
-5. Return to the profile and confirm the load changed.
-6. Open `/admin/withdrawals/report`.
-7. Open `/admin/document-trail?query=SPRINT-DEMO-2026-001`.
+2. In the withdrawal area, execute one single-subject withdrawal immediately.
+3. Return to the profile and confirm the load changed at once.
+4. Open `/admin/withdrawals` to review the archive.
+5. Open `/admin/withdrawals/report`.
+6. Open `/admin/document-trail?query=SPRINT-DEMO-2026-001`.
 
 Optional second pass:
 
 1. Re-run `setup\LOAD_FULL_REGISTRAR_DEMO_DATA.cmd` to reset.
-2. Submit a full-student withdrawal instead.
+2. Execute a full-student withdrawal instead.
 
 Expected result:
 
-- no direct drop is used
-- the request goes through the formal Registrar queue
+- the registrar executes the withdrawal directly
+- the action is archived immediately
 - report and trail pages show the same outcome
 
 ### Part H. Scholarship workflow
@@ -227,16 +229,19 @@ Students:
 - `SCH-UAT-LOWUNITS`
 
 1. Open `/admin/scholarships`.
-2. Search or inspect `SCH-UAT-ELIGIBLE`.
-3. Confirm the student is eligible.
-4. Submit, approve, and post.
-5. Inspect `SCH-UAT-LOWUNITS`.
-6. Confirm the rejection reason is the missing completed-unit threshold.
+2. Confirm the screen is academic-only and no manual scholarship type catalog is visible.
+3. Confirm the policy notes say grade rows are evaluated by selected term and policy values are global.
+4. Search or inspect `SCH-UAT-ELIGIBLE`.
+5. Confirm the student is eligible.
+6. Submit, approve, and post.
+7. Inspect `SCH-UAT-LOWUNITS`.
+8. Confirm the rejection reason is the missing completed-unit threshold.
 
 Expected result:
 
 - Sofia progresses through `PENDING -> APPROVED -> POSTED`
 - Liam remains blocked by units
+- finance effect begins only after `POSTED`
 
 ### Part I. Faculty grading
 

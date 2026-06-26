@@ -171,16 +171,18 @@ GE102,1.75,Legacy College,TOR Batch 1
 PE101,1.50,Legacy College,TOR Batch 1
 ```
 
-4. Click `Import bulk credits`.
-5. Scroll to academic history and deficiency areas.
-6. Open `/admin/reg-form-history?studentNumber=TTRNS-2026-001`.
-7. Open `/admin/document-trail?query=TTRNS-2026-001`.
+4. Click `Submit bulk request`.
+5. In `Accreditation Requests`, approve the pending rows.
+6. Scroll to academic history and deficiency areas.
+7. Open `/admin/reg-form-history?studentNumber=TTRNS-2026-001`.
+8. Open `/admin/document-trail?query=TTRNS-2026-001`.
 
 Expected result:
 
-- the imported credits appear in history
+- the submitted requests appear first as pending, then as approved after registrar action
+- the approved credits appear in history
 - deficiency pressure is reduced
-- bulk transfer-credit events are recorded
+- transfer-credit request, approval, and posting events are recorded
 
 ### Part F. Program shift
 

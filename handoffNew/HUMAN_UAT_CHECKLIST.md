@@ -185,8 +185,8 @@ cd enrollment3 && mvn -q spring-boot:run
 | | |
 |---|---|
 | **URL** | Student Manager → **TOR & Transfer Crediting** |
-| **Do** | Credit one course; paste bulk CSV below |
-| **Pass** | `remarks = Passed`; deficiency count drops |
+| **Do** | Submit one course request; optionally paste bulk CSV; approve pending request(s) |
+| **Pass** | request row appears; approved credit posts to history; deficiency count drops |
 
 Bulk CSV sample:
 

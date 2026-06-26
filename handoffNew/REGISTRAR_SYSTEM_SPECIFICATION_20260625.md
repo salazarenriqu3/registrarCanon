@@ -37,7 +37,7 @@ Registrar is the canonical owner of:
 - student academic profile and curriculum assignment
 - transfer crediting and program shifting
 - grades, grade changes, grading windows, academic records
-- withdrawal approval and registrar-side academic audit trail
+- direct withdrawal execution and registrar-side academic audit trail
 - scholarship review and posting workflow
 - registrar-facing fee configuration and term readiness
 
@@ -139,7 +139,7 @@ Top-level code packages under [src/main/java/com/iuims/registrar](D:\registrarCa
 | `portal` | main controllers for admin, student, grading, and profile surfaces |
 | `scholarship` | scholarship workflow and related financial effects |
 | `security` | user-details service and session bridge |
-| `withdrawal` | formal withdrawal workflow and policy enforcement |
+| `withdrawal` | direct withdrawal execution, policy enforcement, and audit history |
 
 ## 8. Main UI surfaces
 
@@ -201,6 +201,7 @@ These are the most important live contracts in the system:
 | `student_enlistments.enlistment_status` | `STAGED` is provisional, `COMMITTED` is official |
 | `program_fee_settings` exact scope | official fee source by term + program + year + semester |
 | `student_curriculum_assignments.is_current = 1` | explicit current curriculum assignment |
+| assigned curriculum term load | live max-unit source for enrollment, scholarship load checks, and offering analysis |
 | `student_document_events` + related sources | audit trail backbone |
 
 Never casually weaken or reinterpret these contracts.
@@ -249,6 +250,9 @@ Key behavior:
 
 - curricula are not inferred silently for important registrar operations
 - explicit assignment is preferred and must be preserved
+- live student max units are computed from the student's assigned curriculum, current year level, and current semester
+- missing assignment or missing curriculum rows are data errors, not reasons to fall back to legacy global caps
+- graduating students keep the explicit `+6` overload allowance on top of their curriculum term load
 
 ### 11.4 Class Scheduling and block offerings
 
@@ -272,6 +276,7 @@ Current hardening rules:
 - faculty schedule conflicts within the same term are blocked
 - faculty max-load cap is enforced before assignment
 - inactive terms should not keep stale seeded faculty assignments
+- if older data already violates those rules, the Class Scheduling warning banner exposes a registrar repair action to normalize the term before further scheduling
 
 Important nuance:
 
@@ -323,8 +328,8 @@ Purpose:
 Important live behavior:
 
 - manual subject-add should use open sections for irregular workflows, not block sections
-- transfer crediting and shift actions are expected to leave clear audit artifacts
-- direct subject removal is intentionally retired from the normal registrar UI in favor of formal withdrawal handling
+- transfer-credit requests, approvals, rejections, and final postings are expected to leave clear audit artifacts
+- direct subject removal from Student Profile now executes through the registrar withdrawal flow and is fully audited
 
 ### 11.8 Admission bridge and applicant document viewing
 
@@ -397,21 +402,21 @@ Current owner files:
 
 Purpose:
 
-- accept formal withdrawal requests
+- execute registrar withdrawals immediately from Student Profile
 - enforce timing/penalty policy
-- route requests through registrar approval surfaces
-- update trails and reg-form history
+- archive the completed action and update trails and reg-form history
 
 Key business rules:
 
 - withdrawal reasons are controlled
 - charge percent is computed from days enrolled and policy settings
-- requests can be blocked after the midterm deadline
-- direct registrar processing still records formal audit output
+- withdrawals can be blocked after the midterm deadline
+- direct registrar processing records the completed action, request line archive, and audit output
 
 Important scope point:
 
 - this is the live registrar withdrawal workflow
+- there is no higher-authority approval step in the active UI
 - it is distinct from the retired dean irregular advising bridge
 
 ### 11.12 Scholarship workflow
@@ -423,14 +428,17 @@ Current owner files:
 
 Purpose:
 
-- manage scholarship policies and types
-- evaluate student eligibility
+- manage academic scholarship policy
+- evaluate student eligibility from official seeded/imported grade rows
 - support `PENDING -> APPROVED -> POSTED`
 - allow reject and revoke paths
 
 Current important rule:
 
+- Registrar grants academic scholarship only; manual/non-academic scholarship types are retired from the registrar UI.
+- the selected term controls candidate evaluation, while the scholarship policy values remain global registrar settings for now
 - scholarship financial effect starts at `POSTED`, not merely `APPROVED`
+- `POSTED` writes the canonical student scholarship fields consumed by finance; `APPROVED` is review-only
 
 ### 11.13 Finance policy, fees, and readiness
 

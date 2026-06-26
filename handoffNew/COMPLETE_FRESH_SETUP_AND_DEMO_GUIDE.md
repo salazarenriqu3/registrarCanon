@@ -348,7 +348,7 @@ Already covered in **Fresh setup** above. Mark complete when all smoke URLs pass
 | A3 | `/admin/courses` | Search `AECO` | Detail loads |
 | A4 | `/admin/curriculum` | Open BSCPE or BSIT | Builder loads |
 | A5 | `/admin/student-manager` | Search demo student | Profile + ledger load |
-| A6 | Student Manager → TOR | Credit one course | `remarks = Passed` |
+| A6 | Student Manager → TOR | Submit and approve one course credit request | pending → approved → posted |
 | A7 | `/admin/class-scheduling?termId=1` | Expand BSCPE block; Add Slot | Times show; IRREG-A visible |
 | A8 | Student Manager → Print COR | Enrolled student | COR lists subjects |
 | A9 | External Admission / Cashier | Admit BSCPE Y1 and issue student ID outside Registrar | Student number created |
