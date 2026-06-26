@@ -129,4 +129,44 @@ class ScheduleConflictValidatorTest {
 
         assertThat(result).isEqualTo("Room not found or inactive.");
     }
+
+    @Test
+    void repairsExistingRoomFacultyAndSectionOverlapConflicts() {
+        db.update("UPDATE class_sections SET faculty_id = 100 WHERE section_id = 2");
+        db.update("INSERT INTO class_schedules (section_id, day_of_week, start_time, end_time, room_id, faculty_id) VALUES (2, 1, '09:30:00', '10:15:00', 5, 100)");
+        db.update("INSERT INTO class_schedules (section_id, day_of_week, start_time, end_time, room_id, faculty_id) VALUES (1, 1, '09:15:00', '09:45:00', NULL, 100)");
+
+        ScheduleConflictValidator.RepairResult result = validator.repairExistingConflicts(10);
+
+        assertThat(result.changed()).isTrue();
+        assertThat(result.roomAssignmentsCleared()).isGreaterThan(0);
+        assertThat(result.sectionOverlapRowsDeleted()).isGreaterThan(0);
+        assertThat(result.facultySectionsCleared()).isGreaterThan(0);
+
+        assertThat(db.queryForObject(
+            "SELECT room_id FROM class_schedules WHERE section_id = 2 AND start_time = '09:30:00'",
+            Integer.class)).isNull();
+        assertThat(db.queryForObject(
+            "SELECT faculty_id FROM class_sections WHERE section_id = 2",
+            Integer.class)).isNull();
+        assertThat(db.queryForObject(
+            "SELECT faculty_id FROM class_schedules WHERE section_id = 2 AND start_time = '09:30:00'",
+            Integer.class)).isNull();
+        assertThat(db.queryForObject(
+            "SELECT COUNT(*) FROM class_schedules WHERE section_id = 1 AND day_of_week = 1",
+            Integer.class)).isEqualTo(1);
+        assertThat(validator.findExistingConflicts(10)).isEmpty();
+    }
+
+    @Test
+    void repairIsNoOpWhenStoredSchedulesAreAlreadyClean() {
+        db.update("DELETE FROM class_schedules");
+        db.update("INSERT INTO class_schedules (section_id, day_of_week, start_time, end_time, room_id, faculty_id) VALUES (1, 1, '09:00:00', '10:30:00', 5, 100)");
+        db.update("INSERT INTO class_schedules (section_id, day_of_week, start_time, end_time, room_id, faculty_id) VALUES (2, 2, '09:00:00', '10:30:00', 5, 200)");
+
+        ScheduleConflictValidator.RepairResult result = validator.repairExistingConflicts(10);
+
+        assertThat(result.changed()).isFalse();
+        assertThat(result.facultyScheduleRowsCleared()).isZero();
+    }
 }

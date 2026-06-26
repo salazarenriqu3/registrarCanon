@@ -2,6 +2,8 @@
 -- SEED ALL CLASS SCHEDULES (no TBA)
 -- Run on eacdb after class_sections exist.
 -- Safe to re-run: replaces schedules for all sections; upserts rooms/faculty.
+-- Final pass gives each section a concrete demo room and department-assigned
+-- demo faculty member so room/faculty monitoring starts conflict-free.
 -- =============================================================================
 USE eacdb;
 SET SQL_SAFE_UPDATES = 0;
@@ -87,20 +89,8 @@ SELECT
     (SELECT MIN(room_id) FROM rooms) AS room_id,
     (SELECT MIN(faculty_id) FROM faculty) AS faculty_id,
     MOD(cs.section_id + c.course_id + COALESCE(cs.term_id, 0), 5) + 1 AS day_of_week,
-    CASE MOD(cs.section_id + c.course_id, 5)
-        WHEN 0 THEN '13:00:00'
-        WHEN 1 THEN '14:30:00'
-        WHEN 2 THEN '15:00:00'
-        WHEN 3 THEN '16:00:00'
-        ELSE '17:00:00'
-    END AS start_time,
-    CASE MOD(cs.section_id + c.course_id, 5)
-        WHEN 0 THEN '14:30:00'
-        WHEN 1 THEN '16:00:00'
-        WHEN 2 THEN '16:30:00'
-        WHEN 3 THEN '17:30:00'
-        ELSE '18:30:00'
-    END AS end_time,
+    '17:30:00' AS start_time,
+    '19:00:00' AS end_time,
     'Lecture',
     'OPEN'
 FROM class_sections cs
@@ -111,6 +101,54 @@ WHERE COALESCE(c.lab_units, 0) = 0
   AND MOD(cs.section_id + c.course_id, 3) = 0;
 
 -- ── 6. Keep sections open (faculty assignment: run seed_faculty_professors_and_grading.sql next)
+-- Per-section demo rooms and faculty assignments.
+-- This deliberately provisions enough concrete demo resources instead of
+-- leaving TBA rows or overloading one sample room/faculty across the dataset.
+INSERT INTO rooms (room_code, building_name, capacity, room_type, active_status)
+SELECT
+    CONCAT('DEMO-SEC-', cs.section_id),
+    COALESCE(d.department_name, 'Academic Demo Building'),
+    GREATEST(COALESCE(cs.max_capacity, 40), COALESCE(c.max_students, 0), 40),
+    CASE WHEN COALESCE(c.lab_units, 0) > 0 THEN 'Lab' ELSE 'Lecture' END,
+    1
+FROM class_sections cs
+JOIN courses c ON c.course_id = cs.course_id
+LEFT JOIN departments d ON d.department_id = c.department_id
+WHERE NOT EXISTS (
+    SELECT 1 FROM rooms r WHERE r.room_code = CONCAT('DEMO-SEC-', cs.section_id)
+);
+
+INSERT INTO faculty (employee_number, first_name, last_name, email, department_id, employment_type, max_teaching_units, active_status)
+SELECT
+    CONCAT('demo.sec.', cs.section_id),
+    'Demo',
+    CONCAT('Faculty ', cs.section_id),
+    CONCAT('demo.sec.', cs.section_id, '@eac.edu.ph'),
+    COALESCE(c.department_id, @dept_id),
+    'FULL_TIME',
+    24,
+    1
+FROM class_sections cs
+JOIN courses c ON c.course_id = cs.course_id
+WHERE NOT EXISTS (
+    SELECT 1 FROM faculty f WHERE f.employee_number = CONCAT('demo.sec.', cs.section_id)
+);
+
+UPDATE class_sections cs
+JOIN courses c ON c.course_id = cs.course_id
+JOIN faculty f ON f.employee_number = CONCAT('demo.sec.', cs.section_id)
+SET cs.faculty_id = f.faculty_id,
+    cs.section_status = CASE
+        WHEN cs.section_status IN ('SUBMITTED', 'PENDING_APPROVAL') THEN cs.section_status
+        ELSE 'Open'
+    END;
+
+UPDATE class_schedules sch
+JOIN class_sections cs ON cs.section_id = sch.section_id
+JOIN rooms r ON r.room_code = CONCAT('DEMO-SEC-', cs.section_id)
+SET sch.room_id = r.room_id,
+    sch.faculty_id = cs.faculty_id;
+
 UPDATE class_sections cs
 SET cs.section_status = 'Open'
 WHERE cs.section_status IS NULL OR cs.section_status = 'Planning';
@@ -127,6 +165,18 @@ FROM class_sections cs
 WHERE NOT EXISTS (SELECT 1 FROM class_schedules sch WHERE sch.section_id = cs.section_id)
 UNION ALL
 SELECT 'schedule_rows', COUNT(*) FROM class_schedules;
+
+SELECT 'missing_room_rows' AS metric, COUNT(*) AS val
+FROM class_schedules
+WHERE room_id IS NULL
+UNION ALL
+SELECT 'missing_faculty_rows', COUNT(*)
+FROM class_schedules
+WHERE faculty_id IS NULL
+UNION ALL
+SELECT 'sections_without_faculty', COUNT(*)
+FROM class_sections
+WHERE faculty_id IS NULL;
 
 SELECT cs.section_code, c.course_code,
        GROUP_CONCAT(

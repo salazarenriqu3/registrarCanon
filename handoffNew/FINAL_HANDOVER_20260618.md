@@ -122,7 +122,7 @@ Never discard the dirty tree with a hard reset.
 - Active-term and student identity values must agree before debugging downstream behavior.
 - Exact fee scopes are required; demo templates are not official production rates.
 - Scholarship approval does not affect finance until posting.
-- Baseline bootstrap may leave room assignment tentative/TBA; the June 25 registrar feature overlay assigns concrete rooms to the specific demo blocks and sections.
+- Fresh demo setup should be followed by the schedule hardening overlay so active demo sections carry concrete room and faculty assignments before presentation.
 - Existing Dean withdrawal review is distinct from the retired new-enrollee advising feature.
 
 ## 10. Suggested first successor task
@@ -160,6 +160,7 @@ This section captures the work completed after the 2026-06-18 baseline that the 
 - Program Builder is now part of the registrar canon as the master program file, separate from curriculum mapping.
 - Course Catalog exposes lecture/laboratory unit splits and a usage drilldown so shared courses can be inspected before edits.
 - Slot Monitoring exposes committed counts, staged pre-registration counts, capacity edits, and section close actions using the same close rule as Class Scheduling.
+- Room Monitoring exposes active rooms, room utilization, concrete room schedule rows, room conflicts, missing room assignments, sections without schedules, and sections without faculty.
 
 ### Class scheduling
 
@@ -168,11 +169,11 @@ This section captures the work completed after the 2026-06-18 baseline that the 
 - Course-section filters now cover search, department, section availability, section status, faculty assignment, schedule state, day, and room.
 - Filter state is preserved after apply/reset so the current selection remains visible.
 - The course/section load path was refactored to use bulk queries instead of per-row lookups, which made the large scheduling page noticeably faster on the current dataset.
-- Schedule writes now hard-block same-term overlaps for the same room, assigned faculty member, or class section. Faculty assignment also checks max-teaching-load before the write is allowed. Rooms may intentionally remain TBA; overlap validation applies once a room is assigned.
+- Schedule writes now require a concrete room and hard-block same-term overlaps for the same room, assigned faculty member, or class section. Faculty assignment also checks max-teaching-load before the write is allowed.
 - Faculty Load now includes a term-integrity audit that flags suspicious "one faculty owns the whole term" assignment concentration, plus a guarded repair action that clears those assignments from both `class_sections` and `class_schedules`.
 - `class_sections` now attempts to enforce a unique `(term_id, section_code, course_id)` key during schema setup so block/materialization flows cannot silently duplicate the same course-section tuple on a healthy database.
 - The fresh-setup demo seed `setup/sql/03_assign_prof_cruz_demo.sql` no longer stamps all active-term sections onto one faculty member; it now restores a bounded multi-faculty demo mix while keeping `prof.cruz` grading-ready.
-- The schedule seed and cleanup path were hardened so generated schedule rows no longer stamp the same room onto the whole dataset. Fresh setup now leaves rooms as TBA by default, removes same-section overlap duplicates, and clears inactive-term faculty assignments until those terms are deliberately scheduled.
+- The schedule seed and cleanup path now provisions section-specific demo rooms and department-assigned demo faculty, then restamps generated schedule rows with concrete values so the demo starts without TBA room placeholders.
 
 ### Curriculum management
 

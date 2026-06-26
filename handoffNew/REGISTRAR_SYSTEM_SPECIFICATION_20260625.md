@@ -275,13 +275,14 @@ Current hardening rules:
 - room conflicts within the same term are blocked
 - faculty schedule conflicts within the same term are blocked
 - faculty max-load cap is enforced before assignment
+- new schedule saves require a concrete active room; historical missing-room rows are monitored as exceptions
 - inactive terms should not keep stale seeded faculty assignments
 - if older data already violates those rules, the Class Scheduling warning banner exposes a registrar repair action to normalize the term before further scheduling
 
 Important nuance:
 
-- TBA rooms are still valid at the baseline bootstrap level
-- the curated demo overlay assigns concrete rooms only to the demo sections we present live
+- the fresh demo database now seeds concrete rooms for production/demo review
+- Room Monitoring is the registrar surface for room inventory, utilization, conflict rooms, and historical missing-room exceptions
 
 ### 11.5 Slot Monitoring
 

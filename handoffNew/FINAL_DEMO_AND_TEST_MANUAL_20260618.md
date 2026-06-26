@@ -115,7 +115,7 @@ Before presenting, verify:
 | Active term | Registrar shows `1120242025` |
 | Program Fees | `/registrar/admin/term-fees?termId=1` has no demo blocker |
 | Classes | `/registrar/admin/class-scheduling?termId=1` displays block and course sections |
-| Schedules | Active sections display day/time; room may be TBA |
+| Schedules | Active sections display day/time/faculty/room; Room Monitoring has no missing room rows for demo data |
 | Student Profile | `/registrar/admin/student-manager` renders search and profile actions |
 | Enrollment Cashier | `/admin/cashier` loads without a fatal schema error |
 
@@ -135,10 +135,13 @@ Stop if the active term is wrong, exact term fees are absent, login loops, or th
 8. Filter blocks by program, year, semester, status, or schedule completeness.
 9. Load Course Details, then apply server filters for department, section count/status, faculty, schedule state, day, or room. Use course search for the fastest targeted lookup on large datasets.
 10. Show a block section generated from curriculum data.
-11. Open a schedule slot and show day, time, faculty, and room/TBA behavior.
-12. Open Slot Monitoring and show the same section's committed count, staged pre-registration count, max capacity, and remaining slots.
-13. Update a disposable section capacity and confirm the new maximum persists after reload.
-14. Explain that Enrollment consumes these Registrar-owned academic structures; it does not own program, curriculum, or section canon.
+11. Open a schedule slot and show that day, time, faculty, and room are concrete values.
+12. Try to add a schedule slot without selecting a room and confirm the save is rejected before it can create TBA data.
+13. If the page shows an existing conflict warning, point out the **Repair Current-Term Conflicts** action and explain that it clears conflicting room assignments for rescheduling, removes section-internal overlap rows, and unassigns faculty from overlapping sections.
+14. Open Room Monitoring and show active rooms, utilization, the room schedule table, and the Scheduling Exceptions panel.
+15. Open Slot Monitoring and show the same section's committed count, staged pre-registration count, max capacity, and remaining slots.
+16. Update a disposable section capacity and confirm the new maximum persists after reload.
+17. Explain that Enrollment consumes these Registrar-owned academic structures; it does not own program, curriculum, room, or section canon.
 
 Pass when the same program/course/curriculum records can be traced into active-term class sections, schedule slots, and slot-monitoring counts.
 
@@ -159,29 +162,31 @@ Pass when identity, committed load, curriculum, alerts, and document history agr
 
 Use a disposable student with a committed active-term subject.
 
-1. From Student Profile, submit a withdrawal request with a reason.
-2. Open `/registrar/faculty/withdrawals` for Dean review.
-3. Approve or reject the Dean stage according to the test case.
-4. Open `/registrar/admin/withdrawals` and complete Registrar action.
+1. From Student Profile, execute a single-subject withdrawal directly with a reason.
+2. Confirm the subject disappears from the current load and a completed withdrawal row appears in history.
+3. Execute a full-student withdrawal on a separate disposable student.
+4. Open `/registrar/admin/withdrawals` to review the archive.
 5. Open `/registrar/admin/withdrawals/report`.
 6. Verify the event in `/registrar/admin/document-trail`.
 
-Pass when status transitions, actor/action history, report, and student load reflect one consistent outcome. Do not use the stale `SL_1120262026` fixture for the active term.
+Pass when status transitions, actor/action history, report, and student load reflect one consistent outcome. There is no Dean approval queue in the active registrar withdrawal path. Do not use the stale `SL_1120262026` fixture for the active term.
 
 ### Demo 4 - Scholarship review and posting (15 minutes)
 
 If the candidates are missing, execute `handoffNew\sql_manual\08_scholarship_demo_seed.sql` against the disposable demo database.
 
 1. Open `/registrar/admin/scholarships`.
-2. Confirm policy minimum is 27 completed units.
-3. Evaluate `SCH-UAT-ELIGIBLE` / Sofia Scholar: expected 27 units and eligible.
-4. Evaluate `SCH-UAT-LOWUNITS` / Liam Low Units: expected 24 units and ineligible.
-5. Submit Sofia for review: expected `PENDING`.
-6. Approve Sofia: expected `APPROVED`, with no active discount yet.
-7. Post Sofia: expected `POSTED`, scholarship now available to finance consumption.
-8. Demonstrate Revoke only if reset/cleanup is planned.
+2. Confirm the page is `Academic Scholarship Review` and states that Registrar grants academic scholarship only.
+3. Confirm policy minimum is 27 completed units.
+4. Note that the selected term controls candidate evaluation; policy values are global registrar settings for now.
+5. Evaluate `SCH-UAT-ELIGIBLE` / Sofia Scholar: expected 27 units and eligible.
+6. Evaluate `SCH-UAT-LOWUNITS` / Liam Low Units: expected 24 units and ineligible.
+7. Submit Sofia for review: expected `PENDING`.
+8. Approve Sofia: expected `APPROVED`, with no active discount yet.
+9. Post Sofia: expected `POSTED`, scholarship now available to finance consumption.
+10. Demonstrate Revoke only if reset/cleanup is planned.
 
-Pass when completed units drive eligibility and the financial flag activates only after posting.
+Pass when completed units drive eligibility, manual/non-academic scholarship controls are not visible, and the financial flag activates only after posting.
 
 ### Demo 5 - Faculty grading (10 minutes)
 
@@ -223,7 +228,7 @@ Mark each row Pass, Fail, Blocked, or Not Run and attach a screenshot/student nu
 | A03 | Program to curriculum | Curriculum belongs to the selected program/version |
 | A04 | Course reuse | Curriculum references the canonical shared course record, including lecture/laboratory units |
 | A05 | Curriculum to block | Block subjects match year/semester curriculum |
-| A06 | Schedule slot | Day/time/faculty persist; room may remain TBA |
+| A06 | Schedule slot | Day/time/faculty/room persist; missing room saves are rejected |
 | A07 | Slot monitoring | Section shows committed count, staged pre-registration count, and editable capacity |
 | A08 | Close section | Closed section rejects new operational use |
 | A09 | Capacity count | Only committed enlistments count as enrolled |
@@ -259,8 +264,8 @@ Mark each row Pass, Fail, Blocked, or Not Run and attach a screenshot/student nu
 
 | ID | Test | Expected |
 |---|---|---|
-| D01 | Withdrawal submission | Reason and active subject persist |
-| D02 | Dean review | Status and reviewer are recorded |
+| D01 | Withdrawal execution | Reason and active subject persist until the completed action is archived |
+| D02 | Full-student execution | One header and one immutable line per current-term class persist after completion |
 | D03 | Registrar action | Final action updates report/trail |
 | D04 | Faculty login | `prof.cruz` does not loop to login |
 | D05 | Faculty roster | Assigned section shows committed students only |

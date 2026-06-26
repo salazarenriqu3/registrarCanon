@@ -81,12 +81,12 @@ Use this order. It keeps the least destructive pages first and the heavily mutat
    - faculty conflicts blocked
    - same-section overlaps blocked
    - faculty max-load enforced
-8. If the warning banner is visible, show **Repair Current-Term Conflicts** and explain that it normalizes the term by clearing conflicted room stamps to TBA, deleting overlapping extra slots inside one section, and unassigning faculty from overlapping sections.
+8. If the warning banner is visible, show **Repair Current-Term Conflicts** and explain that it normalizes the term by clearing conflicted room assignments for rescheduling, deleting overlapping extra slots inside one section, and unassigning faculty from overlapping sections.
 
 Expected result:
 
 - the scheduling page shows concrete room assignments for the blocks used in the live demo
-- the story is no longer dependent on TBA slots
+- the story is no longer dependent on TBA slots, and new schedule saves now require a concrete room
 
 ### Part B. Student profile, admission bridge, and documents
 

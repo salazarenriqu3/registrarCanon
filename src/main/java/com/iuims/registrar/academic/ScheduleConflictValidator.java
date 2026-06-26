@@ -13,6 +13,21 @@ public final class ScheduleConflictValidator {
     private static final int DEFAULT_PREVIEW_LIMIT = 50;
 
     public record ConflictPreview(List<Map<String, Object>> conflicts, boolean truncated) {}
+    public record RepairResult(
+        int roomAssignmentsCleared,
+        int duplicateRowsDeleted,
+        int sectionOverlapRowsDeleted,
+        int facultySectionsCleared,
+        int facultyScheduleRowsCleared
+    ) {
+        public boolean changed() {
+            return roomAssignmentsCleared > 0
+                || duplicateRowsDeleted > 0
+                || sectionOverlapRowsDeleted > 0
+                || facultySectionsCleared > 0
+                || facultyScheduleRowsCleared > 0;
+        }
+    }
 
     private final JdbcTemplate db;
 
@@ -155,6 +170,93 @@ public final class ScheduleConflictValidator {
         preview.addAll(roomConflicts.subList(0, Math.min(roomLimit, roomConflicts.size())));
         preview.addAll(facultyConflicts.subList(0, Math.min(facultyLimit, facultyConflicts.size())));
         return new ConflictPreview(List.copyOf(preview), truncated);
+    }
+
+    public RepairResult repairExistingConflicts(int termId) {
+        int roomAssignmentsCleared = db.update(
+            "UPDATE class_schedules SET room_id = NULL " +
+            "WHERE schedule_id IN (" +
+            "  SELECT schedule_id FROM (" +
+            "    SELECT DISTINCT s2.schedule_id AS schedule_id " +
+            "    FROM class_schedules s1 " +
+            "    JOIN class_schedules s2 ON s1.schedule_id < s2.schedule_id " +
+            "     AND s1.day_of_week = s2.day_of_week " +
+            "     AND s1.start_time < s2.end_time " +
+            "     AND s1.end_time > s2.start_time " +
+            "    JOIN class_sections a ON a.section_id = s1.section_id " +
+            "    JOIN class_sections b ON b.section_id = s2.section_id AND b.term_id = a.term_id " +
+            "    WHERE a.term_id = ? AND s1.room_id IS NOT NULL AND s1.room_id = s2.room_id" +
+            "  ) conflicts" +
+            ")",
+            termId);
+
+        int duplicateRowsDeleted = db.update(
+            "DELETE FROM class_schedules " +
+            "WHERE schedule_id IN (" +
+            "  SELECT schedule_id FROM (" +
+            "    SELECT dup.schedule_id AS schedule_id " +
+            "    FROM class_schedules keep_row " +
+            "    JOIN class_schedules dup ON keep_row.schedule_id < dup.schedule_id " +
+            "     AND keep_row.section_id = dup.section_id " +
+            "     AND keep_row.day_of_week = dup.day_of_week " +
+            "     AND keep_row.start_time = dup.start_time " +
+            "     AND keep_row.end_time = dup.end_time " +
+            "    JOIN class_sections cs ON cs.section_id = keep_row.section_id " +
+            "    WHERE cs.term_id = ?" +
+            "  ) duplicate_rows" +
+            ")",
+            termId);
+
+        int sectionOverlapRowsDeleted = db.update(
+            "DELETE FROM class_schedules " +
+            "WHERE schedule_id IN (" +
+            "  SELECT schedule_id FROM (" +
+            "    SELECT later_row.schedule_id AS schedule_id " +
+            "    FROM class_schedules earlier_row " +
+            "    JOIN class_schedules later_row ON earlier_row.schedule_id < later_row.schedule_id " +
+            "     AND earlier_row.section_id = later_row.section_id " +
+            "     AND earlier_row.day_of_week = later_row.day_of_week " +
+            "     AND earlier_row.start_time < later_row.end_time " +
+            "     AND earlier_row.end_time > later_row.start_time " +
+            "    JOIN class_sections cs ON cs.section_id = earlier_row.section_id " +
+            "    WHERE cs.term_id = ?" +
+            "  ) overlap_rows" +
+            ")",
+            termId);
+
+        int facultySectionsCleared = db.update(
+            "UPDATE class_sections SET faculty_id = NULL " +
+            "WHERE section_id IN (" +
+            "  SELECT section_id FROM (" +
+            "    SELECT DISTINCT b.section_id AS section_id " +
+            "    FROM class_schedules s1 " +
+            "    JOIN class_schedules s2 ON s1.schedule_id < s2.schedule_id " +
+            "     AND s1.day_of_week = s2.day_of_week " +
+            "     AND s1.start_time < s2.end_time " +
+            "     AND s1.end_time > s2.start_time " +
+            "    JOIN class_sections a ON a.section_id = s1.section_id " +
+            "    JOIN class_sections b ON b.section_id = s2.section_id AND b.term_id = a.term_id " +
+            "    WHERE a.term_id = ? AND a.faculty_id IS NOT NULL AND a.faculty_id = b.faculty_id" +
+            "  ) conflicts" +
+            ")",
+            termId);
+
+        int facultyScheduleRowsCleared = db.update(
+            "UPDATE class_schedules SET faculty_id = (" +
+            "  SELECT cs.faculty_id FROM class_sections cs WHERE cs.section_id = class_schedules.section_id" +
+            ") WHERE section_id IN (" +
+            "  SELECT section_id FROM class_sections WHERE term_id = ?" +
+            ") AND COALESCE(faculty_id, -1) <> COALESCE((" +
+            "  SELECT cs.faculty_id FROM class_sections cs WHERE cs.section_id = class_schedules.section_id" +
+            "), -1)",
+            termId);
+
+        return new RepairResult(
+            roomAssignmentsCleared,
+            duplicateRowsDeleted,
+            sectionOverlapRowsDeleted,
+            facultySectionsCleared,
+            facultyScheduleRowsCleared);
     }
 
     private String sectionCode(Map<String, Object> row) {

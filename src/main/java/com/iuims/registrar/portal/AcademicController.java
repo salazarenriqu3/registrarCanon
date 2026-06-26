@@ -2,6 +2,7 @@ package com.iuims.registrar.portal;
 import com.iuims.registrar.academic.AcademicGradingService;
 import com.iuims.registrar.academic.BlockOfferingService;
 import com.iuims.registrar.academic.ClassInfoDto;
+import com.iuims.registrar.academic.RoomMonitoringService;
 import com.iuims.registrar.academic.SlotMonitoringService;
 import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.admission.ApplicantStatusSyncService;
@@ -38,18 +39,21 @@ public class AcademicController {
     private final BlockOfferingService blockOfferingService;
     private final StudentCurriculumService studentCurriculumService;
     private final SlotMonitoringService slotMonitoringService;
+    private final RoomMonitoringService roomMonitoringService;
     private final FacultyLoadService facultyLoadService;
 
     public AcademicController(AcademicGradingService academicService, TermFeeAdminService termFeeAdminService,
                               BlockOfferingService blockOfferingService,
                               StudentCurriculumService studentCurriculumService,
                               SlotMonitoringService slotMonitoringService,
+                              RoomMonitoringService roomMonitoringService,
                               FacultyLoadService facultyLoadService) {
         this.academicService = academicService;
         this.termFeeAdminService = termFeeAdminService;
         this.blockOfferingService = blockOfferingService;
         this.studentCurriculumService = studentCurriculumService;
         this.slotMonitoringService = slotMonitoringService;
+        this.roomMonitoringService = roomMonitoringService;
         this.facultyLoadService = facultyLoadService;
     }
 
@@ -401,9 +405,20 @@ public class AcademicController {
                               @RequestParam int day1, @RequestParam(defaultValue="0") int day2,
                               @RequestParam String startTime, @RequestParam String endTime,
                               @RequestParam(defaultValue="0") int roomId) {
+        if (roomId == 0) {
+            String r = "ERROR: Room is required before a schedule slot can be saved.";
+            return "redirect:/admin/class-scheduling?termId=" + termId + "&msg=" + java.net.URLEncoder.encode(r, java.nio.charset.StandardCharsets.UTF_8);
+        }
         String r = academicService.addScheduleSlot(sectionId, day1, startTime, endTime,
-                        roomId == 0 ? null : roomId, day2 == 0 ? null : day2);
+                        roomId, day2 == 0 ? null : day2);
         return "redirect:/admin/class-scheduling?termId=" + termId + "&msg=" + java.net.URLEncoder.encode(r, java.nio.charset.StandardCharsets.UTF_8);
+    }
+
+    @PostMapping("/admin/class-scheduling/repair-conflicts")
+    public String repairSchedulingConflicts(@RequestParam int termId) {
+        String r = academicService.repairScheduleConflicts(termId);
+        return "redirect:/admin/class-scheduling?termId=" + termId + "&msg="
+            + java.net.URLEncoder.encode(r, java.nio.charset.StandardCharsets.UTF_8);
     }
 
     @PostMapping("/admin/class-scheduling/remove-schedule")
@@ -440,6 +455,57 @@ public class AcademicController {
         model.addAttribute("search", search);
         if (msg != null) model.addAttribute("msg", msg);
         return "admin_slot_monitoring";
+    }
+
+    @GetMapping("/admin/room-monitoring")
+    public String roomMonitoring(@RequestParam(defaultValue = "0") int termId,
+                                 @RequestParam(required = false) String search,
+                                 @RequestParam(required = false) String building,
+                                 @RequestParam(required = false) String roomType,
+                                 @RequestParam(required = false) Integer roomId,
+                                 @RequestParam(required = false) String msg,
+                                 Model model, HttpSession s) {
+        if (s.getAttribute("currentUser") == null) return "redirect:/login";
+        if (termId == 0) termId = academicService.getActiveTermId();
+        model.addAttribute("termId", termId);
+        model.addAttribute("terms", academicService.getAllTerms());
+        model.addAttribute("rooms", roomMonitoringService.listRoomsForTerm(termId, search, building, roomType));
+        model.addAttribute("roomSchedules", roomMonitoringService.listRoomSchedules(termId, roomId));
+        model.addAttribute("summary", roomMonitoringService.summary(termId));
+        model.addAttribute("incompleteSchedules", roomMonitoringService.incompleteSchedules(termId));
+        model.addAttribute("buildings", roomMonitoringService.buildings());
+        model.addAttribute("roomTypes", roomMonitoringService.roomTypes());
+        model.addAttribute("selectedRoomId", roomId);
+        model.addAttribute("search", search);
+        model.addAttribute("building", building);
+        model.addAttribute("roomType", roomType);
+        if (msg != null) model.addAttribute("msg", msg);
+        return "admin_room_monitoring";
+    }
+
+    @PostMapping("/admin/room-monitoring/add-room")
+    public String addRoom(@RequestParam int termId,
+                          @RequestParam String roomCode,
+                          @RequestParam String buildingName,
+                          @RequestParam int capacity,
+                          @RequestParam(defaultValue = "Lecture") String roomType,
+                          @RequestParam(defaultValue = "1") int activeStatus,
+                          @RequestParam(required = false) String search,
+                          @RequestParam(required = false) String building,
+                          @RequestParam(required = false) String roomFilterType) {
+        String r = roomMonitoringService.createRoom(roomCode, buildingName, capacity, roomType, activeStatus);
+        StringBuilder url = new StringBuilder("/admin/room-monitoring?termId=").append(termId);
+        if (search != null && !search.isBlank()) {
+            url.append("&search=").append(java.net.URLEncoder.encode(search, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (building != null && !building.isBlank()) {
+            url.append("&building=").append(java.net.URLEncoder.encode(building, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        if (roomFilterType != null && !roomFilterType.isBlank()) {
+            url.append("&roomType=").append(java.net.URLEncoder.encode(roomFilterType, java.nio.charset.StandardCharsets.UTF_8));
+        }
+        url.append("&msg=").append(java.net.URLEncoder.encode(r, java.nio.charset.StandardCharsets.UTF_8));
+        return "redirect:" + url;
     }
 
     @PostMapping("/admin/slot-monitoring/update-capacity")

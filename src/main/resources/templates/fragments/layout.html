@@ -64,6 +64,8 @@
             window.location.href = '/admin/courses';
         } else if (query.includes('program')) {
             window.location.href = '/admin/programs';
+        } else if (query.includes('room') || query.includes('classroom')) {
+            window.location.href = '/admin/room-monitoring';
         } else if (query.includes('slot') || query.includes('capacity')) {
             window.location.href = '/admin/slot-monitoring';
         } else if (query.includes('curriculum')) {
@@ -112,6 +114,9 @@
     </a>
     <a th:href="@{/admin/slot-monitoring}" class="nav-item" th:classappend="${activeLink == 'slot-monitoring' ? 'active' : ''}">
         <i class="ti ti-chart-dots-3" aria-hidden="true"></i> <span>Slot Monitoring</span>
+    </a>
+    <a th:href="@{/admin/room-monitoring}" class="nav-item" th:classappend="${activeLink == 'room-monitoring' ? 'active' : ''}">
+        <i class="ti ti-building" aria-hidden="true"></i> <span>Room Monitoring</span>
     </a>
     <a th:href="@{/admin/faculty-load}" class="nav-item" th:classappend="${activeLink == 'faculty' ? 'active' : ''}">
         <i class="ti ti-chalkboard" aria-hidden="true"></i> <span>Faculty Load</span>

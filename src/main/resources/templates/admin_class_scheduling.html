@@ -116,6 +116,9 @@
                     <div th:if="${scheduleConflictsTruncated}" style="margin-top: 0.35rem;">
                         Showing a 50-item preview. Additional conflicts exist; new conflicting assignments are still blocked.
                     </div>
+                    <div style="margin-top: 0.5rem; color: var(--text-primary);">
+                        Use the repair action to clear conflicted room assignments for rescheduling, remove section-internal overlap rows, and unassign faculty from overlapping sections in this term.
+                    </div>
                     <div th:each="conflict : ${scheduleConflicts}" style="margin-top: 0.35rem;">
                         <span th:text="${conflict.conflict_type == 'ROOM' ? 'Room' : 'Faculty'}"></span>
                         <strong th:text="${conflict.resource_name}"></strong>:
@@ -124,6 +127,12 @@
                         on day <span th:text="${conflict.day_of_week}"></span>
                         (<span th:text="${conflict.start_time}"></span>-<span th:text="${conflict.end_time}"></span>).
                     </div>
+                    <form th:action="@{/admin/class-scheduling/repair-conflicts}" method="post" style="margin-top: 0.85rem;">
+                        <input type="hidden" name="termId" th:value="${termId}">
+                        <button type="submit" class="btn btn-outline" onclick="return confirm('Repair current-term schedule conflicts? This will clear conflicted room assignments, delete overlapping extra slots within a section, and remove faculty assignments from overlapping sections so the term can be rescheduled cleanly.');">
+                            <i class="ti ti-tool" aria-hidden="true"></i> Repair Current-Term Conflicts
+                        </button>
+                    </form>
                 </div>
             </div>
 
@@ -182,7 +191,7 @@
                 </div>
                 <div class="workflow-step">
                     <strong>2. Faculty &amp; schedules</strong>
-                    Assign faculty and add day/time/room slots. Same-term room and faculty overlaps are blocked; room may remain TBA.
+                    Assign faculty and add day/time/room slots. Same-term room, faculty, and section overlaps are blocked; new schedule slots require a real room.
                 </div>
                 <div class="workflow-step">
                     <strong>3. Per-course sections</strong>
@@ -750,9 +759,9 @@
                     </div>
                 </div>
                 <div>
-                    <label class="form-label">Room <span style="color: var(--text-muted); font-weight: 400;">(optional)</span></label>
-                    <select name="roomId" class="form-control">
-                        <option value="0">- Assign Room Later -</option>
+                    <label class="form-label">Room <span style="color: var(--danger-color);">*</span></label>
+                    <select name="roomId" class="form-control" required>
+                        <option value="">- Select Room -</option>
                         <option th:each="r : ${rooms}" th:value="${r.room_id}" th:text="${r.room_code + ' - ' + r.building_name + ' (cap:' + r.capacity + ')'}"></option>
                     </select>
                 </div>

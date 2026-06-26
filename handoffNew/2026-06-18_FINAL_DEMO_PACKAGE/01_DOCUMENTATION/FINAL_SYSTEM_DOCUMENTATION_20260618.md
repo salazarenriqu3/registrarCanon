@@ -58,15 +58,15 @@ The applications currently integrate primarily through shared database tables. T
 | Enlistment state | `student_enlistments.enlistment_status`; `STAGED` is provisional, `COMMITTED` is official |
 | Official fee scope | Exact `program_fee_settings.term_id + program + year + semester` |
 | Scholarship activation | Financial effect begins at `POSTED`, not merely `APPROVED` |
-| Room assignment | A schedule may remain tentative/TBA and receive a room later |
+| Room assignment | New schedule slots require a concrete active room; historical missing-room rows are monitored as exceptions |
 | Seeded future terms | Non-active calendar terms may carry sections and fees, but faculty assignments stay empty until those terms are intentionally scheduled |
 
 Do not restore `NULL` enlistment status as official enrollment. Do not restore legacy fee fallback behavior for live assessment.
 
 Update 2026-06-25:
 
-- The bootstrap baseline still permits TBA rooms.
-- The separate registrar feature demo overlay seeds concrete rooms for `BSIT-1-1-A`, `BSCPE-1-1-A`, and the specific `IRREG-A` courses used in live demo flows.
+- The fresh demo setup seeds concrete rooms for production/demo review.
+- Room Monitoring reports active room inventory, utilization, conflict rooms, and historical missing-room exceptions.
 - The same overlay seeds Maria `2026-1001` with an admission bridge, printable history, and inline-viewable applicant document files.
 
 ## 5. Academic builder dependency chain
@@ -78,7 +78,7 @@ The builders are not independent islands. Their expected dependency order is:
 3. Curriculum Builder maps courses to a program, curriculum version, year, and semester.
 4. Academic Term configuration supplies the active term.
 5. Class Scheduling creates block/course sections from curriculum and term data.
-6. Schedule slots assign day, time, faculty, and optional room.
+6. Schedule slots assign day, time, faculty, and a required active room.
 7. Slot Monitoring reviews section capacity, committed enrollment, staged pre-registration, and uses the same close rule as Class Scheduling.
 8. Enrollment stages or commits students against those Registrar-owned sections.
 9. Faculty grading and Registrar records operate on committed class membership.
@@ -94,7 +94,7 @@ Deleting or changing an upstream record can invalidate downstream scheduling and
 - block sections and irregular/open course sections
 - class-scheduling filters for block attributes and server-side course/section/faculty/schedule/day/room criteria
 - faculty max-load enforcement on assignment paths, alongside same-term room/faculty/section overlap blocking
-- seeded schedule cleanup that clears blanket room stamps to TBA, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
+- seeded schedule cleanup that replaces blanket room stamps with section-specific demo rooms, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
 - faculty-load integrity auditing for suspicious term-wide assignment concentration, with a guarded repair path for corrupted faculty stamps
 - Slot Monitoring for per-section committed counts, staged pre-registration counts, capacity updates, and current-canon close actions
 - committed-only official class counts and rosters

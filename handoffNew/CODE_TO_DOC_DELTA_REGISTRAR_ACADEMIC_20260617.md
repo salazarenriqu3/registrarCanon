@@ -103,7 +103,7 @@ Needs confirmation:
 
 Do not change yet:
 
-- do not enforce room-required behavior until the registrar confirms whether `Assign Room Later` is still operationally needed.
+- superseded 2026-06-27: new schedule saves now require a concrete active room; historical missing-room rows are surfaced in Room Monitoring instead of preserving `Assign Room Later`.
 - do not invent tutorial/petition semantics without a real scheduling rule.
 
 ### Withdrawal / Change Of Enrollment

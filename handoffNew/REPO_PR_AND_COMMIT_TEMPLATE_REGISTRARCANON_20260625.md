@@ -129,7 +129,7 @@ Expected/observed key outcomes:
 - this PR targets `registrarCanon/canon-main` from `codex/registrar-withdrawal-governance`
 - the correct remote for this branch is `registrarCanon`, not `origin`
 - this publish intentionally includes the dated handoff/demo package mirror so the repo remains internally consistent
-- the baseline bootstrap may still leave non-demo sections as TBA; the full demo loader assigns concrete rooms only to the curated presentation dataset
+- the fresh demo loader assigns concrete rooms for scheduling review; missing-room rows should appear only as historical exceptions in Room Monitoring
 
 ## Reviewer checklist
 

@@ -58,16 +58,21 @@ The applications currently integrate primarily through shared database tables. T
 | Enlistment state | `student_enlistments.enlistment_status`; `STAGED` is provisional, `COMMITTED` is official |
 | Official fee scope | Exact `program_fee_settings.term_id + program + year + semester` |
 | Scholarship activation | Financial effect begins at `POSTED`, not merely `APPROVED` |
-| Room assignment | A schedule may remain tentative/TBA and receive a room later |
+| Room assignment | New schedule slots require a concrete room; Room Monitoring reports missing historical rows |
 | Seeded future terms | Non-active calendar terms may carry sections and fees, but faculty assignments stay empty until those terms are intentionally scheduled |
 
 Do not restore `NULL` enlistment status as official enrollment. Do not restore legacy fee fallback behavior for live assessment.
 
 Update 2026-06-25:
 
-- The bootstrap baseline still permits TBA rooms.
 - The separate registrar feature demo overlay seeds concrete rooms for `BSIT-1-1-A`, `BSCPE-1-1-A`, and the specific `IRREG-A` courses used in live demo flows.
 - The same overlay seeds Maria `2026-1001` with an admission bridge, printable history, and inline-viewable applicant document files.
+
+Update 2026-06-26:
+
+- Class Scheduling now requires a real room before a new schedule slot can be saved.
+- Room Monitoring is now a dedicated registrar page for active room inventory, room utilization, room schedule rows, room conflicts, missing room assignments, sections without schedules, and sections without faculty.
+- The fresh demo schedule overlay provisions section-specific demo rooms and department-assigned demo faculty so room/faculty conflict monitoring starts from concrete data instead of TBA placeholders.
 
 ## 5. Academic builder dependency chain
 
@@ -78,10 +83,11 @@ The builders are not independent islands. Their expected dependency order is:
 3. Curriculum Builder maps courses to a program, curriculum version, year, and semester.
 4. Academic Term configuration supplies the active term.
 5. Class Scheduling creates block/course sections from curriculum and term data.
-6. Schedule slots assign day, time, faculty, and optional room.
+6. Schedule slots assign day, time, faculty, and required room.
 7. Slot Monitoring reviews section capacity, committed enrollment, staged pre-registration, and uses the same close rule as Class Scheduling.
-8. Enrollment stages or commits students against those Registrar-owned sections.
-9. Faculty grading and Registrar records operate on committed class membership.
+8. Room Monitoring verifies physical room assignments, room utilization, room conflicts, and scheduling completeness exceptions.
+9. Enrollment stages or commits students against those Registrar-owned sections.
+10. Faculty grading and Registrar records operate on committed class membership.
 
 Deleting or changing an upstream record can invalidate downstream scheduling and student records. Use soft retirement or a new curriculum version for historical data whenever possible.
 
@@ -94,9 +100,10 @@ Deleting or changing an upstream record can invalidate downstream scheduling and
 - block sections and irregular/open course sections
 - class-scheduling filters for block attributes and server-side course/section/faculty/schedule/day/room criteria
 - faculty max-load enforcement on assignment paths, alongside same-term room/faculty/section overlap blocking
-- seeded schedule cleanup that clears blanket room stamps to TBA, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
+- seeded schedule hardening that replaces blanket room/faculty stamps with concrete section-level demo rooms and department-assigned demo faculty
 - faculty-load integrity auditing for suspicious term-wide assignment concentration, with a guarded repair path for corrupted faculty stamps
 - Slot Monitoring for per-section committed counts, staged pre-registration counts, capacity updates, and current-canon close actions
+- Room Monitoring for active room inventory, utilization, room schedule rows, room conflicts, missing room rows, sections without schedules, and sections without faculty
 - committed-only official class counts and rosters
 - Student Profile with registrar-editable data, curriculum status, alerts, history, and ledger visibility
 - explicit curriculum assignment and program-shift support

@@ -1793,6 +1793,9 @@ public class AcademicGradingService {
             if (!parsedStart.isBefore(parsedEnd)) {
                 return "ERROR: Start time must be before end time.";
             }
+            if (roomId == null || roomId == 0) {
+                return "ERROR: Room is required before a schedule slot can be saved.";
+            }
             Integer rid = (roomId == null || roomId == 0) ? null : roomId;
             Integer sectionFacultyId = sectionFacultyId(sectionId);
 
@@ -1834,6 +1837,25 @@ public class AcademicGradingService {
             return scheduleConflictValidator.findExistingConflictPreview(termId, maxResults);
         } catch (Exception e) {
             return new ScheduleConflictValidator.ConflictPreview(List.of(), false);
+        }
+    }
+
+    @Transactional
+    public String repairScheduleConflicts(int termId) {
+        try {
+            ScheduleConflictValidator.RepairResult result =
+                scheduleConflictValidator.repairExistingConflicts(termId);
+            if (!result.changed()) {
+                return "No schedulable conflicts needed repair for this term.";
+            }
+            return "Repaired scheduling conflicts for term " + termId
+                + ": cleared " + result.roomAssignmentsCleared() + " room assignment(s), deleted "
+                + result.duplicateRowsDeleted() + " duplicate slot(s), deleted "
+                + result.sectionOverlapRowsDeleted() + " section-overlap slot(s), cleared faculty from "
+                + result.facultySectionsCleared() + " section(s), and resynced "
+                + result.facultyScheduleRowsCleared() + " schedule row(s).";
+        } catch (Exception e) {
+            return "ERROR: " + e.getMessage();
         }
     }
 

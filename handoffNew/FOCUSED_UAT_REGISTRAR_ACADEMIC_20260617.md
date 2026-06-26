@@ -71,7 +71,7 @@ Patched during UAT:
 
 Follow-up:
 
-- Room still shows as assign-later/optional. This is now accepted as tentative/TBA behavior.
+- Superseded 2026-06-27: room is no longer optional for new schedule saves; Room Monitoring handles historical missing-room exceptions.
 - Course taxonomy for regular/tutorial/petition is not yet visibly confirmed.
 
 ### Withdrawals
@@ -172,7 +172,7 @@ Confirmed:
 
 ## Remaining Decisions
 
-- Should `Assign Room Later` display as `Tentative/TBA` more explicitly?
+- Superseded 2026-06-27: `Assign Room Later` should not be restored for new schedule saves; use Room Monitoring for historical missing-room exceptions.
 - Visible document wording is now `Registration Form`; compatible route names remain internal.
 - Visible `Add/Drop` wording has been renamed to `Withdrawal / Enrollment Changes` while preserving technical keys.
 - Should Dean approval be introduced for grade finalization later, or is current Registrar/Admin/VPAA approval acceptable?
