@@ -10,6 +10,8 @@ Last updated: 2026-06-27
 
 The older registrar-first handoff language around irregular pre-registration and fee ownership is no longer the intended canon.
 
+Enrollment3 owns irregular / continuing pre-advising, draft generation, and fee authoring; Registrar is the downstream academic authority for approval/posting and readiness visibility.
+
 Use this corrected business ownership model for future work:
 
 - Admission owns applicant intake and qualification.
@@ -22,22 +24,36 @@ Important implication:
 - see `CROSS_SYSTEM_ALIGNMENT_REANALYSIS_20260626.md`
 - see `IMPLEMENTATION_PLAN_CROSS_SYSTEM_REALIGNMENT_20260626.md`
 
+## 2026-06-27 Dependency Hierarchy and Term Overlay
+
+The registrar canon now has a formal ownership graph for the next agent pass:
+
+- Department owns programs and shared academic grouping.
+- Program owns curriculum lineage.
+- Curriculum owns year/semester placement.
+- Sections, schedules, rooms, and faculty are downstream operational records.
+- Active term overlays the whole graph and decides what is currently enforceable.
+
+See `2026-06-27_REGISTRAR_DEPENDENCY_MATRIX.md` for the full dependency matrix and term-scope rules.
+See `2026-06-27_THREE_PROJECT_DEMO_RUNBOOK.md` for the current three-app launch and presenter script.
+
 ## Live Overlay (2026-06-15)
 
 | Item | State |
 |------|--------|
 | Active term | **`1120242025`** (term_id **1**, 1st sem AY 2024–2025) |
 | Bootstrap | `registrar/setup/RUN_FRESH_SETUP.cmd` |
-| Irregular new enrollee bridge | Dormant / retired from active registrar scope; do not treat Dean / Faculty irregular advising or registrar pre-reg snapshots as current acceptance targets |
+| Irregular new enrollee bridge | Dormant / retired from active registrar scope; do not treat Dean / Faculty irregular advising or legacy registrar snapshot paths as current acceptance targets |
 | Fee readiness | Clean for active term after bootstrap |
 | Program Builder | Live; Registrar owns core program master data separately from curriculum mapping |
 | Course Catalog | Live; lecture/laboratory units and usage drilldown are exposed in the Registrar UI |
 | Curriculum readiness | Current-offering lifecycle labels implemented; legacy curricula remain assignable to returning students |
 | Student load caps | Live max units resolve from assigned curriculum + year level + semester; legacy year-level/global caps are reference only |
+| Student Manager manual add scope | Live; explicit curriculum assignment is the source of truth, same-semester courses from any year level may be added, and off-semester courses are blocked |
 | Schedule collision rules | Live; schedule saves require a room and reject same-term room, faculty, and same-section overlaps |
 | Slot Monitoring | Live; committed counts, staged pre-registration counts, capacity edits, and close actions are visible per section |
 | Room Monitoring | Live; active rooms, utilization, concrete room schedule rows, room conflicts, missing room rows, and no-faculty/no-schedule exceptions are visible per term |
-| Program shift load cleanup | Live; post-enrollment shifts clear all current-term enrolled/staged subjects without marking the student withdrawn from school |
+| Program shift load cleanup | Live; post-enrollment shifts clear all current-term enrolled/staged subjects without withdrawing the student from school, and the explicit curriculum assignment must remain present |
 | Academic scholarship | Live; registrar grants academic scholarship only, using SQL-seeded official grades, configurable GWA/period-grade caps, assigned-curriculum unit load, and 3rd/4th-year PE/NSTP disqualification |
 | Archive custody tracking | Live; Student Profile records physical file request/release/evaluation/scanning/return/refile movements and mirrors them to Document Trail |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
@@ -57,7 +73,8 @@ Important implication:
 - Room Monitoring is separate from Slot Monitoring: Slot Monitoring answers capacity questions, while Room Monitoring answers physical-room assignment, utilization, and conflict questions.
 - The Class Scheduling warning banner includes a registrar repair action that clears conflicting room assignments for rescheduling, removes section-internal overlap rows, and unassigns faculty from overlapping sections for the selected term.
 - Program shifting now has a distinct current-term load cleanup path. It can remove the student's final enrolled subject and archive the class-line snapshots, but it does not call the full school-withdrawal status change.
-- Student Profile exposes that cleanup as **Clear Subject Load for Shift**. It uses one registrar-selected reason for all current enrolled subjects, archives the withdrawal lines as `SHIFT_PROGRAM_CLEANUP`, and keeps the student active/enrolled for the actual program shift.
+- Student Profile exposes that cleanup as **Clear Subject Load for Shift**. It defaults the registrar reason to **Shifting**, archives the withdrawal lines as `SHIFT_PROGRAM_CLEANUP`, and keeps the student active/enrolled for the actual program shift.
+- A shifted student may temporarily have zero current-term load. That must not hide Add Subjects when `student_curriculum_assignments.is_current = 1` still identifies the assigned curriculum.
 - Program Shift filters Destination Curriculum options to the selected Target Program. Shift submissions also redirect back to Student Profile with a flash error instead of exposing Whitelabel on backend validation or rollback failures.
 - Academic Scholarship is registrar-owned and academic-only. Eligibility reads official grade rows, configurable GWA/period caps, assigned curriculum term units, and blocks students still taking PE/NSTP in 3rd or 4th year.
 - Student Profile now has Archive & Custody Tracking for the physical record room workflow. It records request, release, evaluation completion, scan submission to MIS, return, and refile events, then mirrors those actions into the unified Document Trail.
@@ -87,7 +104,7 @@ Use this file when you need a quick answer to:
 
 ## Actual Workspace
 
-The old handoff paths point to `D:\new`.
+The archived handoff paths point to older workspaces; the live canonical workspace is `E:\registrarCanon_canon`.
 
 The real project roots for this workspace are:
 
