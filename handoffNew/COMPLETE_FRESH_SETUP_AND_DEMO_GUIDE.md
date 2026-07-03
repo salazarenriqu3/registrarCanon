@@ -155,7 +155,7 @@ Demo docs after setup:
   registrar/handoffNew/THREE_TRACK_LIFECYCLE_DEMO_MANUAL.md
 
 DB: eacdb @ 127.0.0.1:3306, user root, empty password
-Logins: admin/1234, prof.cruz/1234 (grading)
+Logins: admin/1234, prof.cruz/1234 (grading), registrar.main/1234, registrar.records/1234, registrar.scholar/1234, registrar.schedule/1234
 
 Do not hand-edit scattered SQL unless bootstrap fails on a specific step.
 Report pass/fail for each phase with URLs checked.
@@ -228,7 +228,7 @@ If fee gaps remain: import `registrar/setup/fees/term-fee-import-template-112024
 | Full schema + finance gates + installment plan | Yes |
 | Curriculum (21 active programs) | Yes |
 | Calendar terms 2425–2728 (S1 + S2) | Yes |
-| Block sections + block offerings + IRREG-A (all calendar terms) | Yes |
+| Block sections + block offerings + special sections (all calendar terms) | Yes |
 | Faculty + grading windows FORCE_OPEN | Yes |
 | Class schedules (not TBA) | Yes |
 | Fees on all calendar terms | Yes |
@@ -274,7 +274,7 @@ Login **`admin` / `1234`** on both apps.
 | 2 | http://localhost:8083/registrar/admin/term-fees?termId=1 | No fee blockers |
 | 3 | http://localhost:8083/registrar/admin/finance-policy | Admission, downpayment, installments visible |
 | 4 | http://localhost:8083/registrar/admin/classes | BSCPE sections have times (not all TBA) |
-| 5 | http://localhost:8083/registrar/admin/class-scheduling?termId=1 | Blocks + IRREG-A visible |
+| 5 | http://localhost:8083/registrar/admin/class-scheduling?termId=1 | Blocks and special sections visible |
 | 6 | http://localhost:8082/admin/cashier | Cashier loads |
 
 ---
@@ -286,6 +286,12 @@ Login **`admin` / `1234`** on both apps.
 | `admin` | `1234` | Admin — both apps |
 | `cashier` | `1234` | Cashier — Enrollment |
 | **`prof.cruz`** | `1234` | Faculty grading — Registrar only |
+| **`registrar.main`** | `1234` | Registrar primary operator |
+| **`registrar.records`** | `1234` | Registrar records / archive trail |
+| **`registrar.scholar`** | `1234` | Registrar scholarship trail |
+| **`registrar.schedule`** | `1234` | Registrar schedule / section trail |
+
+Audit verification: after performing registrar actions with these accounts, run the SQL in `handoffNew/2026-06-27_REGISTRAR_AUDIT_TRAIL_HANDOFF.md` to confirm actor/module/action trails.
 
 ---
 
@@ -349,7 +355,7 @@ Already covered in **Fresh setup** above. Mark complete when all smoke URLs pass
 | A4 | `/admin/curriculum` | Open BSCPE or BSIT | Builder loads |
 | A5 | `/admin/student-manager` | Search demo student | Profile + ledger load |
 | A6 | Student Manager → TOR | Submit and approve one course credit request | pending → approved → posted |
-| A7 | `/admin/class-scheduling?termId=1` | Expand BSCPE block; Add Slot | Times show; IRREG-A visible |
+| A7 | `/admin/class-scheduling?termId=1` | Expand BSCPE block; Add Slot | Times show; block sections visible |
 | A8 | Student Manager → Print COR | Enrolled student | COR lists subjects |
 | A9 | External Admission / Cashier | Admit BSCPE Y1 and issue student ID outside Registrar | Student number created |
 | A10 | External Admission / Cashier + Registrar | Start from a created Year 2 BSCPE transferee student and verify Registrar flags | Transferee / Irregular / TRANSFEREE |
@@ -372,7 +378,7 @@ Use student from **A9**.
 | B6 | **Finalize** Regular | `ENROLLED`, load **COMMITTED** |
 | B7 | Print COR | Matches enlisted courses |
 | B8 | Enrollment ledger | No staged-only rows after finalize |
-| B9 | Irregular: enlist `IRREG-A` OK; block on irregular student **rejected** | Policy enforced |
+| B9 | Special-section demo: enroll a non-block summer/tutorial section; block sections stay accepted | Policy enforced |
 
 ---
 
@@ -445,7 +451,7 @@ Fees for future terms are pre-seeded by bootstrap.
 | Track | Story | Prefix | Style |
 |-------|--------|--------|-------|
 | **1 — DREG** | Y1 → Y4 BSCPE regular | `DREG-*` | Block **A** each year |
-| **2 — TTRNS** | Y2 transferee → Y4 | `TTRNS-*` | Irregular (`IRREG-A`) |
+| **2 — TTRNS** | Y2 transferee → Y4 | `TTRNS-*` | Block mix-and-match across curriculum |
 | **3 — TSHFT** | Y1 BSCPE → shift at 2nd sem | `TSHFT-*` | Block S1, irregular after shift |
 
 **Grading:** All tracks use **`prof.cruz` / `1234`**.
@@ -454,7 +460,7 @@ Fees for future terms are pre-seeded by bootstrap.
 
 1. **Create applicant** (SQL) — see THREE_TRACK Part 1A  
 2. **External Admission / Cashier** — complete applicant intake and note the issued student number
-3. **Cashier loop** — enlist block or IRREG-A → pay ≥ ₱8,000 → finalize
+3. **Cashier loop** — enlist from block sections → pay ≥ ₱8,000 → finalize
 4. **Grade loop** — prof.cruz encodes → admin approves at `/admin/approvals`
 5. **Advance year** — Cashier → **Update Semester** → next SL code
 

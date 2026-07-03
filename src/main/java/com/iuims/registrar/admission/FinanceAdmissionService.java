@@ -1,6 +1,5 @@
 package com.iuims.registrar.admission;
 import com.iuims.registrar.academic.AcademicGradingService;
-import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.admission.ApplicantStatusSyncService;
 import com.iuims.registrar.admission.FinanceAdmissionService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
@@ -24,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -105,25 +105,7 @@ public class FinanceAdmissionService {
             app.put("logs", logs);
 
             // Fetch payment total — check both the bridge table AND the payments table for resilience
-            Double paid;
-            try {
-                // Primary: applicant_payments bridge table (written by Enrollment module)
-                Double paidFromBridge = db.queryForObject(
-                    "SELECT COALESCE(SUM(payment_amount), 0) FROM applicant_payments WHERE applicant_id = ? AND status = 'UNPROCESSED'",
-                    Double.class, refNo);
-
-                // Fallback: payments table (also written by Enrollment for applicants)
-                Double paidFromPayments = db.queryForObject(
-                    "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE reference_number = ? AND status IN ('COMPLETED', 'VERIFIED')",
-                    Double.class, refNo);
-
-                // Use whichever source shows the higher total
-                double bridge = (paidFromBridge != null) ? paidFromBridge : 0.0;
-                double direct = (paidFromPayments != null) ? paidFromPayments : 0.0;
-                paid = Math.max(bridge, direct);
-            } catch (Exception ignored) {
-                paid = 0.0;
-            }
+            Double paid = getApplicantPaidTotal(refNo);
             if (paid == null) paid = 0.0;
             app.put("has_paid", paid >= PolicySettings.admissionMinPayment(db));
             app.put("amount_paid", paid);
@@ -132,6 +114,34 @@ public class FinanceAdmissionService {
             app.put("has_existing_student_number", hasText(existingStudentNumber));
             return app;
         } catch (Exception e) { return null; }
+    }
+
+    private Double getApplicantPaidTotal(String refNo) {
+        if (!hasText(refNo)) {
+            return 0.0;
+        }
+        String referenceNumber = refNo.trim();
+        String studentNumber = findStudentNumberByReference(referenceNumber);
+        try {
+            Double paidFromBridge = db.queryForObject(
+                "SELECT COALESCE(SUM(payment_amount), 0) FROM applicant_payments WHERE applicant_id = ?",
+                Double.class, referenceNumber);
+            Double paidFromApplicantRef = db.queryForObject(
+                "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE reference_number = ? AND status IN ('COMPLETED', 'VERIFIED')",
+                Double.class, referenceNumber);
+            Double paidFromStudentNumber = 0.0;
+            if (hasText(studentNumber)) {
+                paidFromStudentNumber = db.queryForObject(
+                    "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE reference_number = ? AND status IN ('COMPLETED', 'VERIFIED')",
+                    Double.class, studentNumber.trim());
+            }
+            double bridge = paidFromBridge != null ? paidFromBridge : 0.0;
+            double applicantRefPaid = paidFromApplicantRef != null ? paidFromApplicantRef : 0.0;
+            double studentNumberPaid = paidFromStudentNumber != null ? paidFromStudentNumber : 0.0;
+            return Math.max(bridge, Math.max(applicantRefPaid, studentNumberPaid));
+        } catch (Exception ignored) {
+            return 0.0;
+        }
     }
 
     public String findStudentNumberByReference(String refNo) {
@@ -170,36 +180,19 @@ public class FinanceAdmissionService {
 
             Map<String, Object> app = db.queryForMap("SELECT * FROM applicants WHERE reference_number = ?", refNo);
 
-            // FIX: Use dual-source payment check — mirrors getApplicantDetails().
-            // The bridge table (applicant_payments) may be out of sync; also check
-            // the main payments table that Enrollment writes to directly.
-            Double paidFromBridge = db.queryForObject(
-                "SELECT COALESCE(SUM(payment_amount), 0) FROM applicant_payments WHERE applicant_id = ? AND status = 'UNPROCESSED'",
-                Double.class, refNo);
-            Double paidFromPayments = db.queryForObject(
-                "SELECT COALESCE(SUM(amount), 0) FROM payments WHERE reference_number = ? AND status IN ('COMPLETED', 'VERIFIED')",
-                Double.class, refNo);
-            double bridge  = (paidFromBridge   != null) ? paidFromBridge   : 0.0;
-            double direct  = (paidFromPayments != null) ? paidFromPayments : 0.0;
-            double totalPaid = Math.max(bridge, direct);
+            double totalPaid = getApplicantPaidTotal(refNo);
 
             double admissionMinPayment = PolicySettings.admissionMinPayment(db);
-            if (totalPaid < admissionMinPayment) return "ERROR: Minimum admission fee of ₱" + String.format("%,.2f", admissionMinPayment) + " not met. " +
-                "Bridge table total: ₱" + bridge + ", Payments table total: ₱" + direct + ".";
+            if (totalPaid < admissionMinPayment) return "ERROR: Minimum admission fee of ₱" + String.format("%,.2f", admissionMinPayment) + " not met.";
 
             String admissionTermYear = resolveAdmissionTermYearSl(yearLevel);
             int currentSem = globalTermService.getCurrentSemesterNumber() != null
                 ? globalTermService.getCurrentSemesterNumber()
                 : 1;
             if (currentSem < 1 || currentSem > 2) currentSem = 1;
-            // Student ID: [2-digit calendar year]-[semester]-[5-digit sequence]
-            String yearPrefix2 = String.format("%02d", java.time.Year.now().getValue() % 100);
-            String idPattern = yearPrefix2 + "-" + currentSem + "-%";
-            Integer maxId = db.queryForObject(
-                "SELECT MAX(CAST(SUBSTRING_INDEX(username, '-', -1) AS UNSIGNED)) FROM sys_users WHERE role = 'Student' AND username LIKE ?",
-                Integer.class, idPattern);
-            int nextId = (maxId != null ? maxId : 0) + 1;
-            String studentNumber = String.format("%s-%d-%05d", yearPrefix2, currentSem, nextId);
+            final int resolvedCurrentSem = currentSem;
+            String studentNumber = claimReusableStudentNumber(refNo)
+                .orElseGet(() -> nextGeneratedStudentNumber(resolvedCurrentSem));
             String hashedPass = org.mindrot.jbcrypt.BCrypt.hashpw("1234", org.mindrot.jbcrypt.BCrypt.gensalt());
 
             // Extract name parts from the applicant record — guard against null values
@@ -250,6 +243,7 @@ public class FinanceAdmissionService {
             db.update("UPDATE applicant_payments SET status = 'PROCESSED' WHERE applicant_id = ?", refNo);
             applicantStatusSyncService.markAdmitted(refNo);
             // Student is now canonical in sys_users; legacy mirror writes are retired.
+            markReleasedNumberReissued(studentNumber, refNo);
 
 
             return studentNumber;
@@ -266,6 +260,52 @@ public class FinanceAdmissionService {
 
     private boolean hasText(String value) {
         return value != null && !value.trim().isEmpty();
+    }
+
+    private String nextGeneratedStudentNumber(int currentSem) {
+        String yearPrefix2 = String.format("%02d", java.time.Year.now().getValue() % 100);
+        String idPattern = yearPrefix2 + "-" + currentSem + "-%";
+        Integer maxId = db.queryForObject(
+            "SELECT MAX(CAST(SUBSTRING_INDEX(username, '-', -1) AS UNSIGNED)) FROM sys_users WHERE role = 'Student' AND username LIKE ?",
+            Integer.class, idPattern);
+        int nextId = (maxId != null ? maxId : 0) + 1;
+        return String.format("%s-%d-%05d", yearPrefix2, currentSem, nextId);
+    }
+
+    private Optional<String> claimReusableStudentNumber(String referenceNumber) {
+        try {
+            Map<String, Object> row = db.queryForMap(
+                "SELECT released_student_number FROM student_number_release_registry " +
+                    "WHERE release_status = 'AVAILABLE' ORDER BY released_at ASC LIMIT 1");
+            String studentNumber = row.get("released_student_number") != null
+                ? row.get("released_student_number").toString().trim()
+                : "";
+            if (studentNumber.isEmpty()) {
+                return Optional.empty();
+            }
+            int updated = db.update(
+                "UPDATE student_number_release_registry " +
+                    "SET release_status = 'CLAIMED', reissued_reference_number = ?, updated_at = CURRENT_TIMESTAMP " +
+                    "WHERE released_student_number = ? AND release_status = 'AVAILABLE'",
+                referenceNumber, studentNumber);
+            if (updated > 0) {
+                return Optional.of(studentNumber);
+            }
+        } catch (Exception ignored) {
+        }
+        return Optional.empty();
+    }
+
+    private void markReleasedNumberReissued(String studentNumber, String referenceNumber) {
+        try {
+            db.update(
+                "UPDATE student_number_release_registry " +
+                    "SET release_status = 'REISSUED', reissued_reference_number = ?, " +
+                    "reissued_student_number = ?, reissued_at = NOW(), reissued_by = 'registrar-admission', updated_at = CURRENT_TIMESTAMP " +
+                    "WHERE released_student_number = ? AND release_status IN ('AVAILABLE', 'CLAIMED')",
+                referenceNumber, studentNumber, studentNumber);
+        } catch (Exception ignored) {
+        }
     }
 
     // ==========================================
@@ -308,6 +348,35 @@ public class FinanceAdmissionService {
         return records;
     }
 
+    public List<Map<String, Object>> getStudentPayments(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return java.util.List.of();
+        }
+        try {
+            return db.queryForList(
+                "SELECT transaction_id AS TRANSACTION_ID, " +
+                    "COALESCE(or_number, transaction_id) AS OR_NUMBER, " +
+                    "COALESCE(remarks, payment_method, 'Tuition Fee') AS REMARKS, " +
+                    "amount AS AMOUNT, payment_date AS PAYMENT_DATE, status AS STATUS " +
+                    "FROM payments WHERE reference_number = ? AND UPPER(COALESCE(status, '')) IN ('COMPLETED', 'VERIFIED') " +
+                    "ORDER BY payment_date ASC, transaction_id ASC",
+                studentNumber);
+        } catch (Exception e) {
+            return java.util.List.of();
+        }
+    }
+
+    public void refreshStudentFinanceSnapshot(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return;
+        }
+        try {
+            scholarEnrollmentService.syncCoreLedgerAssessment(studentNumber.trim());
+        } catch (Exception ignored) {
+        }
+        reconcileLedgerWithPayments(studentNumber.trim());
+    }
+
     /**
      * Ensures ledger PAYMENT credits exist for completed rows in enrollment's payments table.
      * Enrollment cashier writes both; registrar must not show ₱0 paid when payments exist.
@@ -344,7 +413,7 @@ public class FinanceAdmissionService {
     }
 
     public Map<String, Object> calculateAssessment(String studentNumber) {
-        reconcileLedgerWithPayments(studentNumber);
+        refreshStudentFinanceSnapshot(studentNumber);
         Map<String, Object> m = new HashMap<>();
 
         // Align with enrollment cashier: current-term fees + signed forward − term-scoped payments.
@@ -365,19 +434,19 @@ public class FinanceAdmissionService {
                 "SELECT scholarship_approved, scholarship_type, scholarship_amount, discount_percentage FROM students WHERE student_number = ?",
                 studentNumber);
             if (truthy(sData.get("scholarship_approved"))) {
-                Integer fails = db.queryForObject(
-                    "SELECT COUNT(*) FROM grades g WHERE g.student_id = ? AND " + GradeOutcomeSql.failedOrInc("g"),
-                    Integer.class, studentNumber);
-                if (fails == null || fails == 0) {
+                int fails = scholarEnrollmentService.countScholarshipBlockingGradesForTerm(
+                    studentNumber, scholarEnrollmentService.getDefaultScholarshipTermId());
+                if (fails == 0) {
                     String type = (String) sData.get("scholarship_type");
                     if (type != null) {
                         type = type.toUpperCase();
                         Double amount = numericDouble(sData.get("scholarship_amount"));
                         Double pct = numericDouble(sData.get("discount_percentage"));
-                        if ("ACADEMIC".equals(type) || "ATHLETE".equals(type)) scholarDiscount = totalAssessment;
-                        else if (amount != null && amount > 0) scholarDiscount = Math.min(amount, totalAssessment);
-                        else if ("DISCOUNT".equals(type)) scholarDiscount = (amount != null) ? amount : 0.0;
-                        else if (pct != null) scholarDiscount = totalAssessment * (pct / 100.0);
+                        if ("ACADEMIC".equals(type)) {
+                            if (amount != null && amount > 0) scholarDiscount = Math.min(amount, totalAssessment);
+                            else if (pct != null && pct > 0) scholarDiscount = totalAssessment * (Math.min(100.0, pct) / 100.0);
+                            else scholarDiscount = totalAssessment;
+                        }
                     }
                 }
             }
@@ -402,6 +471,7 @@ public class FinanceAdmissionService {
         m.put("term_fees", termFees);
         m.put("total_assessment", totalAssessment);
         m.put("total_paid", totalPaid);
+        m.put("scholarship_discount", scholarDiscount);
         m.put("balance", balance);
 
         m.put("tuition_fee_fmt", String.format("%,.2f", Math.max(0, tuition)));
@@ -411,6 +481,7 @@ public class FinanceAdmissionService {
         m.put("pending_term_credit_fmt", String.format("%,.2f", pendingTermCredit));
         m.put("total_assessment_fmt", String.format("%,.2f", totalAssessment));
         m.put("total_paid_fmt", String.format("%,.2f", totalPaid));
+        m.put("scholarship_discount_fmt", String.format("%,.2f", scholarDiscount));
         m.put("balance_fmt", String.format("%,.2f", balance));
         return m;
     }

@@ -13,7 +13,7 @@ if not defined DB_PORT set "DB_PORT=3306"
 set "DB_USER=%EAC_DB_USER%"
 if not defined DB_USER set "DB_USER=root"
 if defined EAC_DB_PASSWORD set "MYSQL_PWD=%EAC_DB_PASSWORD%"
-set "MYSQL_ARGS=--skip-ssl -h ""%DB_HOST%"" -P ""%DB_PORT%"" -u ""%DB_USER%"""
+set "MYSQL_ARGS=-h ""%DB_HOST%"" -P ""%DB_PORT%"" -u ""%DB_USER%"""
 
 call :find_mysql
 if errorlevel 1 (

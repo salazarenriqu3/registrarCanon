@@ -3,7 +3,9 @@ package com.iuims.registrar.admission;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.web.util.UriUtils;
 
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -37,12 +39,15 @@ public class ApplicantDocumentReadService {
 
     private final JdbcTemplate db;
     private final Path uploadRoot;
+    private final String admissionBaseUrl;
 
     public ApplicantDocumentReadService(
             JdbcTemplate db,
-            @Value("${registrar.admission.upload-dir:${APP_UPLOAD_DIR:${user.home}/AdmissionEAC/uploads}}") String uploadDir) {
+            @Value("${registrar.admission.upload-dir:${APP_UPLOAD_DIR:${user.home}/AdmissionEAC/uploads}}") String uploadDir,
+            @Value("${registrar.admission.base-url:${ADMISSION_BASE_URL:http://localhost:8081}}") String admissionBaseUrl) {
         this.db = db;
         this.uploadRoot = Paths.get(uploadDir).toAbsolutePath().normalize();
+        this.admissionBaseUrl = admissionBaseUrl != null ? admissionBaseUrl.trim().replaceAll("/+$", "") : "";
     }
 
     public Map<String, Object> getAdmissionSnapshot(String studentNumber) {
@@ -67,10 +72,53 @@ public class ApplicantDocumentReadService {
         }
 
         List<Map<String, Object>> normalized = listNormalizedDocuments(applicant);
-        return normalized.isEmpty() ? listLegacyDocuments(applicant) : normalized;
+        List<Map<String, Object>> legacy = listLegacyDocuments(applicant);
+        if (normalized.isEmpty()) {
+            return legacy;
+        }
+
+        boolean normalizedHasSubmittedFile = normalized.stream()
+            .anyMatch(document -> truthy(document.get("submitted")));
+        boolean legacyHasSubmittedFile = legacy.stream()
+            .anyMatch(document -> truthy(document.get("submitted")));
+
+        // Older shared-db demo records still store applicant files on the legacy applicant columns.
+        // If the normalized requirement definitions exist but no file rows were created yet, fall back
+        // to the legacy file metadata so Registrar still reflects the actual Admission submissions.
+        if (!normalizedHasSubmittedFile && legacyHasSubmittedFile) {
+            return legacy;
+        }
+
+        return normalized;
     }
 
     public Path resolveDocumentPath(String studentNumber, String documentKey) {
+        String storedFileName = resolveStoredFileName(studentNumber, documentKey);
+        if (storedFileName == null || storedFileName.isBlank()) {
+            return null;
+        }
+        Path filename = Paths.get(storedFileName).getFileName();
+        if (filename == null) {
+            return null;
+        }
+        Path resolved = uploadRoot.resolve(filename).normalize();
+        return resolved.startsWith(uploadRoot) ? resolved : null;
+    }
+
+    public String resolveDocumentFallbackUrl(String studentNumber, String documentKey, boolean download) {
+        String storedFileName = resolveStoredFileName(studentNumber, documentKey);
+        if (storedFileName == null || storedFileName.isBlank() || admissionBaseUrl.isBlank()) {
+            return null;
+        }
+        Path filename = Paths.get(storedFileName).getFileName();
+        if (filename == null) {
+            return null;
+        }
+        String encodedFilename = UriUtils.encodePathSegment(filename.toString(), StandardCharsets.UTF_8);
+        return admissionBaseUrl + "/files/" + encodedFilename + (download ? "/download" : "");
+    }
+
+    private String resolveStoredFileName(String studentNumber, String documentKey) {
         if (documentKey == null || documentKey.isBlank()) {
             return null;
         }
@@ -91,14 +139,7 @@ public class ApplicantDocumentReadService {
         if (storedPath == null || storedPath.isBlank()) {
             return null;
         }
-
-        // Admission stores generated filenames. Discard any supplied parent path before resolving.
-        Path filename = Paths.get(storedPath).getFileName();
-        if (filename == null) {
-            return null;
-        }
-        Path resolved = uploadRoot.resolve(filename).normalize();
-        return resolved.startsWith(uploadRoot) ? resolved : null;
+        return storedPath;
     }
 
     private Map<String, Object> findApplicant(String studentNumber) {

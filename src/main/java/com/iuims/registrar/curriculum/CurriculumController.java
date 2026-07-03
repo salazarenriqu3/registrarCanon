@@ -27,6 +27,8 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -77,7 +79,10 @@ public class CurriculumController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
 
         List<Map<String, Object>> courses = seederService.listCurriculumCourses(curriculumId);
+        List<Map<String, Object>> curriculumGroups = buildCurriculumGroups(courses);
         model.addAttribute("courses", courses);
+        model.addAttribute("curriculumGroups", curriculumGroups);
+        model.addAttribute("curriculumOutlineSummary", buildCurriculumOutlineSummary(courses, curriculumGroups));
         model.addAttribute("curriculum", seederService.getCurriculumSummary(curriculumId));
         model.addAttribute("curriculumId", curriculumId);
         model.addAttribute("curriculumEditable", seederService.isEditableDraft(curriculumId));
@@ -89,6 +94,96 @@ public class CurriculumController {
         if (msg   != null) model.addAttribute("successMsg", msg);
         if (error != null) model.addAttribute("errorMsg", error);
         return "admin_curriculum";
+    }
+
+    private List<Map<String, Object>> buildCurriculumGroups(List<Map<String, Object>> courses) {
+        Map<Integer, Map<String, Object>> yearGroups = new LinkedHashMap<>();
+        Map<Integer, Map<Integer, Map<String, Object>>> semesterGroups = new LinkedHashMap<>();
+
+        for (Map<String, Object> course : courses) {
+            int yearLevel = safeInt(course.get("year_level"), 1);
+            int semesterNumber = safeInt(course.get("semester_number"), 1);
+            int creditUnits = safeInt(course.get("credit_units"), 0);
+
+            Map<String, Object> yearGroup = yearGroups.computeIfAbsent(yearLevel, year -> {
+                Map<String, Object> group = new LinkedHashMap<>();
+                group.put("year_level", year);
+                group.put("year_label", "Year " + year);
+                group.put("course_count", 0);
+                group.put("total_units", 0);
+                group.put("semester_groups", new ArrayList<Map<String, Object>>());
+                return group;
+            });
+            yearGroup.put("course_count", safeInt(yearGroup.get("course_count"), 0) + 1);
+            yearGroup.put("total_units", safeInt(yearGroup.get("total_units"), 0) + creditUnits);
+
+            Map<Integer, Map<String, Object>> perYearSemesters = semesterGroups.computeIfAbsent(yearLevel, key -> new LinkedHashMap<>());
+            Map<String, Object> semesterGroup = perYearSemesters.computeIfAbsent(semesterNumber, sem -> {
+                Map<String, Object> group = new LinkedHashMap<>();
+                group.put("semester_number", sem);
+                group.put("semester_label", semesterLabel(sem));
+                group.put("course_count", 0);
+                group.put("total_units", 0);
+                group.put("courses", new ArrayList<Map<String, Object>>());
+                return group;
+            });
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> semesterCourses = (List<Map<String, Object>>) semesterGroup.get("courses");
+            semesterCourses.add(course);
+            semesterGroup.put("course_count", safeInt(semesterGroup.get("course_count"), 0) + 1);
+            semesterGroup.put("total_units", safeInt(semesterGroup.get("total_units"), 0) + creditUnits);
+        }
+
+        List<Map<String, Object>> groupedYears = new ArrayList<>();
+        for (Map.Entry<Integer, Map<String, Object>> yearEntry : yearGroups.entrySet()) {
+            Integer yearLevel = yearEntry.getKey();
+            Map<String, Object> yearGroup = yearEntry.getValue();
+            List<Map<String, Object>> semesters = new ArrayList<>();
+            Map<Integer, Map<String, Object>> perYearSemesters = semesterGroups.get(yearLevel);
+            if (perYearSemesters != null) {
+                semesters.addAll(perYearSemesters.values());
+            }
+            yearGroup.put("semester_count", semesters.size());
+            yearGroup.put("semester_groups", semesters);
+            groupedYears.add(yearGroup);
+        }
+        return groupedYears;
+    }
+
+    private Map<String, Object> buildCurriculumOutlineSummary(List<Map<String, Object>> courses,
+                                                             List<Map<String, Object>> curriculumGroups) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("year_count", curriculumGroups.size());
+        summary.put("course_count", courses.size());
+        int totalUnits = 0;
+        for (Map<String, Object> course : courses) {
+            totalUnits += safeInt(course.get("credit_units"), 0);
+        }
+        int semesterCount = curriculumGroups.stream().mapToInt(group -> safeInt(group.get("semester_count"), 0)).sum();
+        summary.put("semester_count", semesterCount);
+        summary.put("total_units", totalUnits);
+        return summary;
+    }
+
+    private int safeInt(Object value, int defaultValue) {
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value != null) {
+            try {
+                return Integer.parseInt(String.valueOf(value).trim());
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return defaultValue;
+    }
+
+    private String semesterLabel(int semesterNumber) {
+        return switch (semesterNumber) {
+            case 1 -> "1st Sem";
+            case 2 -> "2nd Sem";
+            default -> "Summer";
+        };
     }
 
     // ----------------------------------------------------------------

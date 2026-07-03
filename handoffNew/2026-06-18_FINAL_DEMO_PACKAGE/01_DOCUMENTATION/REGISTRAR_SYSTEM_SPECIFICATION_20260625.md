@@ -265,7 +265,7 @@ Current owner files:
 Purpose:
 
 - materialize block sections from curricula
-- create open `IRREG-A` style sections
+- create block sections and only use special sections for summer/tutorial exceptions
 - assign schedules and faculty
 - provide filters and conflict previews
 
@@ -328,7 +328,7 @@ Purpose:
 
 Important live behavior:
 
-- manual subject-add should use open sections for irregular workflows, not block sections
+- manual subject-add should use block sections; irregular students mix and match across those blocks, with special sections reserved only for explicit exceptions
 - transfer-credit requests, approvals, rejections, and final postings are expected to leave clear audit artifacts
 - direct subject removal from Student Profile now executes through the registrar withdrawal flow and is fully audited
 

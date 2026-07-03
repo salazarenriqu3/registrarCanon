@@ -53,7 +53,7 @@ class ApplicantDocumentReadServiceTest {
                 good_moral_verified TINYINT DEFAULT 0
             )
             """);
-        service = new ApplicantDocumentReadService(db, uploadRoot.toString());
+        service = new ApplicantDocumentReadService(db, uploadRoot.toString(), "http://localhost:8081");
     }
 
     @Test

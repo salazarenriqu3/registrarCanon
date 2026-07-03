@@ -78,8 +78,9 @@
    <artifactId>spring-boot-starter-jdbc</artifactId>
   </dependency>
   <dependency>
-   <groupId>com.mysql</groupId>
-   <artifactId>mysql-connector-j</artifactId>
+   <groupId>org.mariadb.jdbc</groupId>
+   <artifactId>mariadb-java-client</artifactId>
+   <version>3.5.9</version>
    <scope>runtime</scope>
   </dependency>
   
@@ -100,12 +101,17 @@
       <version>1.5.5.Final</version>
     </dependency>
 
-<dependency>
-            <groupId>org.apache.poi</groupId>
+    <dependency>
+        <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
             <version>5.2.3</version>
         </dependency>
-             <!-- Test Dependencies -->
+        <dependency>
+            <groupId>org.apache.pdfbox</groupId>
+            <artifactId>pdfbox</artifactId>
+            <version>3.0.3</version>
+        </dependency>
+          <!-- Test Dependencies -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

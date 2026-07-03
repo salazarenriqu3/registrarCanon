@@ -71,9 +71,18 @@ public class ScholarController {
                     model.addAttribute("termConfigWarning",
                         "No student term or global academic term is configured. Payment assessment may be incomplete until a term is activated.");
                 }
-                Map<String, Object> fin = financeService.calculateAssessment(student.get("username").toString());
+                String studentId = resolveStudentUsername(student);
+                if (studentId == null || studentId.isBlank()) {
+                    model.addAttribute("errorMessage", "Student record is missing a canonical student number.");
+                    model.addAttribute("student", student);
+                    model.addAttribute("keyword", keyword);
+                    model.addAttribute("withdrawnStudent", isWithdrawnStudent(student));
+                    return "admin_scholar_walkin";
+                }
+                Map<String, Object> fin = financeService.calculateAssessment(studentId);
                 model.addAttribute("student", student);
                 model.addAttribute("keyword", keyword);
+                model.addAttribute("withdrawnStudent", isWithdrawnStudent(student));
                 model.addAllAttributes(fin);
             }
         }
@@ -89,14 +98,29 @@ public class ScholarController {
                 int y = student.get("year_level") != null ? ((Number) student.get("year_level")).intValue() : 1;
                 int s = student.get("semester") != null ? ((Number) student.get("semester")).intValue() : 1;
                 String program = student.get("program_code") != null ? student.get("program_code").toString() : "";
-                String sid = student.get("username").toString();
+                String sid = resolveStudentUsername(student);
+                if (sid == null || sid.isBlank()) {
+                    model.addAttribute("errorMessage", "Student record is missing a canonical student number.");
+                    model.addAttribute("student", student);
+                    model.addAttribute("keyword", keyword);
+                    model.addAttribute("withdrawnStudent", isWithdrawnStudent(student));
+                    return "admin_scholar_cashier";
+                }
 
                 model.addAttribute("student", student);
                 model.addAttribute("keyword", keyword);
+                boolean withdrawnStudent = isWithdrawnStudent(student);
+                model.addAttribute("withdrawnStudent", withdrawnStudent);
                 model.addAllAttributes(financeService.calculateAssessment(sid));
-                model.addAttribute("enlistedSubjects", scholarService.getAcademicLoad(student.get("username").toString()));
-                model.addAttribute("designatedCourses", scholarService.getAvailableSubjects(program, y, s, ""));
-                model.addAttribute("otherCourses", scholarService.getOtherSubjects(program, y, s));
+                if (!withdrawnStudent) {
+                    model.addAttribute("enlistedSubjects", scholarService.getAcademicLoad(sid));
+                    model.addAttribute("designatedCourses", scholarService.getAvailableSubjects(program, y, s, ""));
+                    model.addAttribute("otherCourses", scholarService.getOtherSubjects(program, y, s));
+                } else {
+                    model.addAttribute("enlistedSubjects", java.util.List.of());
+                    model.addAttribute("designatedCourses", java.util.List.of());
+                    model.addAttribute("otherCourses", java.util.List.of());
+                }
             }
         }
         return "admin_scholar_cashier";
@@ -107,6 +131,11 @@ public class ScholarController {
         String studentNumber = resolveStudentNumber(sid, keyword);
         if (studentNumber == null || studentNumber.isBlank()) {
             ra.addFlashAttribute("errorMessage", "Student not found.");
+            return "redirect:/admin/scholar-cashier?keyword=" + keyword;
+        }
+        Map<String, Object> student = scholarService.findStudent(studentNumber);
+        if (isWithdrawnStudent(student)) {
+            ra.addFlashAttribute("errorMessage", "Withdrawn students cannot be enrolled in subjects.");
             return "redirect:/admin/scholar-cashier?keyword=" + keyword;
         }
         if (scholarService.hasAccountingBlock(studentNumber)) {
@@ -161,7 +190,7 @@ public class ScholarController {
     @PostMapping("/admin/drop-subject")
     public String dropSubject(@RequestParam int eid, @RequestParam String keyword, RedirectAttributes ra) {
         ra.addFlashAttribute("errorMessage",
-            "Direct subject removal is retired. Open Student Profile and submit a formal withdrawal request.");
+            "Direct subject drop is retired. Open Student Profile and use the drop controls.");
         return "redirect:/admin/scholar-cashier?keyword=" + keyword;
     }
 
@@ -178,6 +207,10 @@ public class ScholarController {
         Map<String, Object> student = scholarService.findStudent(studentIdentifier);
         if (student == null) {
             ra.addFlashAttribute("errorMessage", "Student not found.");
+            return "redirect:/admin/scholar-cashier?keyword=" + studentIdentifier;
+        }
+        if (isWithdrawnStudent(student)) {
+            ra.addFlashAttribute("errorMessage", "Withdrawn students cannot post payments through the cashier.");
             return "redirect:/admin/scholar-cashier?keyword=" + studentIdentifier;
         }
 
@@ -200,6 +233,18 @@ public class ScholarController {
         return "redirect:/admin/scholar-cashier?keyword=" + studentIdentifier;
     }
 
+    private boolean isWithdrawnStudent(Map<String, Object> student) {
+        if (student == null) {
+            return false;
+        }
+        Object status = student.get("admission_status");
+        Object appStatus = student.get("status");
+        Object isActive = student.get("is_active");
+        return "WITHDRAWN".equalsIgnoreCase(String.valueOf(status))
+            || "WITHDRAWN".equalsIgnoreCase(String.valueOf(appStatus))
+            || (isActive instanceof Number n && n.intValue() == 0);
+    }
+
     private int resolveAcademicInt(Object value, int fallback) {
         if (value instanceof Number number) {
             return number.intValue();
@@ -217,6 +262,25 @@ public class ScholarController {
             return termYear;
         }
         return globalTermService.getCurrentStudentTermYear(yearLevel);
+    }
+
+    private String resolveStudentUsername(Map<String, Object> student) {
+        if (student == null) {
+            return null;
+        }
+        Object username = student.get("username");
+        if (username != null && !username.toString().isBlank()) {
+            return username.toString().trim();
+        }
+        Object studentNumber = student.get("student_number");
+        if (studentNumber != null && !studentNumber.toString().isBlank()) {
+            return studentNumber.toString().trim();
+        }
+        Object referenceNumber = student.get("reference_number");
+        if (referenceNumber != null && !referenceNumber.toString().isBlank()) {
+            return referenceNumber.toString().trim();
+        }
+        return null;
     }
 }
 

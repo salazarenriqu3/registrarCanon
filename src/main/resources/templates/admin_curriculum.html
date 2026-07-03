@@ -380,6 +380,126 @@
         .sem-2 { background: rgba(236, 72, 153, 0.1); color: #db2777; }
         .sem-3 { background: rgba(16, 185, 129, 0.1); color: #059669; }
 
+        .curriculum-outline-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .5rem;
+            margin: 1rem 1rem 0;
+            padding: .85rem 1rem;
+            border: 1px solid rgba(37, 99, 235, .14);
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, rgba(239, 246, 255, .96), rgba(255, 255, 255, .98));
+        }
+        .curriculum-summary-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .28rem .65rem;
+            border-radius: 999px;
+            border: 1px solid rgba(37, 99, 235, .16);
+            background: rgba(59, 130, 246, .08);
+            color: #1d4ed8;
+            font-size: .78rem;
+            font-weight: 800;
+        }
+        .curriculum-summary-chip strong {
+            color: var(--text-primary);
+        }
+        .curriculum-year-stack {
+            display: grid;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        .curriculum-year-card {
+            border: 1px solid rgba(37, 99, 235, .16);
+            border-radius: var(--radius-lg);
+            overflow: hidden;
+            background: linear-gradient(180deg, rgba(255, 255, 255, .99), rgba(248, 250, 252, .98));
+            box-shadow: var(--shadow-sm);
+        }
+        .curriculum-year-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: 1rem 1rem .85rem;
+            border-bottom: 1px solid rgba(37, 99, 235, .12);
+            background: rgba(239, 246, 255, .72);
+        }
+        .curriculum-year-title {
+            font-size: 1rem;
+            font-weight: 900;
+            color: var(--text-primary);
+            margin-bottom: .2rem;
+        }
+        .curriculum-year-note {
+            color: var(--text-muted);
+            font-size: .84rem;
+        }
+        .curriculum-year-metrics {
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+            justify-content: flex-end;
+        }
+        .curriculum-metric-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: .35rem;
+            padding: .22rem .55rem;
+            border-radius: 999px;
+            background: rgba(255, 255, 255, .85);
+            border: 1px solid rgba(37, 99, 235, .12);
+            color: #1d4ed8;
+            font-size: .75rem;
+            font-weight: 800;
+        }
+        .curriculum-semester-stack {
+            display: grid;
+            gap: .85rem;
+            padding: 1rem;
+        }
+        .curriculum-semester-card {
+            border: 1px solid rgba(226, 232, 240, .95);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background: white;
+        }
+        .curriculum-semester-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            flex-wrap: wrap;
+            padding: .9rem 1rem .75rem;
+            border-bottom: 1px solid rgba(226, 232, 240, .95);
+            background: var(--bg-secondary);
+        }
+        .curriculum-semester-title {
+            font-size: .95rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            margin-bottom: .2rem;
+        }
+        .curriculum-semester-note {
+            color: var(--text-muted);
+            font-size: .82rem;
+        }
+        .curriculum-course-table th,
+        .curriculum-course-table td {
+            vertical-align: middle;
+        }
+        .curriculum-empty-state {
+            margin: 1rem;
+            padding: 1.5rem;
+            border: 1px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            text-align: center;
+            color: var(--text-muted);
+            background: var(--bg-secondary);
+        }
+
         .spinner-overlay {
             display: none;
             position: fixed; inset: 0;
@@ -548,7 +668,7 @@
                 </div>
                 <div class="workflow-step">
                     <div class="workflow-step-title"><span class="workflow-step-number">2</span> Build the course plan</div>
-                    <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Lecture and laboratory units remain visible separately.</p>
+                    <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Mixed lecture/laboratory courses are separate rows, usually <strong>CODE-LEC</strong> and <strong>CODE-LAB</strong>, so each component can be scheduled and enlisted independently.</p>
                 </div>
                 <div class="workflow-step">
                     <div class="workflow-step-title"><span class="workflow-step-number">3</span> Publish as current</div>
@@ -750,7 +870,109 @@
                         </div>
                     </form>
                 </div>
-                <div style="overflow-x: auto;">
+                <div th:if="${curriculumOutlineSummary != null}" class="curriculum-outline-summary">
+                    <span class="curriculum-summary-chip">Years <strong th:text="${curriculumOutlineSummary.year_count}"></strong></span>
+                    <span class="curriculum-summary-chip">Semesters <strong th:text="${curriculumOutlineSummary.semester_count}"></strong></span>
+                    <span class="curriculum-summary-chip">Courses <strong th:text="${curriculumOutlineSummary.course_count}"></strong></span>
+                    <span class="curriculum-summary-chip">Total Units <strong th:text="${curriculumOutlineSummary.total_units}"></strong></span>
+                </div>
+                <div th:if="${#lists.isEmpty(curriculumGroups)}" class="curriculum-empty-state">
+                    No courses found for this curriculum.
+                </div>
+                <div th:unless="${#lists.isEmpty(curriculumGroups)}" class="curriculum-year-stack">
+                    <section th:each="yearGroup : ${curriculumGroups}" class="curriculum-year-card">
+                        <div class="curriculum-year-head">
+                            <div>
+                                <div class="curriculum-year-title" th:text="${yearGroup.year_label}">Year 1</div>
+                                <div class="curriculum-year-note">
+                                    Curriculum placements are grouped by year and semester before section generation.
+                                </div>
+                            </div>
+                            <div class="curriculum-year-metrics">
+                                <span class="curriculum-metric-chip">Courses <strong th:text="${yearGroup.course_count}"></strong></span>
+                                <span class="curriculum-metric-chip">Semesters <strong th:text="${yearGroup.semester_count}"></strong></span>
+                                <span class="curriculum-metric-chip">Units <strong th:text="${yearGroup.total_units}"></strong></span>
+                            </div>
+                        </div>
+                        <div class="curriculum-semester-stack">
+                            <section th:each="semGroup : ${yearGroup.semester_groups}" class="curriculum-semester-card">
+                                <div class="curriculum-semester-head">
+                                    <div>
+                                        <div class="curriculum-semester-title" th:text="${semGroup.semester_label}">1st Sem</div>
+                                        <div class="curriculum-semester-note">
+                                            These courses are the curriculum result for this year and semester.
+                                        </div>
+                                    </div>
+                                    <div class="curriculum-year-metrics">
+                                        <span class="curriculum-metric-chip">Courses <strong th:text="${semGroup.course_count}"></strong></span>
+                                        <span class="curriculum-metric-chip">Units <strong th:text="${semGroup.total_units}"></strong></span>
+                                    </div>
+                                </div>
+                                <div style="overflow-x: auto;">
+                                    <table class="table-eac curriculum-course-table" style="margin:0;">
+                                        <thead>
+                                        <tr>
+                                            <th style="width: 5%;">Yr</th>
+                                            <th style="width: 10%;">Sem</th>
+                                            <th style="width: 15%;">Code</th>
+                                            <th style="width: 35%;">Title</th>
+                                            <th style="width: 8%; text-align: center;">Lec</th>
+                                            <th style="width: 8%; text-align: center;">Lab</th>
+                                            <th style="width: 9%; text-align: center;">Total</th>
+                                            <th style="width: 25%;">Prerequisites</th>
+                                            <th th:if="${curriculumEditable}" style="width: 20%;">Actions</th>
+                                        </tr>
+                                        </thead>
+                                        <tbody>
+                                        <tr th:each="c : ${semGroup.courses}">
+                                            <td><span class="yr-badge" th:text="${c.year_level}"></span></td>
+                                            <td>
+                                                <span class="sem-pill"
+                                                      th:classappend="${c.semester_number == 1} ? 'sem-1' : (${c.semester_number == 2} ? 'sem-2' : 'sem-3')"
+                                                      th:text="${c.semester_number == 1} ? '1st Sem' : (${c.semester_number == 2} ? '2nd Sem' : 'Summer')">
+                                                </span>
+                                            </td>
+                                            <td style="font-weight: 700; color: var(--primary-color);" th:text="${c.course_code}"></td>
+                                            <td style="font-weight: 500;">
+                                                <div th:text="${c.course_title}"></div>
+                                                <span class="curriculum-metric-chip" th:if="${c.component_type != null}"
+                                                      th:text="${c.component_type == 'LEC' ? 'Lecture component' : (c.component_type == 'LAB' ? 'Laboratory component' : 'Single course')}">Single course</span>
+                                            </td>
+                                            <td style="text-align:center;" th:text="${c.lec_units}">0</td>
+                                            <td style="text-align:center;" th:text="${c.lab_units}">0</td>
+                                            <td style="text-align: center;"><span style="background: var(--bg-tertiary); padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600;" th:text="${c.credit_units}"></span></td>
+                                            <td>
+                                                <span th:text="${c.prerequisites != null ? c.prerequisites : '—'}"
+                                                      th:style="${c.prerequisites != null && !c.prerequisites.equals('—')} ? 'color: #d97706; font-size: 0.85rem;' : 'color: var(--text-muted); font-size: 0.85rem;'">
+                                                </span>
+                                            </td>
+                                            <td th:if="${curriculumEditable}">
+                                                <form th:action="@{/admin/curriculum/course/update-placement}" method="post" class="placement-form">
+                                                    <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                                                    <input type="hidden" name="curriculumCourseId" th:value="${c.curriculum_course_id}">
+                                                    <input name="yearLevel" type="number" min="1" max="6" class="form-control" style="width: 64px; padding: .25rem;" th:value="${c.year_level}">
+                                                    <select name="semesterNumber" class="form-control" style="width: 86px; padding: .25rem;">
+                                                        <option value="1" th:selected="${c.semester_number == 1}">1</option>
+                                                        <option value="2" th:selected="${c.semester_number == 2}">2</option>
+                                                        <option value="3" th:selected="${c.semester_number == 3}">Summer</option>
+                                                    </select>
+                                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;"><i class="ti ti-device-floppy"></i></button>
+                                                </form>
+                                                <form th:action="@{/admin/curriculum/course/remove}" method="post" style="display: inline-flex; margin: .35rem 0 0 0;">
+                                                    <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                                                    <input type="hidden" name="curriculumCourseId" th:value="${c.curriculum_course_id}">
+                                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;" onclick="return confirm('Remove this course row?')"><i class="ti ti-trash"></i></button>
+                                                </form>
+                                            </td>
+                                        </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </section>
+                        </div>
+                    </section>
+                </div>
+                <div th:if="${false}" style="overflow-x: auto;">
                     <table class="table-eac">
                         <thead>
                         <tr>
@@ -775,7 +997,11 @@
                                 </span>
                             </td>
                             <td style="font-weight: 700; color: var(--primary-color);" th:text="${c.course_code}"></td>
-                            <td style="font-weight: 500;" th:text="${c.course_title}"></td>
+                            <td style="font-weight: 500;">
+                                <div th:text="${c.course_title}"></div>
+                                <span class="curriculum-metric-chip" th:if="${c.component_type != null}"
+                                      th:text="${c.component_type == 'LEC' ? 'Lecture component' : (c.component_type == 'LAB' ? 'Laboratory component' : 'Single course')}">Single course</span>
+                            </td>
                             <td style="text-align:center;" th:text="${c.lec_units}">0</td>
                             <td style="text-align:center;" th:text="${c.lab_units}">0</td>
                             <td style="text-align: center;"><span style="background: var(--bg-tertiary); padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600;" th:text="${c.credit_units}"></span></td>

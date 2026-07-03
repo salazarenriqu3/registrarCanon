@@ -140,21 +140,21 @@
                                     <td class="text-center" th:classappend="${!windows.get('prelim_open') && !hasExtension && !hasApprovedChange} ? 'locked-col' : ''">
                                         <input type="number" class="form-control mx-auto grade-input" data-period="prelim" 
                                                th:data-grade-id="${g.get('grade_id')}" th:value="${g.get('prelim') != null && g.get('prelim') > 0 ? g.get('prelim') : ''}" 
-                                               th:disabled="${g.get('grade_lock_status') == 'LOCKED' || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('prelim_open') && !hasExtension && !hasApprovedChange)}">
+                                               th:disabled="${g.get('row_locked') || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('prelim_open') && !hasExtension && !hasApprovedChange)}">
                                         <strong class="point-display text-success" th:id="'prelimPoint-' + ${g.get('grade_id')}" th:text="${g.get('prelim_point') != null ? g.get('prelim_point') : ''}"></strong>
                                     </td>
                                     
                                     <td class="text-center" th:classappend="${!windows.get('midterm_open') && !hasExtension && !hasApprovedChange} ? 'locked-col' : ''">
                                         <input type="number" class="form-control mx-auto grade-input" data-period="midterm" 
                                                th:data-grade-id="${g.get('grade_id')}" th:value="${g.get('midterm') != null && g.get('midterm') > 0 ? g.get('midterm') : ''}" 
-                                               th:disabled="${g.get('grade_lock_status') == 'LOCKED' || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('midterm_open') && !hasExtension && !hasApprovedChange)}">
+                                               th:disabled="${g.get('row_locked') || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('midterm_open') && !hasExtension && !hasApprovedChange)}">
                                         <strong class="point-display text-success" th:id="'midtermPoint-' + ${g.get('grade_id')}" th:text="${g.get('midterm_point') != null ? g.get('midterm_point') : ''}"></strong>
                                     </td>
                                     
                                     <td class="text-center" th:classappend="${!windows.get('final_open') && !hasExtension && !hasApprovedChange} ? 'locked-col' : ''">
                                         <input type="number" class="form-control mx-auto grade-input" data-period="final" 
                                                th:data-grade-id="${g.get('grade_id')}" th:value="${g.get('final') != null && g.get('final') > 0 ? g.get('final') : ''}" 
-                                               th:disabled="${g.get('grade_lock_status') == 'LOCKED' || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('final_open') && !hasExtension && !hasApprovedChange)}">
+                                               th:disabled="${g.get('row_locked') || g.get('status') == 'SUBMITTED' || readonly || (!windows.get('final_open') && !hasExtension && !hasApprovedChange)}">
                                         <strong class="point-display text-success" th:id="'finalPoint-' + ${g.get('grade_id')}" th:text="${g.get('final_point') != null ? g.get('final_point') : ''}"></strong>
                                     </td>
 

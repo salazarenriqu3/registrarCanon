@@ -174,6 +174,86 @@
         .usage-item { border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: .65rem .75rem; background: var(--bg-tertiary); }
         .usage-empty { color: var(--text-muted); font-size: .86rem; }
         .unit-breakdown { display:block; color:var(--text-muted); font-size:.72rem; margin-top:.2rem; white-space:nowrap; }
+        .usage-metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: .75rem;
+            margin-bottom: 1rem;
+        }
+        .usage-metric {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: .7rem .8rem;
+            background: white;
+        }
+        .usage-metric-value {
+            font-size: 1.15rem;
+            font-weight: 800;
+            color: var(--text-primary);
+            line-height: 1.1;
+        }
+        .usage-metric-label {
+            margin-top: .2rem;
+            font-size: .74rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: .03em;
+        }
+        .lifecycle-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: .25rem;
+            padding: .15rem .45rem;
+            border-radius: 999px;
+            font-size: .72rem;
+            font-weight: 700;
+            border: 1px solid var(--border-color);
+            margin-right: .35rem;
+        }
+        .lifecycle-pill.current {
+            background: rgba(16, 185, 129, .12);
+            border-color: rgba(16, 185, 129, .28);
+            color: #047857;
+        }
+        .lifecycle-pill.legacy {
+            background: rgba(59, 130, 246, .08);
+            border-color: rgba(59, 130, 246, .22);
+            color: #1d4ed8;
+        }
+        .lifecycle-pill.draft {
+            background: rgba(217, 119, 6, .08);
+            border-color: rgba(217, 119, 6, .25);
+            color: #b45309;
+        }
+        .lifecycle-pill.archived {
+            background: rgba(107, 114, 128, .1);
+            border-color: rgba(107, 114, 128, .2);
+            color: #4b5563;
+        }
+        .usage-link-row {
+            display: flex;
+            gap: .45rem;
+            flex-wrap: wrap;
+            margin-top: .45rem;
+        }
+        .usage-link {
+            display: inline-flex;
+            align-items: center;
+            gap: .3rem;
+            font-size: .78rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            text-decoration: none;
+        }
+        .usage-link:hover {
+            text-decoration: underline;
+        }
+        .usage-note {
+            color: var(--text-muted);
+            font-size: .8rem;
+            margin-top: .35rem;
+        }
         @media (max-width: 760px) {
             .form-grid {
                 grid-template-columns: 1fr;
@@ -293,7 +373,11 @@
                         <tbody>
                         <tr th:each="c : ${courses}" th:id="'course-' + ${c.course_id}">
                             <td style="padding-left: 1.25rem;"><span class="course-code" th:text="${c.course_code}">CODE</span></td>
-                            <td th:text="${c.course_title}">Title</td>
+                            <td>
+                                <div th:text="${c.course_title}">Title</div>
+                                <span class="usage-chip" th:if="${c.component_type != null}"
+                                      th:text="${c.component_type == 'LEC' ? 'Lecture component' : (c.component_type == 'LAB' ? 'Laboratory component' : 'Single course')}">Single course</span>
+                            </td>
                             <td style="text-align: center;">
                                 <span style="background: var(--bg-tertiary); padding: .2rem .6rem; border-radius: 4px; font-weight: 700;" th:text="${c.credit_units}">3</span>
                                 <span class="unit-breakdown" th:text="${c.lec_units + ' lec + ' + c.lab_units + ' lab'}">3 lec + 0 lab</span>
@@ -306,15 +390,19 @@
                                 <div class="usage-stack">
                                     <span class="usage-chip" th:classappend="${c.curriculum_usage > 0} ? 'warn' : ''">
                                         <i class="ti ti-book" aria-hidden="true"></i>
-                                        <span th:text="${c.curriculum_usage} + ' curriculum'">0 curriculum</span>
+                                        <span th:text="${c.curriculum_usage} + ' placement'">0 placement</span>
                                     </span>
                                     <span class="usage-chip" th:classappend="${c.section_usage > 0} ? 'warn' : ''">
                                         <i class="ti ti-calendar" aria-hidden="true"></i>
                                         <span th:text="${c.section_usage} + ' section'">0 section</span>
                                     </span>
-                                    <span class="usage-chip" th:classappend="${c.enlistment_usage > 0 or c.grade_usage > 0} ? 'warn' : ''">
+                                    <span class="usage-chip" th:classappend="${c.enlistment_usage > 0} ? 'warn' : ''">
                                         <i class="ti ti-users" aria-hidden="true"></i>
-                                        <span th:text="${c.enlistment_usage + c.grade_usage} + ' record'">0 record</span>
+                                        <span th:text="${c.enlistment_usage} + ' enlistment'">0 enlistment</span>
+                                    </span>
+                                    <span class="usage-chip" th:classappend="${c.grade_usage > 0} ? 'warn' : ''">
+                                        <i class="ti ti-report-analytics" aria-hidden="true"></i>
+                                        <span th:text="${c.grade_usage} + ' grade row'">0 grade row</span>
                                     </span>
                                     <span class="usage-chip" th:classappend="${c.prerequisite_usage > 0} ? 'warn' : ''">
                                         <i class="ti ti-link" aria-hidden="true"></i>
@@ -419,7 +507,7 @@
                     </div>
                 </div>
                 <div class="hint-box">
-                    Total credit units are calculated as lecture plus laboratory units. Editing this shared record updates how the course is shown in every curriculum and scheduling workspace; use <strong>Where Used</strong> in the table to inspect its current links first.
+                    Mixed lecture/laboratory courses are saved as separate enlistable components: <strong>CODE-LEC</strong> and <strong>CODE-LAB</strong>. Each component has its own units, sections, schedules, and enlistment path; use <strong>Where Used</strong> before editing records that already have links.
                 </div>
             </div>
             <div class="modal-footer">
@@ -445,7 +533,10 @@
     </div>
 </div>
 
-<script>
+<script th:inline="javascript">
+    const ctx = /*[[@{/}]]*/ '';
+    const focusCourseId = /*[[${focusCourseId}]]*/ null;
+
     function openCourseModal(button) {
         const modal = document.getElementById('courseModal');
         const form = document.getElementById('courseForm');
@@ -485,6 +576,24 @@
         return `<div class="usage-list">${items.map(item => `<div class="usage-item">${formatter(item)}</div>`).join('')}</div>`;
     }
 
+    function normalizeLifecycle(value) {
+        return String(value || '').trim().toUpperCase() || 'LEGACY';
+    }
+
+    function lifecyclePill(value) {
+        const lifecycle = normalizeLifecycle(value);
+        const css = lifecycle.toLowerCase();
+        return `<span class="lifecycle-pill ${css}">${escapeHtml(lifecycle)}</span>`;
+    }
+
+    function usageMetric(label, value) {
+        return `<div class="usage-metric"><div class="usage-metric-value">${escapeHtml(value)}</div><div class="usage-metric-label">${escapeHtml(label)}</div></div>`;
+    }
+
+    function courseSchedulingLink(courseId, termId) {
+        return `${ctx}admin/class-scheduling?termId=${encodeURIComponent(termId)}&view=courses#cr-${encodeURIComponent(courseId)}`;
+    }
+
     async function openUsageModal(button) {
         const modal = document.getElementById('usageModal');
         const body = document.getElementById('usageModalBody');
@@ -499,11 +608,63 @@
             document.getElementById('usageModalTitle').textContent = `${course.course_code || ''} - ${course.course_title || ''}`;
             document.getElementById('usageModalSubtitle').textContent = `${course.credit_units || 0} total units (${course.lec_units || 0} lecture + ${course.lab_units || 0} laboratory) | ${course.department_name || 'Unassigned'}`;
             const records = data.records || {};
+            const curricula = data.curricula || [];
+            const currentPlacements = curricula.filter(item => normalizeLifecycle(item.lifecycle_status) === 'CURRENT').length;
+            const legacyPlacements = curricula.filter(item => normalizeLifecycle(item.lifecycle_status) === 'LEGACY').length;
+            const draftPlacements = curricula.filter(item => normalizeLifecycle(item.lifecycle_status) === 'DRAFT').length;
+            const archivedPlacements = curricula.filter(item => normalizeLifecycle(item.lifecycle_status) === 'ARCHIVED').length;
+            const totalRecords = Number(records.enlistments || 0) + Number(records.grades || 0) + Number(records.waitlists || 0) + Number(records.requests || 0);
             body.innerHTML = `
-                <section class="usage-section"><h4>Curriculum placements</h4>${renderUsageItems(data.curricula, item => `<strong>${escapeHtml(item.program_code)} - ${escapeHtml(item.curriculum_name)}</strong><br><small>A.Y. ${escapeHtml(item.academic_year)} | Year ${escapeHtml(item.year_level)}, Semester ${escapeHtml(item.semester_number)} | ${escapeHtml(item.approval_status)}${Number(item.is_active) === 1 ? ' | Active' : ''}</small>`, 'Not placed in any curriculum.')}</section>
-                <section class="usage-section"><h4>Class sections</h4>${renderUsageItems(data.sections, item => `<strong>${escapeHtml(item.section_code)}</strong><br><small>Term #${escapeHtml(item.term_id)} | ${escapeHtml(item.section_status || 'No status')} | Faculty #${escapeHtml(item.faculty_id || 'Unassigned')}</small>`, 'No class sections use this course.')}</section>
-                <section class="usage-section"><h4>Student and academic records</h4><div class="usage-item">${escapeHtml(records.enlistments || 0)} enlistments | ${escapeHtml(records.grades || 0)} grades | ${escapeHtml(records.waitlists || 0)} waitlist entries | ${escapeHtml(records.requests || 0)} requests</div></section>
-                <section class="usage-section"><h4>Prerequisite relationships</h4>${renderUsageItems(data.prerequisites, item => `<strong>${escapeHtml(item.course_code)}</strong> requires <strong>${escapeHtml(item.prerequisite_code)}</strong>`, 'No prerequisite relationships.')}</section>`;
+                <div class="usage-metric-grid">
+                    ${usageMetric('Current placements', currentPlacements)}
+                    ${usageMetric('Legacy placements', legacyPlacements)}
+                    ${usageMetric('Draft placements', draftPlacements)}
+                    ${usageMetric('Archived placements', archivedPlacements)}
+                    ${usageMetric('Class sections', (data.sections || []).length)}
+                    ${usageMetric('Student records', totalRecords)}
+                </div>
+                <section class="usage-section">
+                    <h4>Curriculum placements</h4>
+                    <div class="usage-note">These are the exact curriculum versions that still reference this shared course record.</div>
+                    ${renderUsageItems(curricula, item => `
+                        ${lifecyclePill(item.lifecycle_status)}
+                        <strong>${escapeHtml(item.program_code)} - ${escapeHtml(item.curriculum_name)}</strong><br>
+                        <small>A.Y. ${escapeHtml(item.academic_year)} | Year ${escapeHtml(item.year_level)}, Semester ${escapeHtml(item.semester_number)} | ${escapeHtml(item.program_name || '')}</small>
+                        <div class="usage-note">Approval: ${escapeHtml(item.approval_status || 'Unspecified')}${Number(item.is_active) === 1 ? ' | Marked current offering' : ''}</div>
+                        <div class="usage-link-row">
+                            <a class="usage-link" href="${ctx}admin/curriculum/view/${encodeURIComponent(item.curriculum_id)}">
+                                <i class="ti ti-arrow-up-right" aria-hidden="true"></i> Open curriculum
+                            </a>
+                        </div>
+                    `, 'Not placed in any curriculum.')}
+                </section>
+                <section class="usage-section">
+                    <h4>Class sections</h4>
+                    <div class="usage-note">These are the actual section offerings already created from this course record.</div>
+                    ${renderUsageItems(data.sections, item => `
+                        <strong>${escapeHtml(item.section_code)}</strong><br>
+                        <small>${escapeHtml(item.term_label || ('Term #' + item.term_id))} | ${escapeHtml(item.section_status || 'No status')} | ${escapeHtml(item.schedule_slot_count || 0)} schedule slot(s)</small>
+                        <div class="usage-note">Faculty: ${escapeHtml((item.faculty_name || '').trim() || 'Unassigned')}</div>
+                        <div class="usage-link-row">
+                            <a class="usage-link" href="${courseSchedulingLink(course.course_id, item.term_id)}">
+                                <i class="ti ti-arrow-up-right" aria-hidden="true"></i> Open in class scheduling
+                            </a>
+                        </div>
+                    `, 'No class sections use this course.')}
+                </section>
+                <section class="usage-section">
+                    <h4>Student and academic records</h4>
+                    <div class="usage-list">
+                        <div class="usage-item"><strong>${escapeHtml(records.enlistments || 0)}</strong> enlistment row(s)</div>
+                        <div class="usage-item"><strong>${escapeHtml(records.grades || 0)}</strong> grade row(s)</div>
+                        <div class="usage-item"><strong>${escapeHtml(records.waitlists || 0)}</strong> waitlist row(s)</div>
+                        <div class="usage-item"><strong>${escapeHtml(records.requests || 0)}</strong> request row(s)</div>
+                    </div>
+                </section>
+                <section class="usage-section">
+                    <h4>Prerequisite relationships</h4>
+                    ${renderUsageItems(data.prerequisites, item => `<strong>${escapeHtml(item.course_code)}</strong> requires <strong>${escapeHtml(item.prerequisite_code)}</strong>`, 'No prerequisite relationships.')}
+                </section>`;
         } catch (error) {
             body.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
         }
@@ -517,6 +678,16 @@
 
     document.addEventListener('keydown', event => {
         if (event.key === 'Escape') closeCourseModal();
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        if (!focusCourseId) return;
+        const row = document.getElementById(`course-${focusCourseId}`);
+        if (!row) return;
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        row.style.transition = 'background 0.4s ease';
+        row.style.background = 'rgba(220, 38, 38, 0.08)';
+        setTimeout(() => row.style.background = '', 2200);
     });
 </script>
 </body>

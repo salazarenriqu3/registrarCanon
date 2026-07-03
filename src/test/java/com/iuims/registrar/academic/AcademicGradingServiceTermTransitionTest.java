@@ -42,6 +42,12 @@ class AcademicGradingServiceTermTransitionTest {
     @MockBean
     private StudentDocumentTrailService studentDocumentTrailService;
 
+    @MockBean
+    private GradeRecordEventService gradeRecordEventService;
+
+    @MockBean
+    private com.iuims.registrar.core.StudentProfileService studentProfileService;
+
     @Autowired
     private JdbcTemplate db;
     
@@ -77,6 +83,7 @@ class AcademicGradingServiceTermTransitionTest {
                 user_id INT AUTO_INCREMENT PRIMARY KEY,
                 username VARCHAR(50) NULL,
                 real_name VARCHAR(100) NULL,
+                email VARCHAR(150) NULL,
                 role VARCHAR(50) NULL,
                 password VARCHAR(100) NULL,
                 program_code VARCHAR(50) NULL,

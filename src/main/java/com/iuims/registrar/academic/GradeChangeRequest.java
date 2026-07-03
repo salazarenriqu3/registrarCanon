@@ -55,6 +55,15 @@ public class GradeChangeRequest {
     @Column(name = "approved_at")
     private LocalDateTime approvedAt;
 
+    @Column(name = "reviewed_by", length = 100)
+    private String reviewedBy;
+
+    @Column(name = "review_note", length = 500)
+    private String reviewNote;
+
+    @Column(name = "rejected_at")
+    private LocalDateTime rejectedAt;
+
     // Getters and Setters
     public Integer getRequestId() { return requestId; }
     public void setRequestId(Integer requestId) { this.requestId = requestId; }
@@ -100,4 +109,13 @@ public class GradeChangeRequest {
 
     public LocalDateTime getApprovedAt() { return approvedAt; }
     public void setApprovedAt(LocalDateTime approvedAt) { this.approvedAt = approvedAt; }
+
+    public String getReviewedBy() { return reviewedBy; }
+    public void setReviewedBy(String reviewedBy) { this.reviewedBy = reviewedBy; }
+
+    public String getReviewNote() { return reviewNote; }
+    public void setReviewNote(String reviewNote) { this.reviewNote = reviewNote; }
+
+    public LocalDateTime getRejectedAt() { return rejectedAt; }
+    public void setRejectedAt(LocalDateTime rejectedAt) { this.rejectedAt = rejectedAt; }
 }

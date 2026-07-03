@@ -1,5 +1,9 @@
 package com.iuims.registrar.forms;
 
+import com.iuims.registrar.core.StudentProfileService;
+import com.iuims.registrar.core.RegistrarAuditTrailService;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -13,9 +17,21 @@ import java.util.Map;
 public class RegFormEventService {
 
     private final JdbcTemplate db;
+    private final StudentProfileService studentProfileService;
 
-    public RegFormEventService(JdbcTemplate db) {
+    private final RegistrarAuditTrailService auditTrailService;
+
+    public RegFormEventService(JdbcTemplate db, StudentProfileService studentProfileService) {
+        this(db, studentProfileService, null);
+    }
+
+    @Autowired
+    public RegFormEventService(JdbcTemplate db,
+                               StudentProfileService studentProfileService,
+                               RegistrarAuditTrailService auditTrailService) {
         this.db = db;
+        this.studentProfileService = studentProfileService;
+        this.auditTrailService = auditTrailService;
     }
 
     public void ensureSchema() {
@@ -23,6 +39,7 @@ public class RegFormEventService {
             CREATE TABLE IF NOT EXISTS student_reg_form_events (
                 event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 student_number VARCHAR(100) NOT NULL,
+                archive_key VARCHAR(80) NULL,
                 event_type VARCHAR(60) NOT NULL,
                 purpose VARCHAR(160) NOT NULL,
                 related_request_id BIGINT NULL,
@@ -36,7 +53,15 @@ public class RegFormEventService {
         } catch (Exception ignored) {
         }
         try {
+            db.execute("CREATE INDEX idx_srfe_archive ON student_reg_form_events (archive_key, created_at)");
+        } catch (Exception ignored) {
+        }
+        try {
             db.execute("CREATE INDEX idx_srfe_type ON student_reg_form_events (event_type, created_at)");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE student_reg_form_events ADD COLUMN archive_key VARCHAR(80) NULL");
         } catch (Exception ignored) {
         }
     }
@@ -47,17 +72,21 @@ public class RegFormEventService {
             return;
         }
         ensureSchema();
+        String archiveKey = studentProfileService.ensureArchiveKey(studentNumber);
+        String auditKey = cleanNullable(archiveKey, 80);
         db.update("""
                 INSERT INTO student_reg_form_events
-                    (student_number, event_type, purpose, related_request_id, remarks, triggered_by)
-                VALUES (?, ?, ?, ?, ?, ?)
+                    (student_number, archive_key, event_type, purpose, related_request_id, remarks, triggered_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
             studentNumber.trim(),
+            auditKey,
             clean(eventType, "REG_FORM_EVENT", 60),
             clean(purpose, "Registration form event", 160),
             relatedRequestId,
             cleanNullable(remarks, 500),
             cleanNullable(triggeredBy, 100));
+        recordAudit(auditKey != null ? auditKey : studentNumber, eventType, purpose, remarks, triggeredBy, relatedRequestId);
     }
 
     public List<Map<String, Object>> listStudentEvents(String studentNumber) {
@@ -66,7 +95,7 @@ public class RegFormEventService {
         }
         ensureSchema();
         return db.queryForList("""
-            SELECT event_id, student_number, event_type, purpose, related_request_id,
+            SELECT event_id, student_number, archive_key, event_type, purpose, related_request_id,
                    remarks, triggered_by, created_at
             FROM student_reg_form_events
             WHERE BINARY student_number = BINARY ?
@@ -80,7 +109,7 @@ public class RegFormEventService {
         ensureSchema();
         int safeLimit = Math.max(1, Math.min(limit, 500));
         StringBuilder sql = new StringBuilder("""
-            SELECT event_id, student_number, event_type, purpose, related_request_id,
+            SELECT event_id, student_number, archive_key, event_type, purpose, related_request_id,
                    remarks, triggered_by, created_at
             FROM student_reg_form_events
             WHERE 1 = 1
@@ -148,5 +177,25 @@ public class RegFormEventService {
         }
         String cleaned = value.trim();
         return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
+    }
+
+    private void recordAudit(String studentNumber,
+                             String eventType,
+                             String purpose,
+                             String remarks,
+                             String triggeredBy,
+                             Long relatedRequestId) {
+        if (auditTrailService == null) {
+            return;
+        }
+        auditTrailService.recordStudentAction(
+            triggeredBy,
+            "REG_FORM",
+            clean(eventType, "REG_FORM_EVENT", 60),
+            studentNumber,
+            clean(purpose, "Registration form event", 160),
+            remarks,
+            "student_reg_form_events",
+            relatedRequestId != null ? String.valueOf(relatedRequestId) : studentNumber);
     }
 }

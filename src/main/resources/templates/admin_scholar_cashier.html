@@ -54,6 +54,12 @@
             </div>
         </div>
         <div th:if="${student != null}">
+            <div th:if="${withdrawnStudent}" class="card" style="border-left: 8px solid #6b7280; margin-bottom: 20px;">
+                <div class="card-body" style="padding: 18px 20px;">
+                    <strong style="color:#b91c1c;">Withdrawn student:</strong>
+                    subject enlistment is disabled for this profile.
+                </div>
+            </div>
             <div class="card" style="border-left: 8px solid var(--maroon);">
                 <div class="card-body" style="display:flex; justify-content:space-between; align-items:center;">
                     <div>
@@ -66,7 +72,7 @@
                     </div>
                 </div>
             </div>
-            <div class="card">
+            <div class="card" th:if="${!withdrawnStudent}">
                 <div class="card-header"><i class="fas fa-plus"></i><h3>Add Subjects</h3></div>
                 <div class="card-body">
                     <form th:action="@{/admin/enlist-subject}" method="POST" style="display:flex; gap:10px;">
@@ -84,7 +90,7 @@
                     </form>
                 </div>
             </div>
-            <div class="card">
+            <div class="card" th:if="${!withdrawnStudent}">
                 <div class="card-header"><i class="fas fa-book"></i><h3>Enlisted Load</h3></div>
                 <div class="card-body" style="padding:0;">
                     <table class="data-table">

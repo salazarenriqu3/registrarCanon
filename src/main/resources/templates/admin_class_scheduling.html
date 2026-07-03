@@ -368,7 +368,7 @@
                             <span id="coursesPanelSummary" class="sched-panel-summary" style="display: none;"></span>
                         </h2>
                         <p id="coursesPanelDesc" style="margin: 0.35rem 0 0; color: var(--text-muted); font-size: 0.85rem;">
-                            Per-course view — expand a row to assign faculty, add schedule slots, or open <code>IRREG-A</code>.
+                            Per-course view — expand a row to assign faculty, add schedule slots, or open a summer/tutorial special section.
                         </p>
                     </div>
                     <button type="button" id="coursesPanelToggle" class="btn btn-outline" style="padding: 0.45rem 0.75rem; font-size: 0.85rem;" onclick="event.stopPropagation(); toggleSchedulingPanel('courses')" title="Collapse or expand this panel">
@@ -379,7 +379,7 @@
             <div th:if="${!loadCourseSections}" style="padding: 1.25rem 1.5rem; color: var(--text-muted); font-size: 0.9rem;">
                 Course section details are not loaded by default to keep this builder responsive.
                 <a th:href="@{/admin/class-scheduling(termId=${termId}, view='courses')}" style="font-weight: 700; color: var(--primary-color);">Load Course Details</a>
-                when you need per-course irregular sections, faculty assignment, or schedule-slot editing.
+                when you need block sections, summer/tutorial special sections, faculty assignment, or schedule-slot editing.
             </div>
             <th:block th:if="${loadCourseSections}">
 
@@ -442,12 +442,12 @@
                                             <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;"
                                                     th:attr="data-course-id=${c.course_id}, data-label=${c.course_code + ' - ' + c.course_title}, data-term-id=${termId}"
                                                     onclick="openSectionModalFromButton(this)">
-                                                <i class="ti ti-plus" aria-hidden="true"></i> Open New Section
+                                                    <i class="ti ti-plus" aria-hidden="true"></i> Open Special Section
                                             </button>
                                         </div>
 
                                         <div th:if="${#lists.isEmpty(c['sections'])}" style="color: var(--text-muted); font-size: 0.9rem; font-style: italic; padding: 1rem 0;">
-                                            No sections opened yet for this term. Click "Open New Section" to start.
+                                            No sections opened yet for this term. Click "Open Special Section" to start.
                                         </div>
 
                                         <div style="display: flex; flex-direction: column; gap: 0.75rem;">
@@ -529,13 +529,13 @@
     </div>
 </div>
 
-<!-- MODAL: Open New Section -->
+<!-- MODAL: Open Special Section -->
 <div id="openSectionModal" class="modal">
     <div class="modal-dialog">
         <form th:action="@{/admin/class-scheduling/open-section}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;">
             <div class="modal-header">
                 <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                    <i class="ti ti-square-plus" style="color: var(--primary-color);"></i> Open New Section
+                    <i class="ti ti-square-plus" style="color: var(--primary-color);"></i> Open Special Section
                 </h4>
                 <button type="button" class="btn btn-outline" style="border: none; padding: 0.5rem;" onclick="closeModal('openSectionModal')">
                     <i class="ti ti-x" aria-hidden="true"></i>
@@ -551,10 +551,10 @@
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
                     <div>
                         <label class="form-label">Section Code <span style="color: var(--danger-color);">*</span></label>
-                        <input type="text" name="sectionCode" class="form-control" placeholder="Block: BSIT-1-2-A · Irregular: IRREG-A" required maxlength="32">
+                        <input type="text" name="sectionCode" class="form-control" placeholder="Block: BSIT-1-2-A · Special: SUM-1" required maxlength="32">
                         <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.35rem;">
                             Block codes (<code>BSIT-1-2-A</code>) must be created via <strong>Block Sections</strong> above.
-                            Use <code>IRREG-A</code> here for irregular open sections only.
+                            Use this form only for summer/tutorial special sections.
                         </div>
                     </div>
                     <div>

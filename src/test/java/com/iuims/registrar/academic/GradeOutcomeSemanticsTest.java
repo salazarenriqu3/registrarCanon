@@ -293,10 +293,16 @@ class GradeOutcomeSemanticsTest {
                 student_number VARCHAR(100) PRIMARY KEY,
                 real_name VARCHAR(100) NULL,
                 program_code VARCHAR(20) NULL,
+                year_level INT DEFAULT 1,
+                semester INT DEFAULT 1,
                 scholarship_approved TINYINT NULL,
                 scholarship_type VARCHAR(50) NULL,
                 scholarship_amount DECIMAL(10,2) NULL,
-                discount_percentage DECIMAL(5,2) NULL
+                discount_percentage DECIMAL(5,2) NULL,
+                admission_status VARCHAR(40) NULL,
+                status VARCHAR(40) NULL,
+                is_active TINYINT DEFAULT 1,
+                term_year VARCHAR(40) NULL
             )
             """);
         db.execute("""

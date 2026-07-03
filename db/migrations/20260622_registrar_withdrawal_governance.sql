@@ -76,11 +76,11 @@ CREATE TABLE IF NOT EXISTS student_withdrawal_request_lines (
 UPDATE student_withdrawal_requests
 SET status = 'PENDING_REGISTRAR',
     approval_source = COALESCE(approval_source, 'REGISTRAR_WORKFLOW')
-WHERE status = 'PENDING_DEAN';
+WHERE request_id >= 0 AND status = 'PENDING_DEAN';
 
 UPDATE student_withdrawal_request_lines
 SET status = 'PENDING_REGISTRAR'
-WHERE status = 'PENDING_DEAN';
+WHERE line_id >= 0 AND status = 'PENDING_DEAN';
 
 ALTER TABLE student_withdrawal_requests
     MODIFY COLUMN status VARCHAR(40) NOT NULL DEFAULT 'PENDING_REGISTRAR';

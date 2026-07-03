@@ -12,6 +12,42 @@ SET SQL_SAFE_UPDATES = 0;
 -- Safe to re-run on a disposable demo database.
 -- =============================================================================
 
+CREATE TABLE IF NOT EXISTS student_installment_plan (
+    plan_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NOT NULL,
+    term_id INT NOT NULL,
+    installment_number TINYINT NOT NULL,
+    due_months_offset INT NOT NULL DEFAULT 1,
+    installment_label VARCHAR(80) NOT NULL,
+    UNIQUE KEY uk_student_term_inst (student_number, term_id, installment_number),
+    KEY idx_sip_student_term (student_number, term_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_reg_form_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NOT NULL,
+    archive_key VARCHAR(80) NULL,
+    event_type VARCHAR(60) NOT NULL,
+    purpose VARCHAR(160) NOT NULL,
+    related_request_id BIGINT NULL,
+    remarks VARCHAR(500) NULL,
+    triggered_by VARCHAR(100) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_srfe_student (student_number, created_at),
+    KEY idx_srfe_archive (archive_key, created_at),
+    KEY idx_srfe_type (event_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE academic_term_policies
+    ADD COLUMN IF NOT EXISTS midterm_exam_date DATE NULL;
+
+ALTER TABLE applicants
+    ADD COLUMN IF NOT EXISTS enrollment_type VARCHAR(30) NULL,
+    ADD COLUMN IF NOT EXISTS qualification_expires_at DATETIME NULL;
+
+ALTER TABLE student_ledger
+    ADD COLUMN IF NOT EXISTS sl_term_year VARCHAR(30) NULL;
+
 SET @pw_demo := '$2a$10$/l9Hb.SsSN5IBm7xyF/t4uen1KPG6uqBTxkF1hfczWNf9apIcOCKK';
 SET @term_id := 1;
 SET @term_code := 'SL_1120242025';
@@ -561,6 +597,7 @@ INSERT INTO applicants (
     program2,
     academic_level,
     application_track,
+    enrollment_type,
     email_verified,
     remarks,
     form138_path,
@@ -590,6 +627,7 @@ INSERT INTO applicants (
     'BSCPE',
     'COLLEGE',
     'REGULAR',
+    'REGULAR',
     1,
     'Canonical applicant bridge record for the Registrar feature demo dataset.',
     'DEMO-SANTOS-001-form138.svg',
@@ -618,6 +656,7 @@ INSERT INTO applicants (
     program2 = VALUES(program2),
     academic_level = VALUES(academic_level),
     application_track = VALUES(application_track),
+    enrollment_type = VALUES(enrollment_type),
     email_verified = VALUES(email_verified),
     remarks = VALUES(remarks),
     form138_path = VALUES(form138_path),
@@ -792,6 +831,72 @@ VALUES
  DATE_SUB(NOW(), INTERVAL 220 DAY), 1.75, 'PASSED', 'FINALIZED'),
 ('TSHFT-2026-001', 214, NULL, 1.25, 1.25, 'PASSED', 'Shane Shift Demo', 1, 1.25, 'APPROVED',
  DATE_SUB(NOW(), INTERVAL 215 DAY), 1.25, 'PASSED', 'FINALIZED');
+
+-- 7b. Grade-governance demo rows for registrar approvals and reporting.
+INSERT INTO grade_change_requests
+    (grade_id, student_name, course_code, faculty_name, request_type, requested_grade, reason, status, request_date)
+VALUES
+(
+    (SELECT id FROM grades WHERE student_id = '2026-1001' AND course_id = 205 ORDER BY id DESC LIMIT 1),
+    'Maria Reyes Santos',
+    'CC101',
+    'Prof. Cruz',
+    'FINAL_GRADE_CORRECTION',
+    '1.50',
+    'Demo pending correction request for registrar approvals.',
+    'PENDING',
+    DATE_SUB(NOW(), INTERVAL 2 DAY)
+);
+
+INSERT INTO grade_record_events
+    (grade_id, student_id, student_name, course_id, course_code, term_label, action_type, lifecycle_status,
+     actor, actor_role, reason, component_before, component_after, official_grade_before, official_grade_after,
+     official_remarks_before, official_remarks_after, grade_lock_status_before, grade_lock_status_after, created_at)
+VALUES
+(
+    (SELECT id FROM grades WHERE student_id = '2026-1001' AND course_id = 205 ORDER BY id DESC LIMIT 1),
+    '2026-1001',
+    'Maria Reyes Santos',
+    205,
+    'CC101',
+    'Historical / No section',
+    'GRADE_CLASS_POSTED',
+    'FINALIZED',
+    'registrar.main',
+    'Registrar',
+    'Baseline seeded official posting event.',
+    'P:95.00 / M:94.00 / F:96.00',
+    'P:95.00 / M:94.00 / F:96.00',
+    1.75,
+    1.75,
+    'PASSED',
+    'PASSED',
+    'FINALIZED',
+    'FINALIZED',
+    DATE_SUB(NOW(), INTERVAL 180 DAY)
+),
+(
+    (SELECT id FROM grades WHERE student_id = '2026-1001' AND course_id = 205 ORDER BY id DESC LIMIT 1),
+    '2026-1001',
+    'Maria Reyes Santos',
+    205,
+    'CC101',
+    'Historical / No section',
+    'GRADE_CHANGE_REQUESTED',
+    'FINALIZED',
+    'prof.cruz',
+    'Faculty',
+    'Demo pending correction request for registrar approvals.',
+    'P:95.00 / M:94.00 / F:96.00',
+    'P:95.00 / M:94.00 / F:96.00',
+    1.75,
+    1.75,
+    'PASSED',
+    'PASSED',
+    'FINALIZED',
+    'FINALIZED',
+    DATE_SUB(NOW(), INTERVAL 2 DAY)
+);
 
 -- 8. Finance/ledger context.
 INSERT INTO student_ledger

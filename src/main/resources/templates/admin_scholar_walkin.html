@@ -151,6 +151,10 @@
 
         <!-- Student data panel -->
         <div th:if="${student != null}">
+            <div th:if="${withdrawnStudent}" class="alert alert-warning">
+                <i class="fas fa-ban"></i>
+                <strong>WITHDRAWN PROFILE:</strong> payment posting is disabled for this student.
+            </div>
 
             <!-- Accounting block alert -->
             <div th:if="${accountingBlocked ?: false}" class="alert alert-warning">
@@ -187,7 +191,7 @@
 
             <div class="summary-grid">
                 <!-- Payment Form -->
-                <div class="card">
+                <div class="card" th:if="${!withdrawnStudent}">
                     <div class="card-header"><i class="fas fa-cash-register"></i><h3>Post Walk-in Transaction</h3></div>
                     <div class="card-body">
                         <form th:action="@{/admin/scholar-process-walkin}" method="POST">

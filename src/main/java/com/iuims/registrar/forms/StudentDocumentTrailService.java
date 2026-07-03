@@ -1,5 +1,9 @@
 package com.iuims.registrar.forms;
 
+import com.iuims.registrar.core.StudentProfileService;
+import com.iuims.registrar.core.RegistrarAuditTrailService;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -15,9 +19,21 @@ import java.util.Map;
 public class StudentDocumentTrailService {
 
     private final JdbcTemplate db;
+    private final StudentProfileService studentProfileService;
 
-    public StudentDocumentTrailService(JdbcTemplate db) {
+    private final RegistrarAuditTrailService auditTrailService;
+
+    public StudentDocumentTrailService(JdbcTemplate db, StudentProfileService studentProfileService) {
+        this(db, studentProfileService, null);
+    }
+
+    @Autowired
+    public StudentDocumentTrailService(JdbcTemplate db,
+                                       StudentProfileService studentProfileService,
+                                       RegistrarAuditTrailService auditTrailService) {
         this.db = db;
+        this.studentProfileService = studentProfileService;
+        this.auditTrailService = auditTrailService;
     }
 
     public void ensureSchema() {
@@ -25,6 +41,7 @@ public class StudentDocumentTrailService {
             CREATE TABLE IF NOT EXISTS student_document_events (
                 event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 student_number VARCHAR(100) NULL,
+                archive_key VARCHAR(80) NULL,
                 reference_number VARCHAR(100) NULL,
                 document_scope VARCHAR(40) NOT NULL,
                 document_type VARCHAR(60) NOT NULL,
@@ -37,11 +54,16 @@ public class StudentDocumentTrailService {
                 source_id VARCHAR(80) NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 KEY idx_sdet_student_created (student_number, created_at),
+                KEY idx_sdet_archive_created (archive_key, created_at),
                 KEY idx_sdet_ref_created (reference_number, created_at),
                 KEY idx_sdet_scope_created (document_scope, created_at),
                 KEY idx_sdet_type_created (document_type, created_at)
             )
             """);
+        try {
+            db.execute("ALTER TABLE student_document_events ADD COLUMN archive_key VARCHAR(80) NULL");
+        } catch (Exception ignored) {
+        }
     }
 
     public void recordStudentEvent(String studentNumber,
@@ -55,13 +77,16 @@ public class StudentDocumentTrailService {
                                    String sourceTable,
                                    String sourceId) {
         ensureSchema();
+        String archiveKey = resolveArchiveKey(studentNumber);
+        String archiveKeyValue = cleanNullable(archiveKey, 80);
         db.update("""
             INSERT INTO student_document_events
-                (student_number, reference_number, document_scope, document_type, event_type,
+                (student_number, archive_key, reference_number, document_scope, document_type, event_type,
                  event_summary, event_details, actor, related_request_id, source_table, source_id)
-            VALUES (?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             clean(studentNumber, 100, null),
+            archiveKeyValue,
             clean(documentScope, 40, "STUDENT"),
             clean(documentType, 60, "REG_FORM"),
             clean(eventType, 80, "DOCUMENT_EVENT"),
@@ -71,6 +96,7 @@ public class StudentDocumentTrailService {
             relatedRequestId,
             cleanNullable(sourceTable, 80),
             cleanNullable(sourceId, 80));
+        recordAudit(actor, eventType, "STUDENT", archiveKeyValue != null ? archiveKeyValue : studentNumber, eventSummary, eventDetails, sourceTable, sourceId);
     }
 
     public void recordReferenceEvent(String referenceNumber,
@@ -86,9 +112,9 @@ public class StudentDocumentTrailService {
         ensureSchema();
         db.update("""
             INSERT INTO student_document_events
-                (student_number, reference_number, document_scope, document_type, event_type,
+                (student_number, archive_key, reference_number, document_scope, document_type, event_type,
                  event_summary, event_details, actor, related_request_id, source_table, source_id)
-            VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (NULL, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             clean(referenceNumber, 100, null),
             clean(documentScope, 40, "APPLICATION"),
@@ -100,6 +126,7 @@ public class StudentDocumentTrailService {
             relatedRequestId,
             cleanNullable(sourceTable, 80),
             cleanNullable(sourceId, 80));
+        recordAudit(actor, eventType, "APPLICATION", referenceNumber, eventSummary, eventDetails, sourceTable, sourceId);
     }
 
     public List<Map<String, Object>> listRecentEvents(String query,
@@ -175,6 +202,7 @@ public class StudentDocumentTrailService {
         rows.addAll(fetchAdmissionEvents(query, eventType, documentType, fromDate, toDate));
         rows.addAll(fetchWithdrawalEvents(query, eventType, documentType, fromDate, toDate));
         rows.addAll(fetchGradeChangeEvents(query, eventType, documentType, fromDate, toDate));
+        rows.addAll(fetchGradeRecordEvents(query, eventType, documentType, fromDate, toDate));
         return rows;
     }
 
@@ -214,7 +242,7 @@ public class StudentDocumentTrailService {
                                                        LocalDate fromDate,
                                                        LocalDate toDate) {
         StringBuilder sql = new StringBuilder("""
-            SELECT event_id, student_number, reference_number, document_scope, document_type,
+            SELECT event_id, student_number, archive_key, reference_number, document_scope, document_type,
                    event_type, event_summary, event_details, actor, related_request_id,
                    source_table, source_id, created_at
             FROM student_document_events
@@ -223,7 +251,7 @@ public class StudentDocumentTrailService {
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, query, eventType, documentType, fromDate, toDate,
             "event_type", "document_type", "created_at",
-            "student_number", "reference_number", "event_type", "document_type", "event_summary", "event_details", "actor", "source_id");
+            "student_number", "archive_key", "reference_number", "event_type", "document_type", "event_summary", "event_details", "actor", "source_id");
         sql.append(" ORDER BY created_at DESC, event_id DESC");
         return db.queryForList(sql.toString(), args.toArray());
     }
@@ -234,7 +262,7 @@ public class StudentDocumentTrailService {
                                                         LocalDate fromDate,
                                                         LocalDate toDate) {
         StringBuilder sql = new StringBuilder("""
-            SELECT event_id, student_number, NULL AS reference_number, 'STUDENT' AS document_scope,
+            SELECT event_id, student_number, archive_key, NULL AS reference_number, 'STUDENT' AS document_scope,
                    CASE
                        WHEN event_type IN ('SUBJECT_ADD', 'ENROLLMENT_ACTIVATED', 'BLOCK_ENROLL_COMPLETED', 'FORCE_ENROLL_COMPLETED') THEN 'ENROLLMENT'
                        WHEN event_type IN ('TRANSFER_CREDIT', 'BULK_TRANSFER_CREDIT') THEN 'TRANSFER_CREDIT'
@@ -249,11 +277,11 @@ public class StudentDocumentTrailService {
                    created_at
             FROM student_reg_form_events
             WHERE 1 = 1
-            """);
+        """);
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, query, eventType, documentType, fromDate, toDate,
             "event_type", regFormDocumentTypeSql(), "created_at",
-            "student_number", "event_type", "purpose", "remarks", "triggered_by");
+            "student_number", "archive_key", "event_type", "purpose", "remarks", "triggered_by");
         sql.append(" ORDER BY created_at DESC, event_id DESC");
         return db.queryForList(sql.toString(), args.toArray());
     }
@@ -264,7 +292,7 @@ public class StudentDocumentTrailService {
                                                           LocalDate fromDate,
                                                           LocalDate toDate) {
         StringBuilder sql = new StringBuilder("""
-            SELECT log_id AS event_id, NULL AS student_number, ref_no AS reference_number,
+            SELECT log_id AS event_id, NULL AS student_number, NULL AS archive_key, ref_no AS reference_number,
                    'APPLICATION' AS document_scope, 'ADMISSION' AS document_type,
                    action AS event_type, action AS event_summary, remarks AS event_details,
                    performed_by AS actor, NULL AS related_request_id,
@@ -288,7 +316,7 @@ public class StudentDocumentTrailService {
                                                            LocalDate fromDate,
                                                            LocalDate toDate) {
         StringBuilder sql = new StringBuilder("""
-            SELECT request_id AS event_id, student_number, NULL AS reference_number,
+            SELECT request_id AS event_id, student_number, archive_key, NULL AS reference_number,
                    'STUDENT' AS document_scope, 'WITHDRAWAL' AS document_type,
                    CONCAT('WITHDRAWAL_', status) AS event_type,
                    CONCAT('Withdrawal ', status) AS event_summary,
@@ -305,7 +333,7 @@ public class StudentDocumentTrailService {
         appendFilters(sql, args, query, eventType, documentType, fromDate, toDate,
             "CONCAT('WITHDRAWAL_', status)", "'WITHDRAWAL'",
             "COALESCE(completed_at, registrar_approved_at, dean_approved_at, rejected_at, requested_at)",
-            "student_number", "reason_code", "remarks", "status", "rejection_reason", "policy_note");
+            "student_number", "archive_key", "reason_code", "remarks", "status", "rejection_reason", "policy_note");
         sql.append(" ORDER BY created_at DESC, request_id DESC");
         return db.queryForList(sql.toString(), args.toArray());
     }
@@ -316,23 +344,63 @@ public class StudentDocumentTrailService {
                                                             LocalDate fromDate,
                                                             LocalDate toDate) {
         StringBuilder sql = new StringBuilder("""
-            SELECT request_id AS event_id, NULL AS student_number, NULL AS reference_number,
+            SELECT request_id AS event_id, NULL AS student_number, NULL AS archive_key, NULL AS reference_number,
                    'STUDENT' AS document_scope, 'GRADE_CHANGE' AS document_type,
                    CONCAT('GRADE_CHANGE_', status) AS event_type,
                    CONCAT('Grade change ', status) AS event_summary,
-                   CONCAT(COALESCE(request_type, 'FINAL_GRADE_CORRECTION'), ' - ', COALESCE(reason, '')) AS event_details,
-                   faculty_name AS actor, request_id AS related_request_id,
+                   CONCAT(
+                       COALESCE(request_type, 'FINAL_GRADE_CORRECTION'),
+                       ' - ',
+                       COALESCE(reason, ''),
+                       CASE
+                           WHEN COALESCE(review_note, '') <> '' THEN CONCAT(' | Review: ', review_note)
+                           ELSE ''
+                       END
+                   ) AS event_details,
+                   COALESCE(reviewed_by, faculty_name) AS actor, request_id AS related_request_id,
                    'grade_change_requests' AS source_table,
                    CAST(request_id AS CHAR) AS source_id,
-                   COALESCE(approved_at, request_date) AS created_at
+                   COALESCE(rejected_at, approved_at, request_date) AS created_at
             FROM grade_change_requests
             WHERE 1 = 1
             """);
         List<Object> args = new ArrayList<>();
         appendFilters(sql, args, query, eventType, documentType, fromDate, toDate,
-            "CONCAT('GRADE_CHANGE_', status)", "'GRADE_CHANGE'", "COALESCE(approved_at, request_date)",
-            "student_name", "course_code", "faculty_name", "reason", "status", "request_type");
+            "CONCAT('GRADE_CHANGE_', status)", "'GRADE_CHANGE'", "COALESCE(rejected_at, approved_at, request_date)",
+            "student_name", "course_code", "faculty_name", "reviewed_by", "reason", "review_note", "status", "request_type");
         sql.append(" ORDER BY created_at DESC, request_id DESC");
+        return db.queryForList(sql.toString(), args.toArray());
+    }
+
+    private List<Map<String, Object>> fetchGradeRecordEvents(String query,
+                                                             String eventType,
+                                                             String documentType,
+                                                             LocalDate fromDate,
+                                                             LocalDate toDate) {
+        StringBuilder sql = new StringBuilder("""
+            SELECT event_id, student_id AS student_number, NULL AS archive_key, NULL AS reference_number,
+                   'STUDENT' AS document_scope, 'GRADE_RECORD' AS document_type,
+                   action_type AS event_type,
+                   CONCAT('Grade record ', REPLACE(LOWER(action_type), '_', ' ')) AS event_summary,
+                   CONCAT(
+                       COALESCE(course_code, 'COURSE'),
+                       CASE
+                           WHEN COALESCE(reason, '') <> '' THEN CONCAT(' - ', reason)
+                           ELSE ''
+                       END
+                   ) AS event_details,
+                   actor, request_id AS related_request_id,
+                   'grade_record_events' AS source_table,
+                   CAST(event_id AS CHAR) AS source_id,
+                   created_at
+            FROM grade_record_events
+            WHERE 1 = 1
+            """);
+        List<Object> args = new ArrayList<>();
+        appendFilters(sql, args, query, eventType, documentType, fromDate, toDate,
+            "action_type", "'GRADE_RECORD'", "created_at",
+            "student_id", "student_name", "course_code", "section_code", "actor", "reason", "lifecycle_status");
+        sql.append(" ORDER BY created_at DESC, event_id DESC");
         return db.queryForList(sql.toString(), args.toArray());
     }
 
@@ -379,6 +447,10 @@ public class StudentDocumentTrailService {
     }
 
     private String resolveSubjectKey(Map<String, Object> row) {
+        String archiveKey = normalizeValue(row.get("archive_key"));
+        if (!archiveKey.isBlank()) {
+            return archiveKey;
+        }
         String studentNumber = normalizeValue(row.get("student_number"));
         if (!studentNumber.isBlank()) {
             return studentNumber;
@@ -388,6 +460,13 @@ public class StudentDocumentTrailService {
             return referenceNumber;
         }
         return normalizeValue(row.get("source_id"));
+    }
+
+    private String resolveArchiveKey(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return null;
+        }
+        return studentProfileService.ensureArchiveKey(studentNumber);
     }
 
     private String normalizeValue(Object raw) {
@@ -415,5 +494,29 @@ public class StudentDocumentTrailService {
         }
         String cleaned = value.trim();
         return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
+    }
+
+    private void recordAudit(String actor,
+                             String eventType,
+                             String targetType,
+                             String targetKey,
+                             String eventSummary,
+                             String eventDetails,
+                             String sourceTable,
+                             String sourceId) {
+        if (auditTrailService == null) {
+            return;
+        }
+        auditTrailService.record(
+            actor,
+            "Registrar",
+            "DOCUMENTS",
+            clean(eventType, 80, "DOCUMENT_EVENT"),
+            targetType,
+            targetKey,
+            clean(eventSummary, 180, "Document event"),
+            eventDetails,
+            sourceTable,
+            sourceId);
     }
 }

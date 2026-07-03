@@ -26,7 +26,7 @@ It is intended to be the working execution plan for all registrar-side work that
 - Demo/stabilization work is largely complete per `PROJECT_STATUS_AND_ROADMAP.md`.
 - Existing registrar modules already include:
   - Student Manager
-  - class scheduling with block sections and `IRREG-A`
+  - class scheduling with block sections and special-section exceptions
   - TOR / transfer crediting tools
   - program shift
   - scholarship controls
@@ -83,7 +83,7 @@ It is intended to be the working execution plan for all registrar-side work that
 - Dean-side student manager exists as an older lightweight screen, but not as the registrar-owned irregular advising workflow required by the handoff.
 - Student Manager can already do manual add/drop for enrolled students, but not applicant pre-reg snapshot authoring for irregular applicants.
 - Program shift and curriculum tools exist, but the FRD’s broader “Student Profile” concept is not yet reflected in naming, permissions, workflow, or data structure.
-- Class scheduling supports blocks and `IRREG-A`, but not the full slot-monitoring/reporting operations described in the FRD.
+- Class scheduling supports blocks and special-section exceptions, but not the full slot-monitoring/reporting operations described in the FRD.
 - Current “drop” behavior is operational subject removal, not the FRD’s formal Withdrawal process.
 
 ### Critical gaps / risks found in code
@@ -482,7 +482,7 @@ Extend the existing class scheduling module to satisfy FRD operations for irregu
 ### Current-state baseline
 
 - Block Sections and Course Sections exist.
-- `IRREG-A` support exists.
+- legacy irregular open-section support is retired.
 - open/close section, assign faculty, and schedule slots already exist.
 
 ### Missing FRD capabilities

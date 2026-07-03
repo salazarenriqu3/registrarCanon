@@ -21,5 +21,8 @@ Files kept here for one-off manual config (sample applicant, single section, etc
 | `08_migrate_program_fee_settings.sql` | Fee migration helper |
 | `09_seed_term1_s2_exact_fees_bscpe_bsit.sql` | BSCPE/BSIT S2 exact fees (historical) |
 | `10_seed_term2_bsbio_y3_y4_fees.sql` | BSBio Y3/Y4 gap fill (historical) |
+| `14_fix_reissue_demo_snapshot_20260630.sql` | Repairs the disposable reissue demo snapshot to a real course/section pair |
+| `15_lec_lab_course_components_20260701.sql` | Optional existing-DB patch for LEC/LAB component columns and indexes |
+| `16_migrate_legacy_lec_lab_courses_20260701.sql` | Legacy mixed-course migration into archived source rows plus live LEC/LAB component rows |
 
 **Run order for fresh DB:** `registrar/setup/RUN_FRESH_SETUP.cmd`

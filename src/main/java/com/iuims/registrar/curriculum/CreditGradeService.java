@@ -54,6 +54,10 @@ public class CreditGradeService {
                 note VARCHAR(500) NULL,
                 status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
                 requested_by VARCHAR(100) NULL,
+                requested_by_role VARCHAR(50) NULL,
+                source_system VARCHAR(50) NULL,
+                source_table VARCHAR(100) NULL,
+                source_row_id VARCHAR(100) NULL,
                 requested_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 approved_by VARCHAR(100) NULL,
                 approved_at TIMESTAMP NULL,
@@ -70,6 +74,27 @@ public class CreditGradeService {
             db.execute("CREATE INDEX idx_tcr_course_student ON transfer_credit_requests (student_number, course_id, status)");
         } catch (Exception ignored) {
         }
+        try {
+            db.execute("ALTER TABLE transfer_credit_requests ADD COLUMN requested_by_role VARCHAR(50) NULL AFTER requested_by");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE transfer_credit_requests ADD COLUMN source_system VARCHAR(50) NULL AFTER requested_by_role");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE transfer_credit_requests ADD COLUMN source_table VARCHAR(100) NULL AFTER source_system");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE transfer_credit_requests ADD COLUMN source_row_id VARCHAR(100) NULL AFTER source_table");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("CREATE UNIQUE INDEX uk_tcr_source_row ON transfer_credit_requests (source_system, source_table, source_row_id)");
+        } catch (Exception ignored) {
+        }
+        normalizeAccreditationCollations();
     }
 
     @Transactional
@@ -173,12 +198,36 @@ public class CreditGradeService {
                                                          String sourceSchool,
                                                          String note,
                                                          String requestedBy) {
+        return submitCreditRequest(
+            studentNumber,
+            courseId,
+            numericGrade,
+            sourceSchool,
+            note,
+            requestedBy,
+            resolveUserRole(requestedBy));
+    }
+
+    @Transactional
+    public CreditRequestActionResult submitCreditRequest(String studentNumber,
+                                                         int courseId,
+                                                         Double numericGrade,
+                                                         String sourceSchool,
+                                                         String note,
+                                                         String requestedBy,
+                                                         String requestedByRole) {
         ensureSchema();
         if (studentNumber == null || studentNumber.isBlank()) {
             return new CreditRequestActionResult(false, null, "ERROR: Student number is required.");
         }
         if (courseId <= 0) {
             return new CreditRequestActionResult(false, null, "ERROR: Invalid course.");
+        }
+        if (!isDeanRole(requestedByRole)) {
+            return new CreditRequestActionResult(
+                false,
+                null,
+                "ERROR: TOR accreditation requests must be submitted by the Enrollment Dean. Registrar only approves them.");
         }
         String sn = studentNumber.trim();
         String courseCode = lookupCourseCode(courseId);
@@ -193,8 +242,9 @@ public class CreditGradeService {
         db.update("""
                 INSERT INTO transfer_credit_requests
                     (student_number, curriculum_id, course_id, course_code, numeric_grade,
-                     source_school, note, status, requested_by)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?)
+                     source_school, note, status, requested_by, requested_by_role,
+                     source_system, source_table, source_row_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, NULL, NULL, NULL)
                 """,
             sn,
             curriculumId,
@@ -203,7 +253,8 @@ public class CreditGradeService {
             numericGrade != null ? BigDecimal.valueOf(numericGrade) : null,
             cleanNullable(sourceSchool, 180),
             cleanNullable(note, 500),
-            cleanNullable(requestedBy, 100));
+            cleanNullable(requestedBy, 100),
+            cleanNullable(requestedByRole, 50));
         Long requestId = db.queryForObject(
             "SELECT request_id FROM transfer_credit_requests WHERE student_number = ? AND course_id = ? ORDER BY request_id DESC LIMIT 1",
             Long.class,
@@ -236,6 +287,20 @@ public class CreditGradeService {
                                                             String csvText,
                                                             String defaultSourceSchool,
                                                             String requestedBy) {
+        return submitBulkCreditRequestsFromCsv(
+            studentNumber,
+            csvText,
+            defaultSourceSchool,
+            requestedBy,
+            resolveUserRole(requestedBy));
+    }
+
+    @Transactional
+    public BulkCreditResult submitBulkCreditRequestsFromCsv(String studentNumber,
+                                                            String csvText,
+                                                            String defaultSourceSchool,
+                                                            String requestedBy,
+                                                            String requestedByRole) {
         ensureSchema();
         List<BulkCreditLineResult> lines = new ArrayList<>();
         int requested = 0;
@@ -286,7 +351,7 @@ public class CreditGradeService {
                 String note = parts.length > 3 ? parts[3].trim() : null;
 
                 CreditRequestActionResult result =
-                    submitCreditRequest(studentNumber, courseId, numericGrade, sourceSchool, note, requestedBy);
+                    submitCreditRequest(studentNumber, courseId, numericGrade, sourceSchool, note, requestedBy, requestedByRole);
                 if (result.ok()) {
                     requested++;
                     lines.add(new BulkCreditLineResult(code, true, result.message()));
@@ -314,13 +379,30 @@ public class CreditGradeService {
 
     @Transactional
     public CreditRequestActionResult approveCreditRequest(long requestId, String approvedBy) {
+        return approveCreditRequest(requestId, approvedBy, resolveUserRole(approvedBy));
+    }
+
+    @Transactional
+    public CreditRequestActionResult approveCreditRequest(long requestId, String approvedBy, String approvedByRole) {
         ensureSchema();
+        if (!isRegistrarApprovalRole(approvedByRole)) {
+            return new CreditRequestActionResult(
+                false,
+                requestId,
+                "ERROR: Only registrar-authorized users can approve TOR accreditation requests.");
+        }
         Map<String, Object> row = findRequest(requestId);
         if (row == null) {
             return new CreditRequestActionResult(false, requestId, "ERROR: Transfer credit request not found.");
         }
         if (!"PENDING".equalsIgnoreCase(String.valueOf(row.getOrDefault("status", "")))) {
             return new CreditRequestActionResult(false, requestId, "ERROR: Only pending requests can be approved.");
+        }
+        if (!isDeanOriginatedRequest(row)) {
+            return new CreditRequestActionResult(
+                false,
+                requestId,
+                "ERROR: Only Enrollment Dean-submitted TOR accreditation requests can be approved.");
         }
         String studentNumber = String.valueOf(row.getOrDefault("student_number", "")).trim();
         int courseId = ((Number) row.get("course_id")).intValue();
@@ -350,6 +432,7 @@ public class CreditGradeService {
                 """,
             cleanNullable(approvedBy, 100),
             requestId);
+        syncUpstreamApproval(row, approvedBy, findPostedGradeId(studentNumber, courseId));
         String detail = buildRequestDetail(courseCode, sourceSchool, note, numericGrade);
         regFormEventService.recordEvent(
             studentNumber,
@@ -374,13 +457,33 @@ public class CreditGradeService {
 
     @Transactional
     public CreditRequestActionResult rejectCreditRequest(long requestId, String rejectedBy, String reason) {
+        return rejectCreditRequest(requestId, rejectedBy, resolveUserRole(rejectedBy), reason);
+    }
+
+    @Transactional
+    public CreditRequestActionResult rejectCreditRequest(long requestId,
+                                                         String rejectedBy,
+                                                         String rejectedByRole,
+                                                         String reason) {
         ensureSchema();
+        if (!isRegistrarApprovalRole(rejectedByRole)) {
+            return new CreditRequestActionResult(
+                false,
+                requestId,
+                "ERROR: Only registrar-authorized users can reject TOR accreditation requests.");
+        }
         Map<String, Object> row = findRequest(requestId);
         if (row == null) {
             return new CreditRequestActionResult(false, requestId, "ERROR: Transfer credit request not found.");
         }
         if (!"PENDING".equalsIgnoreCase(String.valueOf(row.getOrDefault("status", "")))) {
             return new CreditRequestActionResult(false, requestId, "ERROR: Only pending requests can be rejected.");
+        }
+        if (!isDeanOriginatedRequest(row)) {
+            return new CreditRequestActionResult(
+                false,
+                requestId,
+                "ERROR: Only Enrollment Dean-submitted TOR accreditation requests can be reviewed here.");
         }
         String cleanReason = cleanNullable(reason, 500);
         if (cleanReason == null) {
@@ -397,6 +500,7 @@ public class CreditGradeService {
             cleanNullable(rejectedBy, 100),
             cleanReason,
             requestId);
+        syncUpstreamRejection(row, rejectedBy, cleanReason);
         String studentNumber = String.valueOf(row.getOrDefault("student_number", "")).trim();
         String courseCode = String.valueOf(row.getOrDefault("course_code", "")).trim();
         regFormEventService.recordEvent(
@@ -428,7 +532,8 @@ public class CreditGradeService {
         return db.queryForList("""
             SELECT request_id, student_number, curriculum_id, course_id, course_code,
                    numeric_grade, source_school, note, status,
-                   requested_by, requested_at, approved_by, approved_at,
+                   requested_by, requested_by_role, source_system, source_table, source_row_id,
+                   requested_at, approved_by, approved_at,
                    rejected_by, rejected_at, rejection_reason
             FROM transfer_credit_requests
             WHERE student_number = ?
@@ -572,7 +677,8 @@ public class CreditGradeService {
             """
                 SELECT request_id, student_number, curriculum_id, course_id, course_code,
                        numeric_grade, source_school, note, status,
-                       requested_by, requested_at, approved_by, approved_at,
+                       requested_by, requested_by_role, source_system, source_table, source_row_id,
+                       requested_at, approved_by, approved_at,
                        rejected_by, rejected_at, rejection_reason
                 FROM transfer_credit_requests
                 WHERE request_id = ?
@@ -608,6 +714,132 @@ public class CreditGradeService {
         }
         String reason = sb.toString();
         return reason.length() <= 255 ? reason : reason.substring(0, 255);
+    }
+
+    private boolean isDeanOriginatedRequest(Map<String, Object> row) {
+        String requestedByRole = stringValue(row.get("requested_by_role"));
+        if (isDeanRole(requestedByRole)) {
+            return true;
+        }
+        return isDeanRole(resolveUserRole(stringValue(row.get("requested_by"))));
+    }
+
+    private boolean isDeanRole(String role) {
+        if (role == null || role.isBlank()) {
+            return false;
+        }
+        String normalized = role.trim().toUpperCase();
+        return "DEAN".equals(normalized)
+            || "ENROLLMENT DEAN".equals(normalized)
+            || "ENROLLMENT_DEAN".equals(normalized);
+    }
+
+    private boolean isRegistrarApprovalRole(String role) {
+        if (role == null || role.isBlank()) {
+            return false;
+        }
+        String normalized = role.trim().toUpperCase();
+        return "REGISTRAR".equals(normalized) || "ADMIN".equals(normalized);
+    }
+
+    private String resolveUserRole(String username) {
+        if (username == null || username.isBlank()) {
+            return null;
+        }
+        try {
+            return db.queryForObject(
+                "SELECT role FROM sys_users WHERE username = ? LIMIT 1",
+                String.class,
+                username.trim());
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private String stringValue(Object value) {
+        return value != null ? value.toString() : null;
+    }
+
+    private Integer findPostedGradeId(String studentNumber, int courseId) {
+        try {
+            return db.queryForObject(
+                "SELECT id FROM grades WHERE student_id = ? AND course_id = ? ORDER BY id DESC LIMIT 1",
+                Integer.class,
+                studentNumber,
+                courseId);
+        } catch (Exception ignored) {
+            return null;
+        }
+    }
+
+    private void syncUpstreamApproval(Map<String, Object> row, String actor, Integer postedGradeId) {
+        String sourceTable = stringValue(row.get("source_table"));
+        String sourceRowId = stringValue(row.get("source_row_id"));
+        if (sourceTable == null || sourceTable.isBlank() || sourceRowId == null || sourceRowId.isBlank()) {
+            return;
+        }
+        try {
+            if ("tentative_credited_subject".equalsIgnoreCase(sourceTable)) {
+                db.update(
+                    "UPDATE tentative_credited_subject SET posting_status = 'POSTED', posted_by = ?, posted_at = NOW(), posted_grade_id = ? WHERE tentative_credit_id = ?",
+                    cleanNullable(actor, 100),
+                    postedGradeId,
+                    Long.parseLong(sourceRowId));
+                return;
+            }
+            if ("applicant_credit_accreditation_lines".equalsIgnoreCase(sourceTable)) {
+                ensureApplicantAccreditationLineSyncColumns();
+                db.update(
+                    "UPDATE applicant_credit_accreditation_lines SET registrar_decision_status = 'APPROVED', registrar_decided_by = ?, registrar_decided_at = NOW(), registrar_decision_note = NULL, registrar_posted_grade_id = ? WHERE line_id = ?",
+                    cleanNullable(actor, 100),
+                    postedGradeId,
+                    Long.parseLong(sourceRowId));
+            }
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void syncUpstreamRejection(Map<String, Object> row, String actor, String reason) {
+        String sourceTable = stringValue(row.get("source_table"));
+        String sourceRowId = stringValue(row.get("source_row_id"));
+        if (sourceTable == null || sourceTable.isBlank() || sourceRowId == null || sourceRowId.isBlank()) {
+            return;
+        }
+        if (!"applicant_credit_accreditation_lines".equalsIgnoreCase(sourceTable)) {
+            return;
+        }
+        try {
+            ensureApplicantAccreditationLineSyncColumns();
+            db.update(
+                "UPDATE applicant_credit_accreditation_lines SET registrar_decision_status = 'REJECTED', registrar_decided_by = ?, registrar_decided_at = NOW(), registrar_decision_note = ?, registrar_posted_grade_id = NULL WHERE line_id = ?",
+                cleanNullable(actor, 100),
+                cleanNullable(reason, 500),
+                Long.parseLong(sourceRowId));
+        } catch (Exception ignored) {
+        }
+    }
+
+    private void ensureApplicantAccreditationLineSyncColumns() {
+        try {
+            db.execute("ALTER TABLE applicant_credit_accreditation_lines ADD COLUMN registrar_decision_status VARCHAR(32) NULL");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE applicant_credit_accreditation_lines ADD COLUMN registrar_decided_by VARCHAR(100) NULL");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE applicant_credit_accreditation_lines ADD COLUMN registrar_decided_at DATETIME NULL");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE applicant_credit_accreditation_lines ADD COLUMN registrar_decision_note VARCHAR(500) NULL");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE applicant_credit_accreditation_lines ADD COLUMN registrar_posted_grade_id INT NULL");
+        } catch (Exception ignored) {
+        }
     }
 
     private List<Object> gradeLookupKeys(String studentNumber) {
@@ -658,5 +890,18 @@ public class CreditGradeService {
         }
         String cleaned = value.trim();
         return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
+    }
+
+    private void normalizeAccreditationCollations() {
+        tryExecute("ALTER TABLE applicant_credit_accreditations CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci");
+        tryExecute("ALTER TABLE applicant_credit_accreditation_lines CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci");
+        tryExecute("ALTER TABLE transfer_credit_requests CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_uca1400_ai_ci");
+    }
+
+    private void tryExecute(String sql) {
+        try {
+            db.execute(sql);
+        } catch (Exception ignored) {
+        }
     }
 }

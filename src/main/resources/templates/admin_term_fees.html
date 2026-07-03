@@ -18,9 +18,15 @@
 
             <div class="page-header">
                 <div>
-                    <h1 class="page-title">Program Fees</h1>
+                    <h1 class="page-title">Program Fees Read-Only Mirror</h1>
+                    <p class="page-subtitle" style="margin-top:0.35rem;">Registrar can inspect fee readiness here, but official fee authoring lives in Enrollment3 Accounting/Cashier.</p>
                     <p class="page-subtitle">Official fee rates per academic term, program, year level, and curriculum slot — stored in <span style="font-family: monospace;">program_fee_settings</span> and used by enrollment billing.</p>
                 </div>
+            </div>
+
+            <div th:if="${feeOwnershipReadOnly}" class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
+                <div class="status-dot"></div>
+                <span th:text="${feeOwnershipNotice}">Program fee authoring is read-only in Registrar.</span>
             </div>
 
             <!-- Flash messages -->
@@ -149,6 +155,7 @@
                             <i class="ti ti-upload"></i> Upload CSV
                         </button>
                     </form>
+                    </fieldset>
                 </div>
             </div>
 
@@ -158,6 +165,7 @@
                     <div class="card-title"><i class="ti ti-adjustments"></i> 2. Scoped import &amp; edit (one program)</div>
                 </div>
                 <div style="padding: 1.5rem;">
+                    <fieldset th:disabled="${feeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
                         <b>Curriculum slot</b> (S1/S2) is the year-level progression semester — not the calendar 1st/2nd sem label on the term name.
                     </p>
@@ -197,6 +205,7 @@
                         <button class="btn btn-primary" type="submit"><i class="ti ti-search"></i> Load</button>
                     </form>
 
+                    <fieldset th:disabled="${feeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <form th:action="@{/admin/term-fees/import-scope}" method="post"
                           style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
                         <input type="hidden" name="targetTermId" th:value="${termId}">
@@ -261,6 +270,7 @@
                             <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy"></i> Save this scope</button>
                         </div>
                     </form>
+                    </fieldset>
                 </div>
             </div>
 

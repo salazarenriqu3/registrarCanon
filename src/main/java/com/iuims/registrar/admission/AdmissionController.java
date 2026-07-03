@@ -83,7 +83,7 @@ public class AdmissionController {
 
         if (!preRegSnapshotService.isIrregularApplicant(applicant)) {
             redirectAttributes.addFlashAttribute("message",
-                "Registrar handoff validation is currently limited to irregular applicants after Dean / Faculty advising. Regular applicants continue through Admission and Cashier.");
+                "Registrar only previews the shared irregular handoff here. Regular applicants continue through Admission and Enrollment/Cashier.");
             return "redirect:/admin/admission-acceptance?refNo=" + refNo;
         }
 
@@ -94,7 +94,7 @@ public class AdmissionController {
         }
 
         redirectAttributes.addFlashAttribute("successMessage",
-            "Registrar irregular pre-registration is ready. Continue applicant qualification in Admission and payment/student-number issuance in Cashier.");
+            "Enrollment3 faculty/dean pre-advising is ready. Continue applicant qualification in Admission and payment/student-number issuance in Enrollment/Cashier.");
         return "redirect:/admin/admission-acceptance?refNo=" + refNo;
     }
 

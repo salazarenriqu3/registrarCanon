@@ -12,6 +12,42 @@ SET SQL_SAFE_UPDATES = 0;
 -- Safe to re-run on a disposable demo database.
 -- =============================================================================
 
+CREATE TABLE IF NOT EXISTS student_installment_plan (
+    plan_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NOT NULL,
+    term_id INT NOT NULL,
+    installment_number TINYINT NOT NULL,
+    due_months_offset INT NOT NULL DEFAULT 1,
+    installment_label VARCHAR(80) NOT NULL,
+    UNIQUE KEY uk_student_term_inst (student_number, term_id, installment_number),
+    KEY idx_sip_student_term (student_number, term_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_reg_form_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    student_number VARCHAR(100) NOT NULL,
+    archive_key VARCHAR(80) NULL,
+    event_type VARCHAR(60) NOT NULL,
+    purpose VARCHAR(160) NOT NULL,
+    related_request_id BIGINT NULL,
+    remarks VARCHAR(500) NULL,
+    triggered_by VARCHAR(100) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_srfe_student (student_number, created_at),
+    KEY idx_srfe_archive (archive_key, created_at),
+    KEY idx_srfe_type (event_type, created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+ALTER TABLE academic_term_policies
+    ADD COLUMN IF NOT EXISTS midterm_exam_date DATE NULL;
+
+ALTER TABLE applicants
+    ADD COLUMN IF NOT EXISTS enrollment_type VARCHAR(30) NULL,
+    ADD COLUMN IF NOT EXISTS qualification_expires_at DATETIME NULL;
+
+ALTER TABLE student_ledger
+    ADD COLUMN IF NOT EXISTS sl_term_year VARCHAR(30) NULL;
+
 SET @pw_demo := '$2a$10$/l9Hb.SsSN5IBm7xyF/t4uen1KPG6uqBTxkF1hfczWNf9apIcOCKK';
 SET @term_id := 1;
 SET @term_code := 'SL_1120242025';

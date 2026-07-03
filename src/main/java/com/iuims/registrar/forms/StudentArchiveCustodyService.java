@@ -1,5 +1,6 @@
 package com.iuims.registrar.forms;
 
+import com.iuims.registrar.core.StudentProfileService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
@@ -10,10 +11,14 @@ import java.util.Map;
 public class StudentArchiveCustodyService {
 
     private final JdbcTemplate db;
+    private final StudentProfileService studentProfileService;
     private final StudentDocumentTrailService documentTrailService;
 
-    public StudentArchiveCustodyService(JdbcTemplate db, StudentDocumentTrailService documentTrailService) {
+    public StudentArchiveCustodyService(JdbcTemplate db,
+                                        StudentProfileService studentProfileService,
+                                        StudentDocumentTrailService documentTrailService) {
         this.db = db;
+        this.studentProfileService = studentProfileService;
         this.documentTrailService = documentTrailService;
     }
 
@@ -21,6 +26,7 @@ public class StudentArchiveCustodyService {
         db.execute("""
             CREATE TABLE IF NOT EXISTS student_archive_files (
                 student_number VARCHAR(100) PRIMARY KEY,
+                archive_key VARCHAR(80) NULL,
                 archive_status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE_FILE',
                 storage_location VARCHAR(160) NULL,
                 retention_policy_code VARCHAR(80) NOT NULL DEFAULT 'PERMANENT',
@@ -34,6 +40,7 @@ public class StudentArchiveCustodyService {
             CREATE TABLE IF NOT EXISTS student_archive_custody_events (
                 event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 student_number VARCHAR(100) NOT NULL,
+                archive_key VARCHAR(80) NULL,
                 event_type VARCHAR(50) NOT NULL,
                 actor VARCHAR(100) NULL,
                 counterpart VARCHAR(100) NULL,
@@ -42,9 +49,18 @@ public class StudentArchiveCustodyService {
                 remarks VARCHAR(500) NULL,
                 created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 KEY idx_sace_student_created (student_number, created_at),
+                KEY idx_sace_archive_created (archive_key, created_at),
                 KEY idx_sace_event_created (event_type, created_at)
             )
             """);
+        try {
+            db.execute("ALTER TABLE student_archive_files ADD COLUMN archive_key VARCHAR(80) NULL");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("ALTER TABLE student_archive_custody_events ADD COLUMN archive_key VARCHAR(80) NULL");
+        } catch (Exception ignored) {
+        }
         try {
             db.execute("ALTER TABLE student_archive_files ADD COLUMN retention_policy_code VARCHAR(80) NOT NULL DEFAULT 'PERMANENT'");
         } catch (Exception ignored) {
@@ -57,21 +73,21 @@ public class StudentArchiveCustodyService {
 
     public Map<String, Object> getSummary(String studentNumber) {
         ensureSchema();
-        String sn = clean(studentNumber, 100, "");
+        String sn = resolveStudentNumber(studentNumber);
         if (sn.isBlank()) return Map.of();
         ensureFileRow(sn);
         return db.queryForMap(
-            "SELECT student_number, archive_status, storage_location, retention_policy_code, retention_until, " +
+            "SELECT student_number, archive_key, archive_status, storage_location, retention_policy_code, retention_until, " +
                 "current_holder, last_action_at, updated_at FROM student_archive_files WHERE student_number = ?",
             sn);
     }
 
     public List<Map<String, Object>> listRecentEvents(String studentNumber) {
         ensureSchema();
-        String sn = clean(studentNumber, 100, "");
+        String sn = resolveStudentNumber(studentNumber);
         if (sn.isBlank()) return List.of();
         return db.queryForList(
-            "SELECT event_id, student_number, event_type, actor, counterpart, purpose, storage_location, remarks, created_at " +
+            "SELECT event_id, student_number, archive_key, event_type, actor, counterpart, purpose, storage_location, remarks, created_at " +
                 "FROM student_archive_custody_events WHERE student_number = ? ORDER BY created_at DESC, event_id DESC LIMIT 25",
             sn);
     }
@@ -84,16 +100,18 @@ public class StudentArchiveCustodyService {
                               String storageLocation,
                               String remarks) {
         ensureSchema();
-        String sn = clean(studentNumber, 100, "");
+        String sn = resolveStudentNumber(studentNumber);
         if (sn.isBlank()) return "ERROR: Student number is required.";
         ArchiveEvent event = normalizeEvent(eventType);
+        String archiveKey = studentProfileService.ensureArchiveKey(sn);
         ensureFileRow(sn);
 
         db.update(
             "INSERT INTO student_archive_custody_events " +
-                "(student_number, event_type, actor, counterpart, purpose, storage_location, remarks) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                "(student_number, archive_key, event_type, actor, counterpart, purpose, storage_location, remarks) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             sn,
+            cleanNullable(archiveKey, 80),
             event.code(),
             clean(actor, 100, "registrar"),
             cleanNullable(counterpart, 100),
@@ -104,8 +122,9 @@ public class StudentArchiveCustodyService {
         Long eventId = db.queryForObject("SELECT MAX(event_id) FROM student_archive_custody_events WHERE student_number = ?",
             Long.class, sn);
         db.update(
-            "UPDATE student_archive_files SET archive_status = ?, storage_location = COALESCE(NULLIF(?, ''), storage_location), " +
+            "UPDATE student_archive_files SET archive_key = COALESCE(archive_key, ?), archive_status = ?, storage_location = COALESCE(NULLIF(?, ''), storage_location), " +
                 "current_holder = ?, last_action_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE student_number = ?",
+            archiveKey,
             event.status(),
             clean(storageLocation, 160, ""),
             event.currentHolder(counterpart),
@@ -127,17 +146,31 @@ public class StudentArchiveCustodyService {
 
     private void ensureFileRow(String studentNumber) {
         try {
+            String sn = resolveStudentNumber(studentNumber);
+            if (sn.isBlank()) {
+                return;
+            }
+            String archiveKey = studentProfileService.ensureArchiveKey(sn);
             int updated = db.update(
-                "UPDATE student_archive_files SET updated_at = updated_at WHERE student_number = ?",
-                studentNumber);
+                "UPDATE student_archive_files SET archive_key = COALESCE(archive_key, ?), updated_at = updated_at WHERE student_number = ?",
+                archiveKey, sn);
             if (updated == 0) {
                 db.update(
-                    "INSERT INTO student_archive_files (student_number, archive_status, retention_policy_code) " +
-                        "VALUES (?, 'ACTIVE_FILE', 'PERMANENT')",
-                    studentNumber);
+                    "INSERT INTO student_archive_files (student_number, archive_key, archive_status, retention_policy_code) " +
+                        "VALUES (?, ?, 'ACTIVE_FILE', 'PERMANENT')",
+                    sn, archiveKey);
             }
         } catch (Exception ignored) {
         }
+    }
+
+    private String resolveStudentNumber(String studentNumber) {
+        String sn = clean(studentNumber, 100, "");
+        if (sn.isBlank()) {
+            return "";
+        }
+        String resolved = studentProfileService.resolveCurrentStudentNumber(sn);
+        return resolved != null ? resolved : sn;
     }
 
     private ArchiveEvent normalizeEvent(String eventType) {

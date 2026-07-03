@@ -16,6 +16,9 @@ import java.util.Map;
 @Controller
 @RequestMapping("/admin/finance-policy")
 public class FinancePolicyController {
+    private static final boolean FINANCE_OWNERSHIP_READ_ONLY = true;
+    private static final String FINANCE_OWNERSHIP_NOTICE =
+        "Finance Policy is read-only in Registrar. Enrollment3 Accounting/Cashier owns fee and payment policy authoring.";
 
     private final FinancePolicyService financePolicyService;
     private final YearLevelLoadPolicyService yearLevelLoadPolicyService;
@@ -34,6 +37,8 @@ public class FinancePolicyController {
         Map<String, Object> view = financePolicyService.buildPolicyView(installmentTermId);
         model.addAllAttributes(view);
         model.addAttribute("yearLevelLoadPolicies", yearLevelLoadPolicyService.listPolicies());
+        model.addAttribute("financeOwnershipReadOnly", FINANCE_OWNERSHIP_READ_ONLY);
+        model.addAttribute("financeOwnershipNotice", FINANCE_OWNERSHIP_NOTICE);
         return "admin_finance_policy";
     }
 
@@ -43,9 +48,12 @@ public class FinancePolicyController {
                                      HttpSession session,
                                      RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        if (FINANCE_OWNERSHIP_READ_ONLY) {
+            return redirectReadOnly(installmentTermId, ra);
+        }
         try {
             yearLevelLoadPolicyService.savePolicies(params);
-            ra.addFlashAttribute("successMessage", "Year-level unit load policy saved.");
+            ra.addFlashAttribute("successMessage", "Legacy year-level unit load table saved. Live limits still come from assigned curricula.");
         } catch (IllegalArgumentException e) {
             ra.addFlashAttribute("errorMessage", e.getMessage());
         }
@@ -58,6 +66,9 @@ public class FinancePolicyController {
                             HttpSession session,
                             RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        if (FINANCE_OWNERSHIP_READ_ONLY) {
+            return redirectReadOnly(installmentTermId, ra);
+        }
         financePolicyService.savePaymentGates(params);
         ra.addFlashAttribute("successMessage", "Payment gates saved.");
         return redirect(installmentTermId);
@@ -69,6 +80,9 @@ public class FinancePolicyController {
                            HttpSession session,
                            RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        if (FINANCE_OWNERSHIP_READ_ONLY) {
+            return redirectReadOnly(installmentTermId, ra);
+        }
         financePolicyService.saveEnrollmentRules(params);
         ra.addFlashAttribute("successMessage", "Enrollment rules saved.");
         return redirect(installmentTermId);
@@ -82,6 +96,9 @@ public class FinancePolicyController {
                                    HttpSession session,
                                    RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        if (FINANCE_OWNERSHIP_READ_ONLY) {
+            return redirectReadOnly(installmentTermId, ra);
+        }
         List<FinancePolicyService.InstallmentRow> rows =
             FinancePolicyService.parseInstallmentRows(instNumber, instDueMonths, instLabel);
         int saved = financePolicyService.saveInstallmentPlan(installmentTermId, rows);
@@ -97,6 +114,9 @@ public class FinancePolicyController {
                                    HttpSession session,
                                    RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        if (FINANCE_OWNERSHIP_READ_ONLY) {
+            return redirectReadOnly(targetTermId, ra);
+        }
         Integer source = "default".equals(copyMode) ? null : sourceTermId;
         if ("previous".equals(copyMode)) {
             source = financePolicyService.resolvePreviousTermId(targetTermId);
@@ -114,5 +134,10 @@ public class FinancePolicyController {
         return installmentTermId != null
             ? "redirect:/admin/finance-policy?installmentTermId=" + installmentTermId
             : "redirect:/admin/finance-policy";
+    }
+
+    private String redirectReadOnly(Integer installmentTermId, RedirectAttributes ra) {
+        ra.addFlashAttribute("errorMessage", FINANCE_OWNERSHIP_NOTICE);
+        return redirect(installmentTermId);
     }
 }

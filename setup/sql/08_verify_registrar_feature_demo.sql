@@ -1,5 +1,40 @@
 USE eacdb;
 
+SELECT 'REGISTRAR CONTRACT SUMMARY' AS check_name,
+       CASE
+           WHEN (
+               SELECT COUNT(*)
+               FROM information_schema.TABLES
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND table_name IN (
+                     'student_identity_archive',
+                     'student_number_release_registry',
+                     'student_archive_files',
+                     'student_archive_custody_events',
+                     'grade_record_events',
+                     'transfer_credit_requests'
+                 )
+           ) = 6
+            AND (
+               SELECT COUNT(*)
+               FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'grade_change_requests'
+                 AND column_name IN ('reviewed_by', 'review_note', 'rejected_at')
+           ) = 3
+           THEN 'PASS: registrar governance tables and grade review columns are present'
+           ELSE 'FAIL: registrar governance schema is incomplete'
+       END AS status;
+
+SELECT 'GRADE RECORD EVENTS' AS check_name, COUNT(*) AS cnt
+FROM grade_record_events;
+
+SELECT 'ARCHIVE CUSTODY EVENTS' AS check_name, COUNT(*) AS cnt
+FROM student_archive_custody_events;
+
+SELECT 'RELEASE REGISTRY ROWS' AS check_name, COUNT(*) AS cnt
+FROM student_number_release_registry;
+
 SELECT student_number, real_name, program_code, year_level, semester, student_type,
        enrollment_status_type, admission_status, term_year
 FROM students

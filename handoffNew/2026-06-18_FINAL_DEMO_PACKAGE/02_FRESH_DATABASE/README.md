@@ -30,8 +30,8 @@ $env:EAC_DB_PASSWORD = ""
 |---|---|
 | `01_SCHEMA` | Canonical base schema and seed |
 | `02_CONTRACTS` | Enlistment lifecycle and exact fee schema contracts |
-| `03_ACADEMIC_MASTER` | Full curricula, terms, retirements, sections, schedules, faculty, and schedule cleanup |
+| `03_ACADEMIC_MASTER` | Full curricula, terms, retirements, sections, schedules, faculty, and active-term schedule normalization |
 | `04_TERM_AND_FEES` | Active term and exact fee materialization |
 | `05_VERIFICATION` | Read-only post-bootstrap readiness report |
 
-The final SQL step is read-only. Expected active term is `1120242025` and active-term fee gaps should be zero for the demo dataset.
+The final SQL step is read-only. Expected active term is `1120242025`, active-term fee gaps should be zero, and the active-term schedules should end with concrete room/faculty assignments and zero unscheduled sections for the demo dataset.

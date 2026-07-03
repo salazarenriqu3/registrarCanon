@@ -34,6 +34,7 @@ DROP TABLE IF EXISTS student_scholarships;
 DROP TABLE IF EXISTS scholarship_types;
 DROP TABLE IF EXISTS student_archive_custody_events;
 DROP TABLE IF EXISTS student_archive_files;
+DROP TABLE IF EXISTS student_identity_archive;
 DROP TABLE IF EXISTS student_document_events;
 DROP TABLE IF EXISTS payments;
 DROP TABLE IF EXISTS applicant_payments;
@@ -81,10 +82,23 @@ CREATE TABLE system_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE audit_logs (
-    log_id   INT AUTO_INCREMENT PRIMARY KEY,
-    admin_id INT,
-    action   VARCHAR(255),
-    log_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    log_id         INT AUTO_INCREMENT PRIMARY KEY,
+    admin_id       INT NULL,
+    actor_username VARCHAR(100) NULL,
+    actor_role     VARCHAR(50) NULL,
+    module_name    VARCHAR(80) NULL,
+    action_name    VARCHAR(100) NULL,
+    target_type    VARCHAR(80) NULL,
+    target_key     VARCHAR(120) NULL,
+    summary        VARCHAR(255) NULL,
+    details        TEXT NULL,
+    source_table   VARCHAR(80) NULL,
+    source_id      VARCHAR(120) NULL,
+    action         VARCHAR(255) NULL,
+    log_date       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_audit_actor_date (actor_username, log_date),
+    KEY idx_audit_module_date (module_name, log_date),
+    KEY idx_audit_target_date (target_type, target_key, log_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE sys_users (
@@ -471,7 +485,7 @@ CREATE TABLE rooms (
 
 CREATE TABLE courses (
     course_id                     INT AUTO_INCREMENT PRIMARY KEY,
-    course_code                   VARCHAR(20)  NOT NULL UNIQUE,
+    course_code                   VARCHAR(40)  NOT NULL UNIQUE,
     course_title                  VARCHAR(100) NOT NULL,
     department_id                 INT NOT NULL,
     description                   TEXT,
@@ -479,6 +493,9 @@ CREATE TABLE courses (
     lec_units                     INT NOT NULL DEFAULT 0,
     lecture_units                 INT          DEFAULT NULL,
     lab_units                     INT NOT NULL DEFAULT 0,
+    component_type                VARCHAR(10)  NOT NULL DEFAULT 'SINGLE',
+    course_family_code            VARCHAR(40)  DEFAULT NULL,
+    parent_course_id              INT          DEFAULT NULL,
     lecture_hours_per_week        INT          DEFAULT 3,
     lab_hours_per_week            INT          DEFAULT 0,
     max_students                  INT          DEFAULT 40,
@@ -487,6 +504,8 @@ CREATE TABLE courses (
     coordinator_equivalent_units  INT          DEFAULT NULL,
     active_status                 TINYINT(1)   DEFAULT 1,
     onlist                        TINYINT(1) GENERATED ALWAYS AS (active_status) STORED,
+    KEY idx_courses_family (course_family_code),
+    KEY idx_courses_component (component_type),
     CONSTRAINT fk_course_dept FOREIGN KEY (department_id) REFERENCES departments(department_id),
     CONSTRAINT chk_coordinator CHECK (
         is_coordinator_based = 0 AND coordinator_equivalent_units IS NULL
@@ -534,6 +553,8 @@ CREATE TABLE student_enlistments (
     enlisted_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     KEY idx_se_student_course (student_id, course_id),
     KEY idx_se_student (student_id),
+    KEY idx_se_course_status (course_id, enlistment_status),
+    KEY idx_se_section_status (section_id, enlistment_status),
     CONSTRAINT fk_se_course FOREIGN KEY (course_id) REFERENCES courses(course_id),
     CONSTRAINT fk_se_section FOREIGN KEY (section_id) REFERENCES class_sections(section_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
@@ -8248,6 +8269,7 @@ CREATE TABLE IF NOT EXISTS students (
     student_number          VARCHAR(100) NOT NULL PRIMARY KEY,
     user_id                 INT          DEFAULT NULL,
     reference_number        VARCHAR(100) DEFAULT NULL,
+    archive_key             VARCHAR(80)  DEFAULT NULL,
     first_name              VARCHAR(100) DEFAULT NULL,
     last_name               VARCHAR(100) DEFAULT NULL,
     middle_name             VARCHAR(100) DEFAULT NULL,
@@ -8339,6 +8361,7 @@ ON DUPLICATE KEY UPDATE
 CREATE TABLE IF NOT EXISTS student_document_events (
     event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     student_number VARCHAR(100) NULL,
+    archive_key VARCHAR(80) NULL,
     reference_number VARCHAR(100) NULL,
     document_scope VARCHAR(40) NOT NULL,
     document_type VARCHAR(60) NOT NULL,
@@ -8351,13 +8374,57 @@ CREATE TABLE IF NOT EXISTS student_document_events (
     source_id VARCHAR(80) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_sdet_student_created (student_number, created_at),
+    KEY idx_sdet_archive_created (archive_key, created_at),
     KEY idx_sdet_ref_created (reference_number, created_at),
     KEY idx_sdet_scope_created (document_scope, created_at),
     KEY idx_sdet_type_created (document_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE IF NOT EXISTS student_identity_archive (
+    archive_key VARCHAR(80) NOT NULL PRIMARY KEY,
+    archived_student_number VARCHAR(100) NOT NULL,
+    reference_number VARCHAR(100) NULL,
+    first_name VARCHAR(100) NULL,
+    middle_name VARCHAR(100) NULL,
+    last_name VARCHAR(100) NULL,
+    real_name VARCHAR(200) NULL,
+    email VARCHAR(150) NULL,
+    mobile VARCHAR(50) NULL,
+    program_code VARCHAR(100) NULL,
+    year_level INT NULL,
+    semester INT NULL,
+    term_year VARCHAR(50) NULL,
+    student_type VARCHAR(50) NULL,
+    admission_status VARCHAR(50) NULL,
+    status VARCHAR(50) NULL,
+    archive_status VARCHAR(50) NOT NULL DEFAULT 'WITHDRAWN_RECORD',
+    archived_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    archived_by VARCHAR(100) NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_sia_student_number (archived_student_number),
+    KEY idx_sia_reference (reference_number),
+    KEY idx_sia_real_name (real_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS student_number_release_registry (
+    released_student_number VARCHAR(100) NOT NULL PRIMARY KEY,
+    archive_key VARCHAR(80) NOT NULL,
+    release_status VARCHAR(30) NOT NULL DEFAULT 'AVAILABLE',
+    released_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    released_by VARCHAR(100) NULL,
+    release_note VARCHAR(500) NULL,
+    reissued_reference_number VARCHAR(100) NULL,
+    reissued_student_number VARCHAR(100) NULL,
+    reissued_at TIMESTAMP NULL,
+    reissued_by VARCHAR(100) NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_snrr_archive (archive_key),
+    KEY idx_snrr_status_released (release_status, released_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS student_archive_files (
     student_number VARCHAR(100) PRIMARY KEY,
+    archive_key VARCHAR(80) NULL,
     archive_status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE_FILE',
     storage_location VARCHAR(160) NULL,
     retention_policy_code VARCHAR(80) NOT NULL DEFAULT 'PERMANENT',
@@ -8370,6 +8437,7 @@ CREATE TABLE IF NOT EXISTS student_archive_files (
 CREATE TABLE IF NOT EXISTS student_archive_custody_events (
     event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
     student_number VARCHAR(100) NOT NULL,
+    archive_key VARCHAR(80) NULL,
     event_type VARCHAR(50) NOT NULL,
     actor VARCHAR(100) NULL,
     counterpart VARCHAR(100) NULL,
@@ -8378,6 +8446,7 @@ CREATE TABLE IF NOT EXISTS student_archive_custody_events (
     remarks VARCHAR(500) NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     KEY idx_sace_student_created (student_number, created_at),
+    KEY idx_sace_archive_created (archive_key, created_at),
     KEY idx_sace_event_created (event_type, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
@@ -8919,7 +8988,42 @@ CREATE TABLE IF NOT EXISTS grade_change_requests (
     status          VARCHAR(30) DEFAULT 'PENDING',
     request_date    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     applied_action  VARCHAR(80) NULL,
-    approved_at     TIMESTAMP NULL
+    approved_at     TIMESTAMP NULL,
+    reviewed_by     VARCHAR(100) NULL,
+    review_note     VARCHAR(500) NULL,
+    rejected_at     TIMESTAMP NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS grade_record_events (
+    event_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    grade_id BIGINT NOT NULL,
+    request_id BIGINT NULL,
+    student_id VARCHAR(100) NULL,
+    student_name VARCHAR(100) NULL,
+    course_id INT NULL,
+    course_code VARCHAR(20) NULL,
+    section_id INT NULL,
+    section_code VARCHAR(50) NULL,
+    term_id INT NULL,
+    term_label VARCHAR(40) NULL,
+    action_type VARCHAR(60) NOT NULL,
+    lifecycle_status VARCHAR(30) NOT NULL,
+    actor VARCHAR(100) NULL,
+    actor_role VARCHAR(50) NULL,
+    reason VARCHAR(500) NULL,
+    component_before VARCHAR(120) NULL,
+    component_after VARCHAR(120) NULL,
+    official_grade_before DECIMAL(5,2) NULL,
+    official_grade_after DECIMAL(5,2) NULL,
+    official_remarks_before VARCHAR(30) NULL,
+    official_remarks_after VARCHAR(30) NULL,
+    grade_lock_status_before VARCHAR(30) NULL,
+    grade_lock_status_after VARCHAR(30) NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_gre_grade_created (grade_id, created_at),
+    KEY idx_gre_student_created (student_id, created_at),
+    KEY idx_gre_term_action (term_id, action_type, created_at),
+    KEY idx_gre_lifecycle_created (lifecycle_status, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 DROP VIEW IF EXISTS student_grades;
@@ -8991,7 +9095,11 @@ INSERT IGNORE INTO sys_users (username, password, real_name, role, is_active, st
 ('admin',   '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'System Administrator', 'Admin',   1, 'ACTIVE'),
 ('cashier', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Enrollment Cashier',   'Cashier', 1, 'ACTIVE'),
 ('faculty', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Faculty Demo',         'Faculty', 1, 'ACTIVE'),
-('prof',    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Professor Demo',       'Faculty', 1, 'ACTIVE');
+('prof',    '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Professor Demo',       'Faculty', 1, 'ACTIVE'),
+('registrar.main',     '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Registrar Main',      'Registrar', 1, 'ACTIVE'),
+('registrar.records',  '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Registrar Records',   'Registrar', 1, 'ACTIVE'),
+('registrar.scholar',  '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Registrar Scholarship','Registrar', 1, 'ACTIVE'),
+('registrar.schedule', '$2a$10$N.zmdr9k7uOCQb376NoUnuTJ8iAt6Z5EhsLkT/Oh.reShMkwpfpJ2', 'Registrar Scheduling','Registrar', 1, 'ACTIVE');
 
 -- ---------------------------------------------------------------------------
 -- 10. Verification

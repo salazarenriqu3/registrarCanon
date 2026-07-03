@@ -17,6 +17,7 @@ import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.core.PolicySettings;
 import com.iuims.registrar.core.EnlistmentSchemaService;
 import com.iuims.registrar.forms.RegFormEventService;
+import com.iuims.registrar.withdrawal.WithdrawalService;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -49,14 +50,21 @@ public class JaypeeIntegrationService {
 
     private final RegFormEventService regFormEventService;
 
+    private final WithdrawalService withdrawalService;
+
     @Autowired
-    public JaypeeIntegrationService(JdbcTemplate db, ScholarEnrollmentService scholarEnrollmentService, EnlistmentSchemaService enlistmentSchemaService, ApplicantStatusSyncService applicantStatusSyncService, StudentCurriculumService studentCurriculumService, RegFormEventService regFormEventService) {
+    public JaypeeIntegrationService(JdbcTemplate db, ScholarEnrollmentService scholarEnrollmentService, EnlistmentSchemaService enlistmentSchemaService, ApplicantStatusSyncService applicantStatusSyncService, StudentCurriculumService studentCurriculumService, RegFormEventService regFormEventService, WithdrawalService withdrawalService) {
         this.db = db;
         this.scholarEnrollmentService = scholarEnrollmentService;
         this.enlistmentSchemaService = enlistmentSchemaService;
         this.applicantStatusSyncService = applicantStatusSyncService;
         this.studentCurriculumService = studentCurriculumService;
         this.regFormEventService = regFormEventService;
+        this.withdrawalService = withdrawalService;
+    }
+
+    public JaypeeIntegrationService(JdbcTemplate db, ScholarEnrollmentService scholarEnrollmentService, EnlistmentSchemaService enlistmentSchemaService, ApplicantStatusSyncService applicantStatusSyncService, StudentCurriculumService studentCurriculumService, RegFormEventService regFormEventService) {
+        this(db, scholarEnrollmentService, enlistmentSchemaService, applicantStatusSyncService, studentCurriculumService, regFormEventService, null);
     }
 
     public JaypeeIntegrationService(JdbcTemplate db, ScholarEnrollmentService scholarEnrollmentService, EnlistmentSchemaService enlistmentSchemaService, ApplicantStatusSyncService applicantStatusSyncService, StudentCurriculumService studentCurriculumService) {
@@ -81,6 +89,23 @@ public class JaypeeIntegrationService {
                 "SELECT COUNT(*) FROM students WHERE student_number = ?",
                 Integer.class, studentNumber);
             return count != null && count > 0;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isWithdrawnOrBlockedStudent(String studentNumber) {
+        try {
+            Map<String, Object> row = db.queryForMap(
+                "SELECT admission_status, COALESCE(enrollment_blocked, 0) AS enrollment_blocked, " +
+                    "COALESCE(is_active, 1) AS is_active " +
+                    "FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber);
+            String status = row.get("admission_status") != null
+                ? String.valueOf(row.get("admission_status")) : "";
+            boolean blocked = row.get("enrollment_blocked") instanceof Number n && n.intValue() != 0;
+            boolean inactive = row.get("is_active") instanceof Number n && n.intValue() == 0;
+            return "WITHDRAWN".equalsIgnoreCase(status) || blocked || inactive;
         } catch (Exception e) {
             return false;
         }
@@ -179,6 +204,7 @@ public class JaypeeIntegrationService {
     public List<Map<String, Object>> getStudentLoad(String studentNumber) {
         try {
             if (!checkStudentExists(studentNumber)) return new ArrayList<>();
+            if (isWithdrawnOrBlockedStudent(studentNumber)) return new ArrayList<>();
 
             List<Object> keys = readKeys(studentNumber);
             String in = inClause("se.student_id", keys.size());
@@ -240,6 +266,7 @@ public class JaypeeIntegrationService {
     public List<Map<String, Object>> getCrossSystemAnalyzedOfferings(String studentNumber, boolean isBlockEnroll) {
         try {
             if (!checkStudentExists(studentNumber)) return new ArrayList<>();
+            if (isWithdrawnOrBlockedStudent(studentNumber)) return new ArrayList<>();
 
             Map<String, Object> userInfo = db.queryForMap(
                 "SELECT program_code, year_level, semester FROM students WHERE student_number = ?", studentNumber);
@@ -299,7 +326,8 @@ public class JaypeeIntegrationService {
                         : db.queryForList(sql, programCode, stuYear, stuSem);
                 }
             } else {
-                // Correlated subquery fetches the first prerequisite; c.onlist = 1 gates visibility.
+                // Irregular/manual add can reach across year levels, but only within the
+                // student's current semester in the assigned curriculum.
                 sql = "SELECT cs.section_id as schedule_id, c.course_id, c.course_code, " +
                       "c.course_title as description, c.credit_units as units, cs.section_code as section, cs.term_id, " +
                       "(SELECT cp.prerequisite_course_id FROM course_prerequisites cp " +
@@ -313,19 +341,20 @@ public class JaypeeIntegrationService {
                       curriculumJoin +
                       "JOIN programs p ON ct.program_id = p.program_id " +
                       "LEFT JOIN class_schedules sch ON cs.section_id = sch.section_id " +
-                      "WHERE p.program_code = ? AND COALESCE(c.onlist, c.active_status, 1) = 1 " +
+                      "WHERE p.program_code = ? AND cc.semester_number = ? " +
+                      "AND COALESCE(c.onlist, c.active_status, 1) = 1 " +
                       (currentTermId != null ? "AND cs.term_id = ? " : "") +
                       "GROUP BY cs.section_id, c.course_id, c.course_code, c.course_title, c.credit_units, cs.term_id, " +
                       "  cs.section_code, cs.max_capacity, cc.year_level, cc.semester_number " +
                       "ORDER BY cc.year_level, cc.semester_number, c.course_code";
                 if (currentTermId != null) {
                     classes = assignedCurriculumId != null
-                        ? db.queryForList(sql, assignedCurriculumId, programCode, currentTermId)
-                        : db.queryForList(sql, programCode, currentTermId);
+                        ? db.queryForList(sql, assignedCurriculumId, programCode, stuSem, currentTermId)
+                        : db.queryForList(sql, programCode, stuSem, currentTermId);
                 } else {
                     classes = assignedCurriculumId != null
-                        ? db.queryForList(sql, assignedCurriculumId, programCode)
-                        : db.queryForList(sql, programCode);
+                        ? db.queryForList(sql, assignedCurriculumId, programCode, stuSem)
+                        : db.queryForList(sql, programCode, stuSem);
                 }
             }
 
@@ -454,6 +483,9 @@ public class JaypeeIntegrationService {
 
         try {
             if (!checkStudentExists(sn)) return "ERROR: Student not found.";
+            if (isWithdrawnOrBlockedStudent(sn)) {
+                return "ERROR: Withdrawn or inactive students cannot be shifted.";
+            }
             Integer programCount = db.queryForObject(
                 "SELECT COUNT(*) FROM programs WHERE program_code = ? AND COALESCE(active_status, 1) = 1",
                 Integer.class, program);
@@ -474,25 +506,23 @@ public class JaypeeIntegrationService {
                 "SELECT program_code, year_level, semester, term_year FROM students WHERE student_number = ? LIMIT 1",
                 sn);
             String fromProgram = student.get("program_code") != null ? student.get("program_code").toString() : "N/A";
-            int yearLevel = sanitizeAcademicNumber(targetYearLevel,
+            int yearLevel = sanitizeAcademicNumber(
+                targetYearLevel,
                 student.get("year_level") != null ? ((Number) student.get("year_level")).intValue() : 1,
-                1, 6);
-            int semester = sanitizeAcademicNumber(targetSemester,
+                1,
+                6);
+            int semester = sanitizeAcademicNumber(
+                targetSemester,
                 student.get("semester") != null ? ((Number) student.get("semester")).intValue() : 1,
-                1, 3);
+                1,
+                3);
             String currentTermYear = student.get("term_year") != null ? student.get("term_year").toString() : null;
             String shiftedTermYear = rewriteSlTermYear(currentTermYear, yearLevel, semester);
 
             db.update(
-                "UPDATE students SET program_code = ?, year_level = ?, semester = ?, term_year = ?, " +
-                    "student_type = 'Irregular', admission_status = COALESCE(NULLIF(admission_status, ''), 'ENROLLED') " +
-                    "WHERE student_number = ?",
-                program, yearLevel, semester, shiftedTermYear, sn);
-            db.update(
-                "UPDATE sys_users SET program_code = ?, year_level = ?, semester = ?, term_year = ?, " +
-                    "student_type = 'Irregular', admission_status = COALESCE(NULLIF(admission_status, ''), 'ENROLLED') " +
-                    "WHERE username = ?",
-                program, yearLevel, semester, shiftedTermYear, sn);
+                "UPDATE students SET program_code = ?, year_level = ?, semester = ?, term_year = ?, student_type = ? WHERE student_number = ?",
+                program, yearLevel, semester, shiftedTermYear, "Irregular", sn);
+            syncShiftedSysUser(sn, program, yearLevel, semester, shiftedTermYear);
 
             studentCurriculumService.assignCurriculum(
                 sn,
@@ -502,6 +532,7 @@ public class JaypeeIntegrationService {
                     ? reason.trim()
                     : "Assigned during registrar program shift.");
 
+            int clearedCurrentLoad = clearCurrentTermLoadForShift(sn, reason);
             Map<String, Object> carryOver = studentCurriculumService.getShiftCarryOverSummary(sn);
             int carried = carryOver.get("carriedOverCount") instanceof Number n ? n.intValue() : 0;
             int orphans = carryOver.get("orphanCount") instanceof Number n ? n.intValue() : 0;
@@ -529,9 +560,40 @@ public class JaypeeIntegrationService {
                 " as Irregular. Assigned curriculum " + destinationCurriculumId +
                 ". Carry-over: " + carried + " matched, " + orphans + " orphan passed, " +
                 deficiencies + " still required." +
-                " Cleared " + clearedStaged + " staged current-term enlistment(s)." + note;
+                " Cleared " + clearedCurrentLoad + " enrolled and " + clearedStaged +
+                " staged current-term enlistment(s)." + note;
         } catch (Exception e) {
             return "ERROR: Program shift failed. " + e.getMessage();
+        }
+    }
+
+    private int clearCurrentTermLoadForShift(String studentNumber, String reason) {
+        if (withdrawalService == null) return 0;
+        String note = reason != null && !reason.trim().isEmpty()
+            ? "Program shift load cleanup. " + reason.trim()
+            : "Program shift load cleanup.";
+        WithdrawalService.DirectDropResult result =
+            withdrawalService.clearCurrentTermLoadForProgramShift(studentNumber, note, "registrar");
+        return result.subjectsDropped();
+    }
+
+    private void syncShiftedSysUser(String studentNumber,
+                                    String programCode,
+                                    int yearLevel,
+                                    int semester,
+                                    String termYear) {
+        try {
+            db.update(
+                "UPDATE sys_users SET program_code = ?, year_level = ?, semester = ?, term_year = ?, " +
+                    "student_type = ?, enrollment_status_type = ? WHERE username = ?",
+                programCode, yearLevel, semester, termYear, "Irregular", "Irregular", studentNumber
+            );
+        } catch (Exception ex) {
+            db.update(
+                "UPDATE sys_users SET program_code = ?, year_level = ?, semester = ?, term_year = ?, student_type = ? " +
+                    "WHERE username = ?",
+                programCode, yearLevel, semester, termYear, "Irregular", studentNumber
+            );
         }
     }
 
@@ -576,6 +638,7 @@ public class JaypeeIntegrationService {
                                                                String searchQuery) {
         try {
             if (!checkStudentExists(studentNumber)) return new ArrayList<>();
+            if (isWithdrawnOrBlockedStudent(studentNumber)) return new ArrayList<>();
 
             Map<String, Object> userInfo = db.queryForMap(
                 "SELECT program_code, year_level, semester FROM students WHERE student_number = ?", studentNumber);
@@ -634,8 +697,9 @@ public class JaypeeIntegrationService {
                 courseParams.add(like);
             }
             if (curriculumFilterId != null) {
-                where.append(" AND ct.curriculum_id = ? ");
+                where.append(" AND ct.curriculum_id = ? AND cc.semester_number = ? ");
                 courseParams.add(curriculumFilterId);
+                courseParams.add(stuSem);
             } else {
                 where.append(" AND 1 = 0 ");
             }
@@ -735,8 +799,8 @@ public class JaypeeIntegrationService {
         }
     }
 
-    private static boolean isBlockSectionCode(String sectionCode) {
-        return sectionCode != null && sectionCode.matches("^[A-Z]+-\\d+-\\d+-[A-Z]$");
+    private static boolean isLegacyIrregularSectionCode(String sectionCode) {
+        return sectionCode != null && sectionCode.trim().toUpperCase().startsWith("IRREG");
     }
 
     private static String normalizeOfferingFilter(String value) {
@@ -754,6 +818,9 @@ public class JaypeeIntegrationService {
     public String addSubjectCrossSystem(String studentNumber, int passedId, boolean allowBlockSection) {
         try {
             if (!checkStudentExists(studentNumber)) return "ERROR: Student not found.";
+            if (isWithdrawnOrBlockedStudent(studentNumber)) {
+                return "ERROR: Withdrawn or inactive students cannot be enrolled in subjects.";
+            }
 
             Map<String, Object> userInfo = db.queryForMap(
                 "SELECT program_code, year_level, semester FROM students WHERE student_number = ?", studentNumber);
@@ -789,12 +856,15 @@ public class JaypeeIntegrationService {
             Integer courseId = ((Number) classData.get("course_id")).intValue();
             Integer sectionId = ((Number) classData.get("section_id")).intValue();
 
+            if (!isCourseInAssignedCurriculumSemester(studentNumber, courseId, stuSem)) {
+                return "ERROR: Course is not available in the student's current curriculum semester.";
+            }
+
             String sectionCode = db.queryForObject(
                 "SELECT section_code FROM class_sections WHERE section_id = ? LIMIT 1",
                 String.class, sectionId);
-            if (!allowBlockSection && isBlockSectionCode(sectionCode)) {
-                return "ERROR: Manual add cannot use block section " + sectionCode
-                    + ". Use Enrollment block enlist for regular loads or pick an open section for irregular students.";
+            if (isLegacyIrregularSectionCode(sectionCode)) {
+                return "ERROR: Legacy irregular open sections are retired. Use a block section, or a summer/tutorial section if applicable.";
             }
 
             List<Object> keys = readKeys(studentNumber);
@@ -826,7 +896,7 @@ public class JaypeeIntegrationService {
             String courseCode = (String) courseInfo.get("course_code");
             Double units = ((Number) courseInfo.get("units")).doubleValue();
 
-            double maxAllowedUnits = scholarEnrollmentService.getMaxAllowedUnits(programCode, stuYear);
+            double maxAllowedUnits = scholarEnrollmentService.getMaxAllowedUnitsForStudent(studentNumber, programCode, stuYear);
 
             Double currentUnits = sumCurrentTermUnits(studentNumber);
 
@@ -1006,6 +1076,25 @@ public class JaypeeIntegrationService {
             int max = row.get("max_capacity") != null ? ((Number) row.get("max_capacity")).intValue() : 40;
             int enrolled = row.get("enrolled") != null ? ((Number) row.get("enrolled")).intValue() : 0;
             return enrolled >= max;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean isCourseInAssignedCurriculumSemester(String studentNumber, int courseId, int semesterNumber) {
+        Integer curriculumId = studentCurriculumService.findCurrentCurriculumId(studentNumber);
+        if (curriculumId == null) {
+            return false;
+        }
+        try {
+            Integer count = db.queryForObject(
+                "SELECT COUNT(*) FROM curriculum_courses " +
+                    "WHERE curriculum_id = ? AND course_id = ? AND semester_number = ?",
+                Integer.class,
+                curriculumId,
+                courseId,
+                semesterNumber);
+            return count != null && count > 0;
         } catch (Exception e) {
             return false;
         }

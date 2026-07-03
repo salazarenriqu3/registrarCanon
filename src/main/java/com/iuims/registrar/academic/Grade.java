@@ -53,6 +53,15 @@ public class Grade {
     @Column(name = "registrar_finalized_at")
     private LocalDateTime registrarFinalizedAt;
 
+    @Column(name = "curriculum_year")
+    private Integer curriculumYear;
+
+    @Column(name = "grade")
+    private Double grade;
+
+    @Column(name = "date_recorded")
+    private LocalDateTime dateRecorded;
+
     @Column(name = "status")
     private String status;
 
@@ -105,6 +114,15 @@ public class Grade {
 
     public LocalDateTime getRegistrarFinalizedAt() { return registrarFinalizedAt; }
     public void setRegistrarFinalizedAt(LocalDateTime registrarFinalizedAt) { this.registrarFinalizedAt = registrarFinalizedAt; }
+
+    public Integer getCurriculumYear() { return curriculumYear; }
+    public void setCurriculumYear(Integer curriculumYear) { this.curriculumYear = curriculumYear; }
+
+    public Double getGrade() { return grade; }
+    public void setGrade(Double grade) { this.grade = grade; }
+
+    public LocalDateTime getDateRecorded() { return dateRecorded; }
+    public void setDateRecorded(LocalDateTime dateRecorded) { this.dateRecorded = dateRecorded; }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

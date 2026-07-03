@@ -40,6 +40,11 @@ import java.util.Map;
 
 public class TermFeeAdminController {
 
+    private static final boolean FEE_OWNERSHIP_READ_ONLY = true;
+
+    private static final String FEE_OWNERSHIP_NOTICE =
+        "Program fee authoring is read-only in Registrar. Enrollment3 Accounting/Cashier owns official term fee maintenance.";
+
 
 
     @Autowired
@@ -87,6 +92,10 @@ public class TermFeeAdminController {
         m.addAttribute("yearLevel", yearLevel);
 
         m.addAttribute("semester", semester);
+
+        m.addAttribute("feeOwnershipReadOnly", FEE_OWNERSHIP_READ_ONLY);
+
+        m.addAttribute("feeOwnershipNotice", FEE_OWNERSHIP_NOTICE);
 
         m.addAttribute("termReadiness", termFeeAdminService.buildTermReadinessSummary(effectiveTermId));
 
@@ -186,6 +195,8 @@ public class TermFeeAdminController {
 
         if (s.getAttribute("currentUser") == null) return "redirect:/login";
 
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(termId, programCode, yearLevel, semester);
+
         String prog = programCode != null ? programCode.trim().toUpperCase() : null;
 
         Integer programId = prog != null ? termFeeAdminService.resolveProgramId(prog) : null;
@@ -254,6 +265,8 @@ public class TermFeeAdminController {
 
         if (s.getAttribute("currentUser") == null) return "redirect:/login";
 
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(targetTermId, programCode, yearLevel, semester);
+
         if (sourceTermId == null || targetTermId == null) return "redirect:/admin/term-fees";
 
 
@@ -295,6 +308,8 @@ public class TermFeeAdminController {
                               HttpSession s) {
 
         if (s.getAttribute("currentUser") == null) return "redirect:/login";
+
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(targetTermId, programCode, yearLevel, semester);
 
         if (sourceTermId == null || targetTermId == null) return "redirect:/admin/term-fees";
 
@@ -340,6 +355,8 @@ public class TermFeeAdminController {
 
                                        HttpSession s) {
 
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(targetTermId, programCode, yearLevel, semester);
+
         if ("all".equals(importScope)) {
 
             return importGlobal(sourceTermId, targetTermId, programCode, yearLevel, semester, s);
@@ -368,6 +385,8 @@ public class TermFeeAdminController {
 
                                 HttpSession s) {
 
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(termId, programCode, yearLevel, semester);
+
         Integer prev = termFeeAdminService.resolvePreviousTermId(termId);
 
         if (prev == null) return "redirect:/admin/term-fees?termId=" + termId + "&importCsvError=no-source-term";
@@ -391,6 +410,8 @@ public class TermFeeAdminController {
                                        @RequestParam(defaultValue = "1") int semester,
 
                                        HttpSession s) {
+
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(termId, programCode, yearLevel, semester);
 
         Integer prev = termFeeAdminService.resolvePreviousTermId(termId);
 
@@ -478,6 +499,8 @@ public class TermFeeAdminController {
 
         if (s.getAttribute("currentUser") == null) return "redirect:/login";
 
+        if (FEE_OWNERSHIP_READ_ONLY) return readOnlyRedirect(termId, programCode, yearLevel, semester);
+
         if (termId == null || file == null || file.isEmpty()) {
 
             return "redirect:/admin/term-fees?termId=" + termId + "&importCsvError=empty";
@@ -543,6 +566,28 @@ public class TermFeeAdminController {
         url += "&yearLevel=" + yearLevel + "&semester=" + semester;
 
         return url;
+
+    }
+
+
+
+    private static String readOnlyRedirect(Integer termId, String programCode, int yearLevel, int semester) {
+
+        StringBuilder url = new StringBuilder("redirect:/admin/term-fees?ownershipReadOnly=1");
+
+        if (termId != null) {
+            url.append("&termId=").append(termId);
+        }
+
+        if (programCode != null && !programCode.isBlank()) {
+            url.append("&programCode=").append(URLEncoder.encode(programCode.trim(), StandardCharsets.UTF_8));
+        }
+
+        url.append("&yearLevel=").append(yearLevel);
+        url.append("&semester=").append(semester);
+        url.append("&importCsvError=").append(URLEncoder.encode(FEE_OWNERSHIP_NOTICE, StandardCharsets.UTF_8));
+
+        return url.toString();
 
     }
 

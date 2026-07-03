@@ -94,7 +94,7 @@ Deleting or changing an upstream record can invalidate downstream scheduling and
 - block sections and irregular/open course sections
 - class-scheduling filters for block attributes and server-side course/section/faculty/schedule/day/room criteria
 - faculty max-load enforcement on assignment paths, alongside same-term room/faculty/section overlap blocking
-- seeded schedule cleanup that replaces blanket room stamps with section-specific demo rooms, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
+- seeded active-term schedule normalization that preserves working time slots, provisions section-specific demo rooms and department-matched demo faculty, backfills any unscheduled active-term sections, removes same-section overlap duplicates, and keeps inactive-term faculty assignments empty until scheduling work is done
 - faculty-load integrity auditing for suspicious term-wide assignment concentration, with a guarded repair path for corrupted faculty stamps
 - Slot Monitoring for per-section committed counts, staged pre-registration counts, capacity updates, and current-canon close actions
 - committed-only official class counts and rosters

@@ -9,6 +9,19 @@ Agents: if a demo feature is missing, find its step here and re-run that file in
 
 ## Step-by-step
 
+Important note:
+
+- `setup\RUN_FRESH_SETUP.cmd` delegates to the bundled fresh-database runner under `handoffNew\2026-06-18_FINAL_DEMO_PACKAGE\02_FRESH_DATABASE\`.
+- That self-contained SQL bundle is the live bootstrap authority for fresh-clone setup.
+- The bundle already includes the newer registrar governance contract used by the current canon:
+  - `student_identity_archive`
+  - `student_number_release_registry`
+  - `student_archive_files`
+  - `student_archive_custody_events`
+  - `transfer_credit_requests`
+  - `grade_record_events`
+  - reviewer metadata on `grade_change_requests`
+
 | # | File | Seeds |
 |---|------|--------|
 | 0 | *(cmd)* DROP + CREATE `eacdb` | Empty UTF8MB4 database |

@@ -1,10 +1,31 @@
 # Current State Map
 
-Last updated: 2026-06-27
+Last updated: 2026-07-02
 
 > **For current status, roadmap, and UAT progress read `PROJECT_STATUS_AND_ROADMAP.md` first.**  
 > Changelog: **`HANDOFF_UPDATES_20260609.md`** (§13–15 = UI contrast, doc sync, UAT decisions).  
 > Historical closure: **`READINESS_CLOSURE_20260608.md`**.
+> Presentation-ready solidity note: **`2026-06-30_REALIGNMENT_AND_WITHDRAWAL_SOLIDITY_NOTE.md`**.
+> Done / pending / blocked matrix: **`2026-06-30_REGISTRAR_DONE_PENDING_BLOCKED_MATRIX.md`**.
+> Grade governance note: **`2026-06-30_REGISTRAR_GRADE_GOVERNANCE_NOTE.md`**.
+> Latest custody / release / drop verification note: **`2026-07-03_CUSTODY_RELEASE_DROP_VERIFICATION_NOTE.md`**.
+> Three-system test handoff and SQL feed pack: **`2026-07-01_THREE_SYSTEM_TEST_HANDOFF/README.md`**.
+> Latest focused runtime findings: **`2026-07-02_THREE_SYSTEM_REALIGNMENT_RUNTIME_PASS.md`**.
+> Real applicant-created live demo note: **`2026-07-02_LIVE_ADMISSION_ENROLLMENT_REGISTRAR_DEMO.md`**.
+> Latest D Enrollment walk-in status-heal fix note: **`2026-07-02_D_ENROLLMENT_WALKIN_STATUS_HEAL_FIX.md`**.
+> Fresh post-fix rerun with a brand-new applicant: **`2026-07-02_FRESH_POSTFIX_THREE_SYSTEM_RERUN.md`**.
+> Shared enrollment-type mirror closure note: **`2026-07-02_ENROLLMENT_STATUS_TYPE_MIRROR_FIX.md`**.
+> That note now includes both the original defect snapshot and the same-day post-fix recheck against the latest D Admission + Enrollment canon copies.
+
+## 2026-07-01 Three-System Test Handoff Pack
+
+The current runnable handoff for Admission, Enrollment, and Registrar is now consolidated in `2026-07-01_THREE_SYSTEM_TEST_HANDOFF/`.
+
+- `README.md` gives the canonical local paths, ports, accounts, and system ownership summary.
+- `RUNBOOK_THREE_APPS.md` gives the exact startup order and URLs.
+- `SQL_FEED_AND_VERIFY.md` gives the ordered SQL files and the existing SQL helpers to use for scholarship, accreditation, reissue, pre-reg ordering, and LEC/LAB component checks.
+- `TESTING_STORYBOARD.md` gives the intended end-to-end demo flow.
+- `NEXT_AGENT_HANDOFF.md` is the cold-start note for the next agent.
 
 ## 2026-06-26 Cross-System Boundary Correction
 
@@ -23,6 +44,7 @@ Important implication:
 - registrar-side irregular advising and fee authoring code still exists, but should be treated as historical or transitional unless the user explicitly reopens that scope
 - see `CROSS_SYSTEM_ALIGNMENT_REANALYSIS_20260626.md`
 - see `IMPLEMENTATION_PLAN_CROSS_SYSTEM_REALIGNMENT_20260626.md`
+- see `2026-06-29_CROSS_SYSTEM_REALIGNMENT_PASS.md`
 
 ## 2026-06-27 Dependency Hierarchy and Term Overlay
 
@@ -36,6 +58,74 @@ The registrar canon now has a formal ownership graph for the next agent pass:
 
 See `2026-06-27_REGISTRAR_DEPENDENCY_MATRIX.md` for the full dependency matrix and term-scope rules.
 See `2026-06-27_THREE_PROJECT_DEMO_RUNBOOK.md` for the current three-app launch and presenter script.
+
+## 2026-06-29 Withdrawn Student Governance
+
+Withdrawn students are historical registrar records and must not be treated as active enrollment subjects.
+
+- Registrar Profile remains readable for history, ledger visibility, withdrawal archive, document trail, and archive custody.
+- Registrar subject add, bulk add, program shift, and curriculum reassignment are blocked for withdrawn students.
+- Official document release is held for withdrawn students with open balance; blocked release attempts are written to Document Trail.
+- EnrollmentLatest cashier, walk-in payment, finalization, and canonical status sync paths now reject withdrawn/inactive students before they can be revived or acted on.
+- Enrollment ledger now also treats withdrawn archive records as read-only history surfaces: term advance and scholarship update actions are blocked, while historical balances and penalties remain visible.
+- Full-student withdrawal stamps the registrar archive file as `WITHDRAWN_FILE` with permanent retention.
+- Registrar now also persists an immutable `archive_key` on withdrawn students and mirrors it into withdrawal, reg-form, custody, and document-trail history rows.
+- Registrar now snapshots withdrawn live identity into `student_identity_archive` so the archive key owns the long-term registrar history handle.
+- Registrar Student Profile now exposes an explicit **Release Student Number** action for withdrawn records, which migrates live historical joins onto the archive key and registers the former live number in `student_number_release_registry`.
+- EnrollmentLatest student-number issuance now consumes `AVAILABLE` rows from `student_number_release_registry` before incrementing the normal sequence, then marks the released number as `REISSUED`.
+- Enrollment may re-key `payments.reference_number` to the student number after issuance; registrar admission payment reads now resolve both applicant ref and student number so the applicant detail screen stays truthful after handoff.
+- Latest D Enrollment still uses some ledger/cashier view paths as repair-on-view surfaces; opening the ledger, cashier, walk-in, PDF export, or some financial preview screens can trigger status/assessment reconciliation, so they are not pure read-only inspection paths.
+- Internal testing note: use `2026-07-02_D_ENROLLMENT_LEDGER_MUTATION_AUDIT.md` and `2026-07-02_D_ENROLLMENT_LEDGER_MUTATION_WORKLIST.md` when you need to separate pure verification from repair-on-view behavior.
+- Demo gate note: use `2026-07-02_THREE_SYSTEM_DEMO_GONOGO_CHECKLIST.md` before any full three-system run.
+- Latest focused runtime pass note: `2026-07-02_THREE_SYSTEM_REALIGNMENT_RUNTIME_PASS.md` records the current pass/fail state after the most recent live three-app verification.
+- Registrar identity bridge note: `2026-07-02_REGISTRAR_IDENTITY_BRIDGE_FIX.md` records the archive-aware lookup fix so reissued or archived identities do not mint a fresh archive key when they come back through the other system.
+- Enrollment withdrawn-ledger hardening note: `2026-07-02_ENROLLMENT_WITHDRAWN_LEDGER_HARDENING.md` records the ledger UI/backend guards added to both the live E enrollment copy and the newer D enrollment canon copy.
+- Registrar Student Profile now deep-links into Enrollment cashier using the currently opened student number, reducing one manual re-search step during three-system testing.
+- Enrollment withdrawn ledger wording is now clearer on both the live E copy and the newer D canon: withdrawn archive records show historical-only messaging and plain `WITHDRAWN` status instead of active-looking helper copy.
+- Full-student withdrawal now preserves an explicit outstanding-balance hold note in withdrawal history and event trails when the ledger is still open; withdrawal is still allowed, but official document release remains blocked until settlement.
+- Historical report links now prefer `archive_key` over the former live `student_number` so released/reissued withdrawn identities do not reopen the wrong active student profile.
+- Full-stack startup hardening for the latest D Admission and D Enrollment canon copies is now in place: both apps were restarted cleanly after adding `spring.jpa.properties.hibernate.boot.allow_jdbc_metadata_access=false`, and the prior `Unknown column 'RESERVED' in 'WHERE'` startup blocker no longer appears on fresh boot.
+- Admission startup index warnings are now removed too: the two bad applicant performance indexes were corrected to use valid prefix lengths on TEXT columns, and fresh boot now reports them as ensured instead of warning on every startup.
+- Registrar bootstrap is also hardened now: `spring.jpa.open-in-view=false` is set, the live 8083 registrar restarts cleanly, the registrar uses the MariaDB JDBC driver so Hibernate can auto-detect the dialect, and the remaining startup schema repair paths now guard existing columns, indexes, and legacy objects before touching them.
+- The registrar console is now clean on the live boot path. The old logger suppression workaround is no longer the source of truth; the warning noise was removed at the configuration/schema-guard level.
+
+See `2026-06-29_WITHDRAWN_STUDENT_GOVERNANCE.md`.
+
+## 2026-06-30 Enrollment Pre-Reg Line Ordering Correction
+
+The shared pre-reg subject-line table in `eacdb` was still missing the `sort_order` column on the live demo database even though Enrollment-side read paths now order by `sort_order` as part of the canonical pre-reg snapshot contract.
+
+- Enrollment pre-admission schema now auto-adds `applicant_pre_reg_subject_lines.sort_order` and backfills it from `line_order` when the column is missing.
+- Manual SQL helper added at `E:\EnrollLatest\enrollment3\src\main\resources\sql\07_pre_reg_subject_line_sort_order.sql`.
+- Runtime verification now shows the pre-reg subject-line query no longer fails on missing `sort_order`.
+- Enrollment now grants a narrow exception for `student_number_release_registry.release_status = 'REISSUED'` identities so a registrar-released student number can still finalize from the matching admission snapshot.
+- Enrollment pre-reg finalization no longer marks a student `ENROLLED` when the snapshot resolves to zero valid course/section enlistments; the finalize path now fails fast instead of producing a half-enrolled identity.
+- Successful pre-reg finalization now mirrors the canonical `sys_users` status back into the shared `students` profile row during the same finalize flow.
+- Enrollment `FinancialService.isOfficialEnrollmentFinalized(...)` now requires a committed current-term enlistment row before a paid assessment can be treated as official enrollment; a paid preview alone no longer suppresses the recovery finalize path.
+- Enrollment `StudentProfileService` now mirrors `enrollment_status_type` into the shared `students` row during profile creation and sync.
+- The remaining runtime blocker for the current reissue demo case is live data drift, not code/schema:
+- the active snapshot row for `REISSUE-DEMO-001` currently points to non-existent `course_code = 'REISSUE 101'` and `section_code = 'R-101'`
+- those values are not present in the repo seeds or canon SQL and must be repaired in the demo database before that case can auto-enlist
+
+## 2026-06-30 Scheduling Loader and Course Usage Clarification
+
+- Registrar Course Catalog usage presentation is now more explicit: row chips separate curriculum placements, section usage, enlistment rows, grade rows, and prerequisite links instead of collapsing student history into one vague count.
+- The Course Catalog **Where Used** modal now shows lifecycle-aware curriculum placements, richer section context, and working drilldown links back into Curriculum Management and Class Scheduling.
+- Course usage record counts now tolerate the shared-schema naming drift between `student_waitlist`/`waitlists` and `subject_requests`/`student_requests`, so registrar-side usage summaries no longer silently undercount those sources when the older table names are absent.
+- Class Scheduling course-detail loading still stays opt-in by term, but the backend loader no longer performs one section query and one schedule query per course/section chain. It now batch-loads current-term sections and schedules, then groups them in memory for the UI.
+- Fresh setup and runtime bootstrap now add hot-path enlistment indexes for `(course_id, enlistment_status)` and `(section_id, enlistment_status)` to support slot counts, course usage reads, and class-scheduling section loads more efficiently.
+- Lecture/lab course handling now uses separate enlistable course-component rows when both components are present. A mixed source course is split into `BASE-LEC` and `BASE-LAB`, each with its own `course_id`, `credit_units`, `lec_units`/`lab_units`, schedule/section/enlistment path, and shared `course_family_code`. Legacy mixed rows are now migrated into archived source records plus live split components, and startup auto-runs that repair when old mixed rows are still present.
+
+## 2026-06-30 Registrar Grade Governance Layer
+
+- Registrar grading remains registrar-only and does not revive the retired standalone grading-system scope.
+- The canonical `grades` row still stores the current official state, but registrar actions now also write an append-only `grade_record_events` ledger for monitoring and reporting.
+- Registrar approval, rejection, reopen, draft save, class submit, official posting, and INC expiration are now expected to be trackable as distinct grade-record events.
+- `grade_change_requests` now also carries reviewer-side decision metadata (`reviewed_by`, `review_note`, `rejected_at`) so registrar decisions stop being one-sided.
+- The registrar UI now separates **Grade Records** from **Grade Approvals**:
+- **Grade Records** is the monitoring/reporting surface for official rows and event history.
+- **Grade Approvals** remains the action queue for pending class postings and change requests.
+- Unified Document Trail should now surface both grade-change requests and the dedicated grade-record ledger events.
 
 ## Live Overlay (2026-06-15)
 
@@ -55,6 +145,7 @@ See `2026-06-27_THREE_PROJECT_DEMO_RUNBOOK.md` for the current three-app launch 
 | Room Monitoring | Live; active rooms, utilization, concrete room schedule rows, room conflicts, missing room rows, and no-faculty/no-schedule exceptions are visible per term |
 | Program shift load cleanup | Live; post-enrollment shifts clear all current-term enrolled/staged subjects without withdrawing the student from school, and the explicit curriculum assignment must remain present |
 | Academic scholarship | Live; registrar grants academic scholarship only, using SQL-seeded official grades, configurable GWA/period-grade caps, assigned-curriculum unit load, and 3rd/4th-year PE/NSTP disqualification |
+| Grade governance | Live; registrar approvals, rejection notes, official row monitoring, and append-only grade event ledger are exposed without reviving the retired standalone grading app |
 | Archive custody tracking | Live; Student Profile records physical file request/release/evaluation/scanning/return/refile movements and mirrors them to Document Trail |
 | Human UAT | **In progress** — 0/A/B re-tested positively; C–F pending sign-off |
 | Registrar Spring Security | **Deferred** — proposal only |

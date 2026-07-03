@@ -19,6 +19,35 @@
 
 ---
 
+# REGISTRAR: Curriculum-Based Student Load Policy
+
+**Date Completed**: 2026-06-26
+
+Registrar max-unit checks now resolve from the student's explicit current curriculum assignment. The live rule is:
+
+```text
+base max units = sum of credit_units for assigned curriculum_id + current year_level + current semester
+effective max units = base max units
+graduating effective max units = base max units + 6
+```
+
+This applies to enrollment display, scholarship-side load-cap calls, and Jaypee offering/section analysis. The old year-level/global policy table remains historical reference only and must not override live registrar decisions.
+
+Missing student curriculum assignment or missing curriculum rows for the student's current year/semester is a data error. Do not fall back to `max_units_regular`, `max_units_graduating_bonus`, or the year-level load table for live load enforcement.
+
+Registrar manual subject add follows the same assignment rule. In Student Manager and Jaypee-backed offering analysis:
+
+```text
+eligible course = assigned curriculum + student's current semester
+year-level filter = not required for manual irregular add
+must still pass = prerequisite, schedule conflict, section capacity, max-unit checks
+not allowed = courses mapped only to other semesters of the assigned curriculum
+```
+
+Implementation anchor: `com.iuims.registrar.curriculum.CurriculumLoadPolicyService`.
+
+---
+
 # PHASE 6, IMPROVEMENT 1: Fee Settings Simplification
 
 **Date Completed**: 2026-06-05  

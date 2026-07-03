@@ -18,6 +18,9 @@ public class SysUser {
     @Column(name = "real_name", length = 100)
     private String realName;
 
+    @Column(name = "email", length = 150)
+    private String email;
+
     @Column(name = "role", length = 30)
     private String role;
 
@@ -60,6 +63,9 @@ public class SysUser {
 
     public String getRealName() { return realName; }
     public void setRealName(String realName) { this.realName = realName; }
+
+    public String getEmail() { return email; }
+    public void setEmail(String email) { this.email = email; }
 
     public String getRole() { return role; }
     public void setRole(String role) { this.role = role; }

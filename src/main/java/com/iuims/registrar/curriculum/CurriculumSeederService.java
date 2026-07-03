@@ -315,6 +315,7 @@ public class CurriculumSeederService {
             "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
                 "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
                 "COALESCE(c.lab_units, 0) AS lab_units, " +
+                "COALESCE(c.component_type, 'SINGLE') AS component_type, COALESCE(c.course_family_code, c.course_code) AS course_family_code, " +
                 "d.department_id, COALESCE(d.department_name, 'Unassigned') AS department_name " +
                 "FROM courses c " +
                 "LEFT JOIN departments d ON d.department_id = c.department_id " +
@@ -344,6 +345,7 @@ public class CurriculumSeederService {
             "SELECT cc.curriculum_course_id, cc.year_level, cc.semester_number, c.course_code, c.course_title, c.credit_units, " +
                 "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
                 "COALESCE(c.lab_units, 0) AS lab_units, " +
+                "COALESCE(c.component_type, 'SINGLE') AS component_type, COALESCE(c.course_family_code, c.course_code) AS course_family_code, " +
                 "GROUP_CONCAT(pc.course_code ORDER BY pc.course_code SEPARATOR ', ') AS prerequisites " +
                 "FROM curriculum_courses cc " +
                 "JOIN courses c ON c.course_id = cc.course_id " +
@@ -351,7 +353,7 @@ public class CurriculumSeederService {
                 "LEFT JOIN courses pc ON pc.course_id = cp.prerequisite_course_id " +
                 "WHERE cc.curriculum_id = ? " +
                 "GROUP BY cc.curriculum_course_id, cc.year_level, cc.semester_number, " +
-                "c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units " +
+                "c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units, c.component_type, c.course_family_code " +
                 "ORDER BY cc.year_level, cc.semester_number, c.course_code",
             curriculumId);
     }
@@ -511,6 +513,16 @@ public class CurriculumSeederService {
         }
         String normalizedCourseCode = courseCode.trim().toUpperCase(Locale.ROOT);
         requireCourseNotInCurriculum(curriculumId, normalizedCourseCode);
+        if (safeLectureUnits > 0 && safeLaboratoryUnits > 0) {
+            String familyCode = stripComponentSuffix(normalizedCourseCode);
+            String lecCode = componentCode(familyCode, "LEC");
+            String labCode = componentCode(familyCode, "LAB");
+            requireCourseNotInCurriculum(curriculumId, lecCode);
+            requireCourseNotInCurriculum(curriculumId, labCode);
+            if (findCourseIdByCode(lecCode) != null || findCourseIdByCode(labCode) != null) {
+                throw new IllegalStateException("This course already exists as a LEC/LAB component in the catalog. Select the existing components from the picker.");
+            }
+        }
         if (findCourseIdByCode(normalizedCourseCode) != null) {
             throw new IllegalStateException("This course already exists in the catalog. Select it from the picker to attach it without changing catalog details.");
         }
@@ -1014,12 +1026,23 @@ public class CurriculumSeederService {
                                       int curriculumId,
                                       int yearLevel,
                                       int semester) {
+        if (lectureUnits > 0 && laboratoryUnits > 0) {
+            String familyCode = stripComponentSuffix(courseCode);
+            saveCourseAndMapping(programCode, componentCode(familyCode, "LEC"), courseTitle, lectureUnits, lectureUnits, 0,
+                preReqRaw, curriculumId, yearLevel, semester);
+            saveCourseAndMapping(programCode, componentCode(familyCode, "LAB"), courseTitle, laboratoryUnits, 0, laboratoryUnits,
+                preReqRaw, curriculumId, yearLevel, semester);
+            return;
+        }
+        String familyCode = stripComponentSuffix(courseCode);
+        String componentType = componentType(lectureUnits, laboratoryUnits);
         db.update(
-            "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) " +
-                "VALUES (?, ?, ?, ?, ?, 1, 1) " +
+            "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, component_type, course_family_code, active_status) " +
+                "VALUES (?, ?, ?, ?, ?, 1, ?, ?, 1) " +
                 "ON DUPLICATE KEY UPDATE course_title = VALUES(course_title), credit_units = VALUES(credit_units), " +
-                "lec_units = VALUES(lec_units), lab_units = VALUES(lab_units), active_status = 1",
-            courseCode, courseTitle, units, lectureUnits, laboratoryUnits);
+                "lec_units = VALUES(lec_units), lab_units = VALUES(lab_units), component_type = VALUES(component_type), " +
+                "course_family_code = VALUES(course_family_code), active_status = 1",
+            courseCode, courseTitle, units, lectureUnits, laboratoryUnits, componentType, familyCode);
 
         Integer courseId = null;
         try {
@@ -1065,9 +1088,9 @@ public class CurriculumSeederService {
 
             if (prereqId == null) {
                 db.update(
-                    "INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, description, active_status) " +
-                        "VALUES (?, ?, 3, 3, 0, 1, 'Prerequisite placeholder - update when course is seeded', 1)",
-                    prereqCode, prereqCode);
+                    "INSERT IGNORE INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, component_type, course_family_code, description, active_status) " +
+                        "VALUES (?, ?, 3, 3, 0, 1, 'LEC', ?, 'Prerequisite placeholder - update when course is seeded', 1)",
+                    prereqCode, prereqCode, stripComponentSuffix(prereqCode));
                 try {
                     prereqId = db.queryForObject(
                         "SELECT course_id FROM courses WHERE course_code = ? LIMIT 1",
@@ -1102,9 +1125,9 @@ public class CurriculumSeederService {
         };
         for (String[] ge : genEds) {
             db.update(
-                "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, active_status) " +
-                    "VALUES (?, ?, ?, ?, 0, 1, 1) ON DUPLICATE KEY UPDATE active_status = 1",
-                ge[0], ge[1], Integer.parseInt(ge[2]), Integer.parseInt(ge[2]));
+                "INSERT INTO courses (course_code, course_title, credit_units, lec_units, lab_units, department_id, component_type, course_family_code, active_status) " +
+                    "VALUES (?, ?, ?, ?, 0, 1, 'LEC', ?, 1) ON DUPLICATE KEY UPDATE active_status = 1, component_type = COALESCE(component_type, 'LEC'), course_family_code = COALESCE(course_family_code, VALUES(course_family_code))",
+                ge[0], ge[1], Integer.parseInt(ge[2]), Integer.parseInt(ge[2]), stripComponentSuffix(ge[0]));
             try {
                 Integer id = db.queryForObject(
                     "SELECT course_id FROM courses WHERE course_code = ? LIMIT 1",
@@ -1252,12 +1275,36 @@ public class CurriculumSeederService {
         }
     }
 
+    private String componentCode(String baseCode, String component) {
+        return stripComponentSuffix(baseCode) + "-" + component;
+    }
+
+    private String stripComponentSuffix(String courseCode) {
+        if (courseCode == null) {
+            return "";
+        }
+        return courseCode.trim().replaceAll("\\s+", " ").toUpperCase(Locale.ROOT)
+            .replaceFirst("[-\\s]+LEC$", "")
+            .replaceFirst("[-\\s]+LAB$", "")
+            .trim();
+    }
+
+    private String componentType(int lectureUnits, int laboratoryUnits) {
+        if (lectureUnits > 0 && laboratoryUnits == 0) {
+            return "LEC";
+        }
+        if (laboratoryUnits > 0 && lectureUnits == 0) {
+            return "LAB";
+        }
+        return "SINGLE";
+    }
+
     private Map<String, Object> getActiveCourse(int courseId) {
         try {
             return db.queryForMap(
                 "SELECT course_id, course_code, course_title, credit_units, " +
                     "CASE WHEN COALESCE(lec_units, 0) + COALESCE(lab_units, 0) = 0 THEN credit_units ELSE lec_units END AS lec_units, " +
-                    "COALESCE(lab_units, 0) AS lab_units " +
+                    "COALESCE(lab_units, 0) AS lab_units, COALESCE(component_type, 'SINGLE') AS component_type, COALESCE(course_family_code, course_code) AS course_family_code " +
                     "FROM courses WHERE course_id = ? AND COALESCE(active_status, 1) = 1 LIMIT 1",
                 courseId);
         } catch (Exception e) {

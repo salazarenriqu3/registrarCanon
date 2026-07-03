@@ -140,6 +140,11 @@ public class StudentCurriculumService {
 
     @Transactional
     public void assignCurriculum(String studentNumber, Integer curriculumId, String assignmentType, String reason) {
+        assignCurriculum(studentNumber, curriculumId, assignmentType, reason, "registrar");
+    }
+
+    @Transactional
+    public void assignCurriculum(String studentNumber, Integer curriculumId, String assignmentType, String reason, String actor) {
         if (studentNumber == null || studentNumber.isBlank() || curriculumId == null) return;
         ensureSchema();
         String sn = studentNumber.trim();
@@ -165,7 +170,7 @@ public class StudentCurriculumService {
                 null,
                 "Curriculum " + curriculumId + " assigned for program " + programCode
                     + (reason != null && !reason.isBlank() ? " | " + reason.trim() : ""),
-                "registrar");
+                actor != null && !actor.isBlank() ? actor.trim() : "registrar");
         } catch (Exception ignored) {
         }
     }

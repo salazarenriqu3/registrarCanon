@@ -18,14 +18,20 @@
 
             <div class="page-header">
                 <div>
-                    <h1 class="page-title">Finance &amp; Accounting Policy</h1>
+                    <h1 class="page-title">Finance &amp; Accounting Policy Read-Only Mirror</h1>
                     <p class="page-subtitle">
-                        Single source of truth for payment gates, enrollment rules, and installment schedules.
+                        Registrar can inspect payment gates, enrollment rules, and installment schedules here,
+                        but Enrollment3 Accounting/Cashier owns the live authoring workflow.
                         Fee <em>amounts</em> per program stay on
                         <a th:href="@{/admin/term-fees}">Program Fees</a>;
                         scholarship discounts on <a th:href="@{/admin/scholarships}">Scholarships</a>.
                     </p>
                 </div>
+            </div>
+
+            <div th:if="${financeOwnershipReadOnly}" class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
+                <div class="status-dot"></div>
+                <span th:text="${financeOwnershipNotice}">Finance Policy is read-only in Registrar.</span>
             </div>
 
             <div th:if="${successMessage}" class="status-badge enrolled" style="margin-bottom: 1rem; display: inline-flex;">
@@ -43,6 +49,7 @@
                     <div class="card-title"><i class="ti ti-lock-dollar"></i> 1. Payment gates</div>
                 </div>
                 <div style="padding: 1.5rem;">
+                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
                         Used by Registrar admission, Enrollment cashier finalize, and enlistment block checks.
                     </p>
@@ -84,6 +91,7 @@
                         </div>
                         <button type="submit" class="btn btn-primary" style="margin-top: 1.25rem;">Save payment gates</button>
                     </form>
+                    </fieldset>
                 </div>
             </div>
 
@@ -93,6 +101,7 @@
                     <div class="card-title"><i class="ti ti-adjustments"></i> 2. Enrollment rules</div>
                 </div>
                 <div style="padding: 1.5rem;">
+                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
                         Withdrawal and enrollment-change charges, session timeout, and RLE hours multiplier.
                     </p>
@@ -106,19 +115,19 @@
                         </div>
                         <button type="submit" class="btn btn-primary" style="margin-top: 1.25rem;">Save enrollment rules</button>
                     </form>
+                    </fieldset>
                 </div>
             </div>
 
-            <!-- 3. Year-level unit load policy -->
+            <!-- 3. Legacy year-level unit load policy -->
             <div class="card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-school"></i> 3. Year-level unit load policy</div>
+                    <div class="card-title"><i class="ti ti-school"></i> 3. Legacy year-level unit load table</div>
                 </div>
                 <div style="padding: 1.5rem;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Registrar's minimum load (underload threshold) and maximum allowable load for each year level.
-                        Registrar enlistment enforces the maximum now; the minimum classifies underload for approval/reporting workflows.
-                        External Enrollment integration is outside this patch.
+                        Live registrar load limits now come from each student's assigned curriculum, year level, and semester.
+                        This table is retained for historical reference only and no longer overrides enrollment, scholarship, or offering checks.
                     </p>
                     <form th:action="@{/admin/finance-policy/save-year-level-loads}" method="post">
                         <input type="hidden" name="installmentTermId" th:value="${installmentTermId}">
@@ -138,21 +147,21 @@
                                     <td>
                                         <input type="number" min="0" max="60" step="0.5" class="form-control"
                                                th:name="${'minimumUnits_' + policy.yearLevel}"
-                                               th:value="${policy.minimumUnits}" required>
+                                               th:value="${policy.minimumUnits}" disabled>
                                     </td>
                                     <td>
                                         <input type="number" min="0" max="60" step="0.5" class="form-control"
                                                th:name="${'maximumUnits_' + policy.yearLevel}"
-                                               th:value="${policy.maximumUnits}" required>
+                                               th:value="${policy.maximumUnits}" disabled>
                                     </td>
                                     <td style="color: var(--text-muted);">
-                                        Below minimum is underload; above maximum must be rejected.
+                                        Inactive. Live limits are computed from the assigned curriculum term load.
                                     </td>
                                 </tr>
                                 </tbody>
                             </table>
                         </div>
-                        <button type="submit" class="btn btn-primary">Save unit load policy</button>
+                        <button type="submit" class="btn btn-primary" disabled>Legacy table inactive</button>
                     </form>
                 </div>
             </div>
@@ -163,6 +172,7 @@
                     <div class="card-title"><i class="ti ti-calendar-dollar"></i> 4. Installment schedule</div>
                 </div>
                 <div style="padding: 1.5rem;">
+                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
                         Cashier splits <em>(total assessment − downpayment)</em> evenly across these rows.
                         This is separate from the <strong>Installment charge</strong> flat fee on Program Fees
@@ -227,6 +237,7 @@
                             <button type="submit" class="btn btn-primary">Save installment plan</button>
                         </div>
                     </form>
+                    </fieldset>
                 </div>
             </div>
         </main>

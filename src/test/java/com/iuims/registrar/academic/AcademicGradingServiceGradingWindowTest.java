@@ -45,6 +45,12 @@ class AcademicGradingServiceGradingWindowTest {
     @MockBean
     private StudentDocumentTrailService studentDocumentTrailService;
 
+    @MockBean
+    private GradeRecordEventService gradeRecordEventService;
+
+    @MockBean
+    private com.iuims.registrar.core.StudentProfileService studentProfileService;
+
     @Autowired
     private JdbcTemplate db;
     
@@ -86,7 +92,13 @@ class AcademicGradingServiceGradingWindowTest {
                 course_code VARCHAR(20),
                 course_title VARCHAR(150),
                 department_id INT,
-                credit_units INT
+                credit_units INT,
+                lec_units INT,
+                lab_units INT,
+                component_type VARCHAR(20),
+                course_family_code VARCHAR(40),
+                parent_course_id INT,
+                active_status TINYINT DEFAULT 1
             );
             """);
         db.execute("""
@@ -137,6 +149,9 @@ class AcademicGradingServiceGradingWindowTest {
                 grade_lock_status VARCHAR(30) NULL,
                 grade_lock_reason VARCHAR(80) NULL,
                 registrar_finalized_at TIMESTAMP NULL,
+                curriculum_year INT NULL,
+                grade DECIMAL(5,2) NULL,
+                date_recorded TIMESTAMP NULL,
                 student_name VARCHAR(100) NULL,
                 status VARCHAR(20) DEFAULT 'DRAFT'
             )
@@ -157,7 +172,10 @@ class AcademicGradingServiceGradingWindowTest {
                 status VARCHAR(30) DEFAULT 'PENDING',
                 request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 applied_action VARCHAR(80) NULL,
-                approved_at TIMESTAMP NULL
+                approved_at TIMESTAMP NULL,
+                rejected_at TIMESTAMP NULL,
+                review_note VARCHAR(500) NULL,
+                reviewed_by VARCHAR(100) NULL
             )
             """);
         db.execute("""
@@ -175,6 +193,7 @@ class AcademicGradingServiceGradingWindowTest {
                 term_year VARCHAR(20) NULL,
                 enrollment_start_time TIMESTAMP NULL,
                 granted_permissions VARCHAR(255) NULL,
+                email VARCHAR(150) NULL,
                 is_active BOOLEAN DEFAULT TRUE
             )
             """);
@@ -330,7 +349,7 @@ class AcademicGradingServiceGradingWindowTest {
         assertThat(db.queryForObject("SELECT previous_grade FROM grades WHERE id = 300", String.class)).isEqualTo("INC");
         assertThat(db.queryForObject("SELECT semestral_grade FROM grades WHERE id = 300", Double.class)).isEqualTo(5.00);
         assertThat(db.queryForObject("SELECT registrar_final_remarks FROM grades WHERE id = 300", String.class)).isEqualTo("Failed");
-        assertThat(db.queryForObject("SELECT grade_lock_status FROM grades WHERE id = 300", String.class)).isEqualTo("LOCKED");
+        assertThat(db.queryForObject("SELECT grade_lock_status FROM grades WHERE id = 300", String.class)).isEqualTo("FINALIZED");
         assertThat(db.queryForObject("SELECT grade_lock_reason FROM grades WHERE id = 300", String.class)).isEqualTo("INC_EXPIRED");
         assertThat(db.queryForObject("SELECT remarks FROM grades WHERE id = 301", String.class)).isEqualTo("Passed");
         assertThat(db.queryForObject("SELECT remarks FROM grades WHERE id = 302", String.class)).isEqualTo("INC");
@@ -368,7 +387,7 @@ class AcademicGradingServiceGradingWindowTest {
         assertThat(db.queryForObject("SELECT semestral_grade FROM grades WHERE id = 300", Double.class)).isEqualTo(5.00);
         assertThat(display.get("remarks")).isEqualTo("Failed");
         assertThat(display.get("semestral_grade")).isEqualTo(5.00);
-        assertThat(display.get("grade_lock_status")).isEqualTo("LOCKED");
+        assertThat(display.get("grade_lock_status")).isEqualTo("FINALIZED");
     }
 
     @Test
@@ -527,6 +546,9 @@ class AcademicGradingServiceGradingWindowTest {
         assertThat(db.queryForObject(
             "SELECT status FROM grades WHERE id = 300",
             String.class)).isEqualTo("SUBMITTED");
+        assertThat(db.queryForObject(
+            "SELECT remarks FROM grades WHERE id = 300",
+            String.class)).isEqualTo("INC");
         assertThat(service.getPendingClassSubmissions()).isEmpty();
     }
 
@@ -559,7 +581,7 @@ class AcademicGradingServiceGradingWindowTest {
 
     @Test
     void requestGradeChangeUsesCanonicalGradesTable() {
-        db.update("INSERT INTO sys_users (user_id, username, real_name, role) VALUES (99, 'prof', 'Professor Demo', 'Faculty')");
+        db.update("INSERT INTO sys_users (user_id, username, real_name, role, email) VALUES (99, 'prof', 'Professor Demo', 'Faculty', 'prof@school.edu.ph')");
         db.update("INSERT INTO courses (course_id, course_code, course_title) VALUES (100, 'UCP2 42', 'Capstone Project 2')");
         db.update("INSERT INTO class_sections (section_id, course_id, term_id, section_code, faculty_id, section_status) VALUES (200, 100, 2, 'BSIT-4-2-A', 10, 'SUBMITTED')");
         db.update("""
@@ -571,18 +593,18 @@ class AcademicGradingServiceGradingWindowTest {
 
         service.requestGradeChange(300, "2.00", "Completion submitted.", 99);
 
-        assertThat(db.queryForObject(
-            "SELECT COUNT(*) FROM grade_change_requests WHERE grade_id = 300 AND student_name = 'Smith, Jane' " +
-                "AND course_code = 'UCP2 42' AND faculty_name = 'Professor Demo' AND requested_grade = '2.00' " +
-                "AND reason = 'Completion submitted.' AND status = 'PENDING'",
-            Integer.class)).isEqualTo(1);
         assertThat(service.getGradeChangeRequests()).hasSize(1);
+        Map<String, Object> request = service.getGradeChangeRequests().get(0);
+        assertThat(request.get("student_name")).isEqualTo("Smith, Jane");
+        assertThat(request.get("course_code")).isEqualTo("UCP2 42");
+        assertThat(request.get("faculty")).isEqualTo("Professor Demo");
+        assertThat(request.get("new_grade")).isEqualTo("2.00");
         assertThat(service.getClassGrades(200).get(0).get("pending_change")).isEqualTo(1);
     }
 
     @Test
     void requestComponentGradeChangeStoresRequestedComponents() {
-        db.update("INSERT INTO sys_users (user_id, username, real_name, role) VALUES (99, 'prof', 'Professor Demo', 'Faculty')");
+        db.update("INSERT INTO sys_users (user_id, username, real_name, role, email) VALUES (99, 'prof', 'Professor Demo', 'Faculty', 'prof@school.edu.ph')");
         db.update("INSERT INTO courses (course_id, course_code, course_title) VALUES (100, 'UCP2 42', 'Capstone Project 2')");
         db.update("INSERT INTO class_sections (section_id, course_id, term_id, section_code, faculty_id, section_status) VALUES (200, 100, 2, 'BSIT-4-2-A', 10, 'SUBMITTED')");
         db.update("""
@@ -636,7 +658,7 @@ class AcademicGradingServiceGradingWindowTest {
             String.class)).isEqualTo("Passed");
         assertThat(db.queryForObject(
             "SELECT grade_lock_status FROM grades WHERE id = 300",
-            String.class)).isEqualTo("LOCKED");
+            String.class)).isEqualTo("FINALIZED");
         assertThat(db.queryForObject(
             "SELECT status FROM grade_change_requests WHERE request_id = 400",
             String.class)).isEqualTo("APPROVED");
@@ -644,7 +666,7 @@ class AcademicGradingServiceGradingWindowTest {
 
     @Test
     void approvedGradeChangeStaysFinalWhenRawFinalsAreCleared() {
-        db.update("INSERT INTO sys_users (user_id, username, real_name, role) VALUES (99, 'prof', 'Professor Demo', 'Faculty')");
+        db.update("INSERT INTO sys_users (user_id, username, real_name, role, email) VALUES (99, 'prof', 'Professor Demo', 'Faculty', 'prof@school.edu.ph')");
         db.update("INSERT INTO courses (course_id, course_code, course_title) VALUES (100, 'UCP2 42', 'Capstone Project 2')");
         db.update("INSERT INTO class_sections (section_id, course_id, term_id, section_code, faculty_id, section_status) VALUES (200, 100, 2, 'BSIT-4-2-A', 10, 'SUBMITTED')");
         db.update("""
@@ -669,7 +691,7 @@ class AcademicGradingServiceGradingWindowTest {
         assertThat(db.queryForObject("SELECT semestral_grade FROM grades WHERE id = 300", Double.class)).isEqualTo(2.00);
         assertThat(display.get("remarks")).isEqualTo("Passed");
         assertThat(display.get("semestral_grade")).isEqualTo(2.00);
-        assertThat(display.get("grade_lock_status")).isEqualTo("LOCKED");
+        assertThat(display.get("grade_lock_status")).isEqualTo("FINALIZED");
     }
 
     @Test

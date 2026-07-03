@@ -7,6 +7,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.iuims.registrar.core.EnlistmentSchemaService;
 import com.iuims.registrar.core.GlobalTermService;
+import com.iuims.registrar.core.StudentProfileService;
+import com.iuims.registrar.finance.TermFeeAdminService;
 import com.iuims.registrar.forms.RegFormEventService;
 import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
@@ -26,6 +28,8 @@ public class WithdrawalService {
     public static final String STATUS_APPROVED = "APPROVED";
     public static final String STATUS_REJECTED = "REJECTED";
     public static final String STATUS_SUPERSEDED = "SUPERSEDED";
+    private static final String REASON_CLASS_DROP = "CLASS_DROP";
+    private static final String REASON_SHIFTING = "SHIFTING";
 
     private final JdbcTemplate db;
     private final ScholarEnrollmentService scholarEnrollmentService;
@@ -33,18 +37,24 @@ public class WithdrawalService {
     private final RegFormEventService regFormEventService;
     private final GlobalTermService globalTermService;
     private final EnlistmentSchemaService enlistmentSchemaService;
+    private final StudentProfileService studentProfileService;
+    private final TermFeeAdminService termFeeAdminService;
 
     public WithdrawalService(JdbcTemplate db, ScholarEnrollmentService scholarEnrollmentService,
                              StudentDocumentTrailService documentTrailService,
                              RegFormEventService regFormEventService,
                              GlobalTermService globalTermService,
-                             EnlistmentSchemaService enlistmentSchemaService) {
+                             EnlistmentSchemaService enlistmentSchemaService,
+                             StudentProfileService studentProfileService,
+                             TermFeeAdminService termFeeAdminService) {
         this.db = db;
         this.scholarEnrollmentService = scholarEnrollmentService;
         this.documentTrailService = documentTrailService;
         this.regFormEventService = regFormEventService;
         this.globalTermService = globalTermService;
         this.enlistmentSchemaService = enlistmentSchemaService;
+        this.studentProfileService = studentProfileService;
+        this.termFeeAdminService = termFeeAdminService;
     }
 
     public void ensureSchema() {
@@ -60,6 +70,7 @@ public class WithdrawalService {
             CREATE TABLE IF NOT EXISTS student_withdrawal_requests (
                 request_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 student_number VARCHAR(100) NOT NULL,
+                archive_key VARCHAR(80) NULL,
                 section_id INT NOT NULL,
                 course_id INT NOT NULL,
                 term_id INT NULL,
@@ -95,6 +106,7 @@ public class WithdrawalService {
         addColumnIfMissing("student_withdrawal_requests", "estimated_charge", "DECIMAL(12,2) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_requests", "deadline_blocked", "TINYINT(1) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_requests", "policy_note", "VARCHAR(255) NULL");
+        addColumnIfMissing("student_withdrawal_requests", "archive_key", "VARCHAR(80) NULL");
         addColumnIfMissing("student_withdrawal_requests", "withdrawal_scope", "VARCHAR(30) NOT NULL DEFAULT 'SINGLE_SUBJECT'");
         addColumnIfMissing("student_withdrawal_requests", "subject_count", "INT NOT NULL DEFAULT 1");
         addColumnIfMissing("student_withdrawal_requests", "approval_source", "VARCHAR(40) NULL");
@@ -104,6 +116,7 @@ public class WithdrawalService {
                 line_id BIGINT AUTO_INCREMENT PRIMARY KEY,
                 request_id BIGINT NOT NULL,
                 student_number VARCHAR(100) NOT NULL,
+                archive_key VARCHAR(80) NULL,
                 section_id INT NOT NULL,
                 course_id INT NOT NULL,
                 requested_on DATE NULL,
@@ -125,17 +138,20 @@ public class WithdrawalService {
         addColumnIfMissing("student_withdrawal_request_lines", "charge_percent", "DECIMAL(5,2) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_request_lines", "estimated_charge", "DECIMAL(12,2) NOT NULL DEFAULT 0");
         addColumnIfMissing("student_withdrawal_request_lines", "policy_note", "VARCHAR(255) NULL");
+        addColumnIfMissing("student_withdrawal_request_lines", "archive_key", "VARCHAR(80) NULL");
         normalizeColumnCollation("withdrawal_reasons", "reason_code", "VARCHAR(40) NOT NULL");
         normalizeColumnCollation("withdrawal_reasons", "reason_label", "VARCHAR(160) NOT NULL");
         normalizeColumnCollation("student_withdrawal_requests", "student_number", "VARCHAR(100) NOT NULL");
+        normalizeColumnCollation("student_withdrawal_requests", "archive_key", "VARCHAR(80) NULL");
         normalizeColumnCollation("student_withdrawal_requests", "reason_code", "VARCHAR(40) NOT NULL");
         normalizeColumnCollation("student_withdrawal_request_lines", "student_number", "VARCHAR(100) NOT NULL");
+        normalizeColumnCollation("student_withdrawal_request_lines", "archive_key", "VARCHAR(80) NULL");
         db.update("""
             UPDATE student_withdrawal_requests
             SET status = ?, approval_source = COALESCE(approval_source, 'REGISTRAR_WORKFLOW')
-            WHERE status = 'PENDING_DEAN'
+            WHERE request_id >= 0 AND status = 'PENDING_DEAN'
             """, STATUS_PENDING_REGISTRAR);
-        db.update("UPDATE student_withdrawal_request_lines SET status = ? WHERE status = 'PENDING_DEAN'",
+        db.update("UPDATE student_withdrawal_request_lines SET status = ? WHERE line_id >= 0 AND status = 'PENDING_DEAN'",
             STATUS_PENDING_REGISTRAR);
         try {
             db.execute("CREATE INDEX idx_swr_status ON student_withdrawal_requests (status)");
@@ -143,6 +159,10 @@ public class WithdrawalService {
         }
         try {
             db.execute("CREATE INDEX idx_swr_student ON student_withdrawal_requests (student_number)");
+        } catch (Exception ignored) {
+        }
+        try {
+            db.execute("CREATE INDEX idx_swr_archive ON student_withdrawal_requests (archive_key)");
         } catch (Exception ignored) {
         }
         try {
@@ -178,19 +198,35 @@ public class WithdrawalService {
         db.update("""
             INSERT IGNORE INTO withdrawal_reasons (reason_code, reason_label, sort_order) VALUES
             ('ACADEMIC_LOAD', 'Academic load adjustment', 10),
+            ('CLASS_DROP', 'Class drop', 15),
             ('SCHEDULE_CONFLICT', 'Schedule conflict', 20),
             ('MEDICAL', 'Medical / health reason', 30),
             ('FINANCIAL', 'Financial reason', 40),
+            ('SHIFTING', 'Shifting', 45),
             ('TRANSFER', 'Transfer / change of school', 50),
             ('OTHER', 'Other reason', 100)
             """);
     }
 
     public List<Map<String, Object>> listActiveReasons() {
+        return listStandardReasons();
+    }
+
+    public List<Map<String, Object>> listStandardReasons() {
+        return listReasons("AND reason_code NOT IN ('SHIFTING', 'CLASS_DROP') ");
+    }
+
+    public List<Map<String, Object>> listShiftCleanupReasons() {
+        return listReasons("AND reason_code = 'SHIFTING' ");
+    }
+
+    private List<Map<String, Object>> listReasons(String extraWhereClause) {
         ensureSchema();
         return db.queryForList(
             "SELECT reason_code, reason_label FROM withdrawal_reasons " +
-                "WHERE COALESCE(is_active, 1) = 1 ORDER BY sort_order, reason_label");
+                "WHERE COALESCE(is_active, 1) = 1 " +
+                (extraWhereClause == null ? "" : extraWhereClause) +
+                "ORDER BY sort_order, reason_label");
     }
 
     public List<Map<String, Object>> listStudentRequests(String studentNumber) {
@@ -213,10 +249,11 @@ public class WithdrawalService {
 
     private String baseRequestSql() {
         return """
-            SELECT wr.request_id, wr.student_number,
+            SELECT wr.request_id, wr.student_number, wr.archive_key,
                    COALESCE(s.real_name, wr.student_number COLLATE utf8mb4_uca1400_ai_ci) AS student_name,
                    s.program_code, s.year_level, wr.section_id, wr.course_id, wr.term_id,
-                   c.course_code, c.course_title, c.credit_units, cs.section_code,
+                   c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units,
+                   COALESCE(c.component_type, 'SINGLE') AS component_type, cs.section_code,
                    wr.reason_code, rr.reason_label, wr.remarks, wr.status,
                    wr.withdrawal_scope, wr.subject_count, wr.approval_source,
                    wr.requested_on, wr.enlisted_at, wr.days_enrolled_at_request,
@@ -235,6 +272,7 @@ public class WithdrawalService {
             """;
     }
 
+    // Legacy request-builder retained for archived records; live UI now uses direct registrar execution.
     @Transactional
     public long createRequest(String studentNumber, Integer sectionId, String reasonCode, String remarks, String requestedBy) {
         ensureSchema();
@@ -273,6 +311,7 @@ public class WithdrawalService {
         return requestId;
     }
 
+    // Legacy request-builder retained for archived records; live UI now uses direct registrar execution.
     @Transactional
     public long createFullCurrentTermRequest(String studentNumber, String reasonCode, String remarks, String requestedBy) {
         ensureSchema();
@@ -321,24 +360,24 @@ public class WithdrawalService {
     @Transactional
     public DirectDropResult dropSubjectByRegistrar(String studentNumber, Integer sectionId,
                                                    String reasonCode, String remarks, String actor) {
-        String sn = validateDirectDrop(studentNumber, reasonCode);
+        return dropSubjectByRegistrar(studentNumber, sectionId, remarks, actor);
+    }
+
+    @Transactional
+    public DirectDropResult dropSubjectByRegistrar(String studentNumber, Integer sectionId,
+                                                   String remarks, String actor) {
+        String sn = validateSubjectDrop(studentNumber);
         Map<String, Object> enlistment = findActiveEnlistment(sn, sectionId);
         Integer currentTermId = requireCurrentTermId();
         if (!currentTermId.equals(numberAsInteger(enlistment.get("term_id")))) {
-            throw new IllegalArgumentException("Only a current-term subject can be dropped from Student Profile.");
+            throw new IllegalArgumentException("Only a current-term class can be dropped from Student Profile.");
         }
 
-        List<Map<String, Object>> currentLoad = findCurrentTermEnlistments(sn, currentTermId);
-        if (currentLoad.size() <= 1) {
-            throw new IllegalArgumentException(
-                "This is the student's last current-term subject. Use Drop Student to process a full withdrawal.");
-        }
         supersedePendingRequests(sn, List.of(sectionId), cleanActor(actor));
         WithdrawalPolicySnapshot policy = requireAllowedPolicy(sn, enlistment);
-        String rc = clean(reasonCode).toUpperCase();
         String actedBy = cleanActor(actor);
         long requestId = insertCompletedDirectDrop(
-            sn, rc, remarks, actedBy, "SINGLE_SUBJECT", List.of(enlistment), List.of(policy));
+            sn, REASON_CLASS_DROP, remarks, actedBy, "SINGLE_SUBJECT", List.of(enlistment), List.of(policy));
 
         scholarEnrollmentService.dropSubjectByEnlistmentId(
             ((Number) enlistment.get("enlistment_id")).longValue(),
@@ -354,8 +393,15 @@ public class WithdrawalService {
         String sn = validateDirectDrop(studentNumber, reasonCode);
         Integer currentTermId = requireCurrentTermId();
         List<Map<String, Object>> currentLoad = findCurrentTermEnlistments(sn, currentTermId);
+        String rc = clean(reasonCode).toUpperCase();
+        String actedBy = cleanActor(actor);
         if (currentLoad.isEmpty()) {
-            throw new IllegalArgumentException("The student has no current-term subjects to drop.");
+            long requestId = insertCompletedZeroLoadStudentDrop(
+                sn, rc, remarks, actedBy, currentTermId);
+            persistOutstandingBalanceHold(requestId, sn);
+            markStudentWithdrawn(sn);
+            recordDirectDropEvents(sn, requestId, actedBy, "FULL_CURRENT_TERM", List.of(), 0.0, remarks);
+            return new DirectDropResult(requestId, 0, 0.0, "FULL_CURRENT_TERM");
         }
 
         List<WithdrawalPolicySnapshot> policies = new ArrayList<>();
@@ -366,8 +412,6 @@ public class WithdrawalService {
             policies.add(requireAllowedPolicy(sn, enlistment));
         }
 
-        String rc = clean(reasonCode).toUpperCase();
-        String actedBy = cleanActor(actor);
         supersedePendingRequests(sn, sectionIds, actedBy);
         long requestId = insertCompletedDirectDrop(
             sn, rc, remarks, actedBy, "FULL_CURRENT_TERM", currentLoad, policies);
@@ -380,9 +424,101 @@ public class WithdrawalService {
                 policy.estimatedCharge(), policy.policyNote());
             totalCharge += policy.estimatedCharge();
         }
+        persistOutstandingBalanceHold(requestId, sn);
         markStudentWithdrawn(sn);
         recordDirectDropEvents(sn, requestId, actedBy, "FULL_CURRENT_TERM", currentLoad, totalCharge, remarks);
         return new DirectDropResult(requestId, currentLoad.size(), totalCharge, "FULL_CURRENT_TERM");
+    }
+
+    @Transactional
+    public DirectDropResult clearCurrentTermLoadForProgramShift(String studentNumber, String remarks, String actor) {
+        return clearCurrentTermLoadForProgramShift(studentNumber, "SHIFTING", remarks, actor);
+    }
+
+    @Transactional
+    public DirectDropResult clearCurrentTermLoadForProgramShift(String studentNumber, String reasonCode,
+                                                               String remarks, String actor) {
+        ensureSchema();
+        String sn = clean(studentNumber);
+        String rc = clean(reasonCode).toUpperCase();
+        if (sn.isEmpty()) throw new IllegalArgumentException("Student number is required.");
+        if (rc.isEmpty()) throw new IllegalArgumentException("Withdrawal reason is required.");
+        ensureReasonExists(rc);
+        if (isWithdrawnOrInactiveStudent(sn)) {
+            throw new IllegalArgumentException("Student is already withdrawn from school.");
+        }
+        Integer currentTermId = requireCurrentTermId();
+        List<Map<String, Object>> currentLoad = findCurrentTermEnlistments(sn, currentTermId);
+        if (currentLoad.isEmpty()) {
+            return new DirectDropResult(0L, 0, 0.0, "SHIFT_PROGRAM_CLEANUP");
+        }
+
+        List<WithdrawalPolicySnapshot> policies = new ArrayList<>();
+        List<Integer> sectionIds = new ArrayList<>();
+        for (Map<String, Object> enlistment : currentLoad) {
+            sectionIds.add(((Number) enlistment.get("section_id")).intValue());
+            policies.add(computePolicySnapshot(sn, enlistment));
+        }
+
+        String actedBy = cleanActor(actor);
+        supersedePendingRequests(sn, sectionIds, actedBy);
+        long requestId = insertCompletedDirectDrop(
+            sn,
+            rc,
+            remarks,
+            actedBy,
+            "SHIFT_PROGRAM_CLEANUP",
+            currentLoad,
+            policies,
+            "REGISTRAR_SHIFT");
+        double totalCharge = 0.0;
+        for (int i = 0; i < currentLoad.size(); i++) {
+            Map<String, Object> enlistment = currentLoad.get(i);
+            WithdrawalPolicySnapshot policy = policies.get(i);
+            scholarEnrollmentService.dropSubjectByEnlistmentId(
+                ((Number) enlistment.get("enlistment_id")).longValue(),
+                policy.estimatedCharge(),
+                policy.policyNote());
+            totalCharge += policy.estimatedCharge();
+        }
+        recordShiftCleanupEvents(sn, requestId, actedBy, currentLoad, totalCharge, remarks);
+        return new DirectDropResult(requestId, currentLoad.size(), totalCharge, "SHIFT_PROGRAM_CLEANUP");
+    }
+
+    private long insertCompletedZeroLoadStudentDrop(String studentNumber, String reasonCode,
+                                                    String remarks, String actor, Integer termId) {
+        KeyHolder keyHolder = new GeneratedKeyHolder();
+        String note = "Registrar completed full-student withdrawal with no remaining current-term subject load.";
+        String archiveKey = studentProfileService.ensureArchiveKey(studentNumber);
+        db.update(connection -> {
+            PreparedStatement ps = connection.prepareStatement("""
+                INSERT INTO student_withdrawal_requests
+                    (student_number, archive_key, section_id, course_id, term_id, reason_code, remarks, requested_on,
+                     enlisted_at, days_enrolled_at_request, timing_bucket, charge_percent, estimated_charge,
+                     deadline_blocked, policy_note, status, requested_by, registrar_approved_by,
+                     registrar_approved_at, completed_at, withdrawal_scope, subject_count, approval_source)
+                VALUES (?, ?, 0, 0, ?, ?, ?, CURRENT_DATE,
+                        NULL, NULL, 'FULL_CURRENT_TERM', 0, 0, 0, ?, ?, ?, ?, CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP, 'FULL_CURRENT_TERM', 0, ?)
+                """, new String[]{"request_id"});
+            ps.setString(1, studentNumber);
+            ps.setString(2, archiveKey);
+            if (termId != null) {
+                ps.setInt(3, termId);
+            } else {
+                ps.setNull(3, java.sql.Types.INTEGER);
+            }
+            ps.setString(4, reasonCode);
+            ps.setString(5, truncate(remarks, 500));
+            ps.setString(6, note);
+            ps.setString(7, STATUS_APPROVED);
+            ps.setString(8, actor);
+            ps.setString(9, actor);
+            ps.setString(10, "REGISTRAR_DIRECT");
+            return ps;
+        }, keyHolder);
+        Number key = keyHolder.getKey();
+        return key != null ? key.longValue() : db.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
     }
 
     private String validateDirectDrop(String studentNumber, String reasonCode) {
@@ -392,6 +528,21 @@ public class WithdrawalService {
         if (sn.isEmpty()) throw new IllegalArgumentException("Student number is required.");
         if (rc.isEmpty()) throw new IllegalArgumentException("Drop reason is required.");
         ensureReasonExists(rc);
+        if (isWithdrawnOrInactiveStudent(sn)) {
+            throw new IllegalArgumentException("Student is already withdrawn from school.");
+        }
+        String withdrawalBlock = withdrawalBlockMessage();
+        if (withdrawalBlock != null) throw new IllegalArgumentException(withdrawalBlock);
+        return sn;
+    }
+
+    private String validateSubjectDrop(String studentNumber) {
+        ensureSchema();
+        String sn = clean(studentNumber);
+        if (sn.isEmpty()) throw new IllegalArgumentException("Student number is required.");
+        if (isWithdrawnOrInactiveStudent(sn)) {
+            throw new IllegalArgumentException("Student is already withdrawn from school.");
+        }
         String withdrawalBlock = withdrawalBlockMessage();
         if (withdrawalBlock != null) throw new IllegalArgumentException(withdrawalBlock);
         return sn;
@@ -415,7 +566,7 @@ public class WithdrawalService {
                 "SELECT setting_value FROM system_settings WHERE setting_key = ? LIMIT 1",
                 String.class, "ADD_DROP_CLOSE_DATE");
             if (raw != null && !raw.isBlank() && LocalDate.now().isAfter(LocalDate.parse(raw.trim()))) {
-                return "Add/drop period has closed. New withdrawal requests are not accepted.";
+                return "Add/drop period has closed. New drop requests are not accepted.";
             }
         } catch (Exception ignored) {
             // An unset or legacy policy table means no configured withdrawal deadline.
@@ -426,7 +577,8 @@ public class WithdrawalService {
     private List<Map<String, Object>> findCurrentTermEnlistments(String studentNumber, Integer termId) {
         return db.queryForList("""
             SELECT se.enlistment_id, se.student_id, se.course_id, se.section_id, se.enlisted_date,
-                   cs.term_id, c.course_code, c.course_title, c.credit_units
+                   cs.term_id, c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units,
+                   COALESCE(c.component_type, 'SINGLE') AS component_type
             FROM student_enlistments se
             JOIN class_sections cs ON cs.section_id = se.section_id
             JOIN courses c ON c.course_id = se.course_id
@@ -493,18 +645,20 @@ public class WithdrawalService {
                                     List<WithdrawalPolicySnapshot> policies,
                                     String status,
                                     boolean completed) {
+        String archiveKey = studentProfileService.ensureArchiveKey(studentNumber);
         for (int i = 0; i < enlistments.size(); i++) {
             Map<String, Object> enlistment = enlistments.get(i);
             WithdrawalPolicySnapshot policy = policies.get(i);
             db.update("""
                 INSERT INTO student_withdrawal_request_lines
-                    (request_id, student_number, section_id, course_id, requested_on, enlisted_at,
+                    (request_id, student_number, archive_key, section_id, course_id, requested_on, enlisted_at,
                      days_enrolled_at_request, timing_bucket, charge_percent, estimated_charge,
                      policy_note, status, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 requestId,
                 studentNumber,
+                cleanNullable(archiveKey, 80),
                 ((Number) enlistment.get("section_id")).intValue(),
                 ((Number) enlistment.get("course_id")).intValue(),
                 policy.requestedOn(),
@@ -523,6 +677,15 @@ public class WithdrawalService {
                                            String actor, String scope,
                                            List<Map<String, Object>> enlistments,
                                            List<WithdrawalPolicySnapshot> policies) {
+        return insertCompletedDirectDrop(
+            studentNumber, reasonCode, remarks, actor, scope, enlistments, policies, "REGISTRAR_DIRECT");
+    }
+
+    private long insertCompletedDirectDrop(String studentNumber, String reasonCode, String remarks,
+                                           String actor, String scope,
+                                           List<Map<String, Object>> enlistments,
+                                           List<WithdrawalPolicySnapshot> policies,
+                                           String approvalSource) {
         Map<String, Object> first = enlistments.get(0);
         WithdrawalPolicySnapshot firstPolicy = policies.get(0);
         double totalCharge = policies.stream().mapToDouble(WithdrawalPolicySnapshot::estimatedCharge).sum();
@@ -530,31 +693,34 @@ public class WithdrawalService {
         db.update(connection -> {
             PreparedStatement ps = connection.prepareStatement("""
                 INSERT INTO student_withdrawal_requests
-                    (student_number, section_id, course_id, term_id, reason_code, remarks, requested_on,
+                    (student_number, archive_key, section_id, course_id, term_id, reason_code, remarks, requested_on,
                      enlisted_at, days_enrolled_at_request, timing_bucket, charge_percent, estimated_charge,
                      deadline_blocked, policy_note, status, requested_by, registrar_approved_by,
                      registrar_approved_at, completed_at, withdrawal_scope, subject_count, approval_source)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, CURRENT_TIMESTAMP,
-                        CURRENT_TIMESTAMP, ?, ?, 'REGISTRAR_DIRECT')
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, CURRENT_TIMESTAMP,
+                        CURRENT_TIMESTAMP, ?, ?, ?)
                 """, new String[]{"request_id"});
             ps.setString(1, studentNumber);
-            ps.setInt(2, ((Number) first.get("section_id")).intValue());
-            ps.setInt(3, ((Number) first.get("course_id")).intValue());
-            ps.setInt(4, ((Number) first.get("term_id")).intValue());
-            ps.setString(5, reasonCode);
-            ps.setString(6, truncate(remarks, 500));
-            ps.setObject(7, firstPolicy.requestedOn());
-            ps.setObject(8, firstPolicy.enlistedAt());
-            ps.setInt(9, firstPolicy.daysEnrolled());
-            ps.setString(10, scope.equals("FULL_CURRENT_TERM") ? "FULL_CURRENT_TERM" : firstPolicy.timingBucket());
-            ps.setDouble(11, firstPolicy.chargePercent());
-            ps.setDouble(12, totalCharge);
-            ps.setString(13, truncate(firstPolicy.policyNote(), 255));
-            ps.setString(14, STATUS_APPROVED);
-            ps.setString(15, actor);
+            String archiveKey = studentProfileService.ensureArchiveKey(studentNumber);
+            ps.setString(2, archiveKey);
+            ps.setInt(3, ((Number) first.get("section_id")).intValue());
+            ps.setInt(4, ((Number) first.get("course_id")).intValue());
+            ps.setInt(5, ((Number) first.get("term_id")).intValue());
+            ps.setString(6, reasonCode);
+            ps.setString(7, truncate(remarks, 500));
+            ps.setObject(8, firstPolicy.requestedOn());
+            ps.setObject(9, firstPolicy.enlistedAt());
+            ps.setInt(10, firstPolicy.daysEnrolled());
+            ps.setString(11, scope.equals("FULL_CURRENT_TERM") ? "FULL_CURRENT_TERM" : firstPolicy.timingBucket());
+            ps.setDouble(12, firstPolicy.chargePercent());
+            ps.setDouble(13, totalCharge);
+            ps.setString(14, truncate(firstPolicy.policyNote(), 255));
+            ps.setString(15, STATUS_APPROVED);
             ps.setString(16, actor);
-            ps.setString(17, scope);
-            ps.setInt(18, enlistments.size());
+            ps.setString(17, actor);
+            ps.setString(18, scope);
+            ps.setInt(19, enlistments.size());
+            ps.setString(20, approvalSource);
             return ps;
         }, keyHolder);
         Number key = keyHolder.getKey();
@@ -564,12 +730,13 @@ public class WithdrawalService {
     }
 
     private void markStudentWithdrawn(String studentNumber) {
+        String archiveKey = studentProfileService.ensureArchiveKey(studentNumber);
         db.update("""
             UPDATE students
-            SET admission_status = 'WITHDRAWN', status = 'WITHDRAWN', is_active = 0,
-                enrollment_blocked = 1
+            SET archive_key = COALESCE(archive_key, ?), admission_status = 'WITHDRAWN', status = 'WITHDRAWN',
+                is_active = 0, enrollment_blocked = 1
             WHERE student_number = ?
-            """, studentNumber);
+            """, archiveKey, studentNumber);
         db.update("""
             UPDATE sys_users
             SET admission_status = 'WITHDRAWN', status = 'INACTIVE', is_active = 0,
@@ -593,6 +760,44 @@ public class WithdrawalService {
                 )
                 """, studentNumber);
         }
+        markArchiveFileWithdrawn(studentNumber, archiveKey);
+        studentProfileService.snapshotArchivedIdentity(studentNumber, "registrar-withdrawal", "WITHDRAWN_RECORD");
+    }
+
+    private void markArchiveFileWithdrawn(String studentNumber, String archiveKey) {
+        try {
+            db.execute("""
+                CREATE TABLE IF NOT EXISTS student_archive_files (
+                    student_number VARCHAR(100) PRIMARY KEY,
+                    archive_key VARCHAR(80) NULL,
+                    archive_status VARCHAR(40) NOT NULL DEFAULT 'ACTIVE_FILE',
+                    storage_location VARCHAR(160) NULL,
+                    retention_policy_code VARCHAR(80) NOT NULL DEFAULT 'PERMANENT',
+                    retention_until DATE NULL,
+                    current_holder VARCHAR(100) NULL,
+                    last_action_at TIMESTAMP NULL,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """);
+            try {
+                db.execute("ALTER TABLE student_archive_files ADD COLUMN archive_key VARCHAR(80) NULL");
+            } catch (Exception ignored) {
+            }
+            db.update("""
+                INSERT INTO student_archive_files
+                    (student_number, archive_key, archive_status, retention_policy_code, current_holder, last_action_at, updated_at)
+                VALUES (?, ?, 'WITHDRAWN_FILE', 'PERMANENT', 'Records custody', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ON DUPLICATE KEY UPDATE
+                    archive_key = COALESCE(archive_key, VALUES(archive_key)),
+                    archive_status = 'WITHDRAWN_FILE',
+                    retention_policy_code = COALESCE(retention_policy_code, 'PERMANENT'),
+                    current_holder = 'Records custody',
+                    last_action_at = CURRENT_TIMESTAMP,
+                    updated_at = CURRENT_TIMESTAMP
+                """, studentNumber, archiveKey);
+        } catch (Exception ignored) {
+            // Archive custody is an audit enhancement; withdrawal status remains authoritative.
+        }
     }
 
     private void recordDirectDropEvents(String studentNumber, long requestId, String actor, String scope,
@@ -604,15 +809,70 @@ public class WithdrawalService {
             .orElse("none");
         String summary = scope.equals("FULL_CURRENT_TERM")
             ? "Student dropped from current term"
-            : "Subject dropped by Registrar";
+            : "Class dropped by Registrar";
         String details = String.format("%s | Subjects: %s | Applied charge: PHP %,.2f%s",
             scope, courses, totalCharge,
-            remarks != null && !remarks.isBlank() ? " | " + truncate(remarks, 300) : "");
+            remarks != null && !remarks.isBlank() ? " | " + truncate(remarks, 300) : "")
+            + ("FULL_CURRENT_TERM".equals(scope) ? outstandingBalanceTrailDetail(studentNumber) : "");
         documentTrailService.recordStudentEvent(
             studentNumber, "STUDENT", "WITHDRAWAL", "WITHDRAWAL_COMPLETED", summary,
             details, actor, requestId, "student_withdrawal_requests", String.valueOf(requestId));
         regFormEventService.recordEvent(
             studentNumber, "WITHDRAWAL_COMPLETED", summary, requestId, details, actor);
+    }
+
+    private void recordShiftCleanupEvents(String studentNumber, long requestId, String actor,
+                                          List<Map<String, Object>> enlistments, double totalCharge,
+                                          String remarks) {
+        String courses = enlistments.stream()
+            .map(row -> String.valueOf(row.get("course_code")))
+            .reduce((left, right) -> left + ", " + right)
+            .orElse("none");
+        String details = String.format("SHIFT_PROGRAM_CLEANUP | Subjects: %s | Applied charge: PHP %,.2f%s",
+            courses, totalCharge,
+            remarks != null && !remarks.isBlank() ? " | " + truncate(remarks, 300) : "");
+        documentTrailService.recordStudentEvent(
+            studentNumber, "STUDENT", "PROGRAM_SHIFT", "SHIFT_LOAD_CLEARED",
+            "Current-term load cleared for program shift",
+            details, actor, requestId, "student_withdrawal_requests", String.valueOf(requestId));
+        regFormEventService.recordEvent(
+            studentNumber, "SHIFT_LOAD_CLEARED",
+            "Current-term load cleared for program shift", requestId, details, actor);
+    }
+
+    private void persistOutstandingBalanceHold(long requestId, String studentNumber) {
+        double outstanding = scholarEnrollmentService.getOutstandingBalanceNet(studentNumber);
+        if (outstanding <= 0.01) {
+            return;
+        }
+        String holdNote = String.format(
+            "Outstanding balance remains: PHP %,.2f. Official document release stays blocked until settled.",
+            outstanding);
+        String existing = null;
+        try {
+            existing = db.queryForObject(
+                "SELECT policy_note FROM student_withdrawal_requests WHERE request_id = ? LIMIT 1",
+                String.class,
+                requestId);
+        } catch (Exception ignored) {
+        }
+        String merged = existing != null && !existing.isBlank()
+            ? truncate(existing.trim() + " | " + holdNote, 255)
+            : truncate(holdNote, 255);
+        db.update(
+            "UPDATE student_withdrawal_requests SET policy_note = ? WHERE request_id = ?",
+            merged,
+            requestId);
+    }
+
+    private String outstandingBalanceTrailDetail(String studentNumber) {
+        double outstanding = scholarEnrollmentService.getOutstandingBalanceNet(studentNumber);
+        if (outstanding <= 0.01) {
+            return "";
+        }
+        return String.format(
+            " | Outstanding balance remains: PHP %,.2f | Official document release stays blocked until settled",
+            outstanding);
     }
 
     private Integer numberAsInteger(Object value) {
@@ -622,6 +882,33 @@ public class WithdrawalService {
     private String cleanActor(String actor) {
         String cleaned = clean(actor);
         return cleaned.isEmpty() ? "registrar" : truncate(cleaned, 100);
+    }
+
+    private String cleanNullable(String value, int maxLength) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String cleaned = value.trim();
+        return cleaned.length() <= maxLength ? cleaned : cleaned.substring(0, maxLength);
+    }
+
+    private boolean isWithdrawnOrInactiveStudent(String studentNumber) {
+        try {
+            Map<String, Object> row = db.queryForMap(
+                "SELECT admission_status, status, COALESCE(is_active, 1) AS is_active " +
+                    "FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber);
+            String admissionStatus = row.get("admission_status") != null
+                ? String.valueOf(row.get("admission_status"))
+                : "";
+            String status = row.get("status") != null ? String.valueOf(row.get("status")) : "";
+            boolean inactive = row.get("is_active") instanceof Number n && n.intValue() == 0;
+            return "WITHDRAWN".equalsIgnoreCase(admissionStatus)
+                || "WITHDRAWN".equalsIgnoreCase(status)
+                || inactive;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     private void ensureReasonExists(String reasonCode) {
@@ -636,7 +923,8 @@ public class WithdrawalService {
     private Map<String, Object> findActiveEnlistment(String studentNumber, Integer sectionId) {
         List<Map<String, Object>> rows = db.queryForList("""
             SELECT se.enlistment_id, se.student_id, se.course_id, se.section_id, se.enlisted_date,
-                   cs.term_id, c.course_code, c.course_title, c.credit_units
+                   cs.term_id, c.course_code, c.course_title, c.credit_units, c.lec_units, c.lab_units,
+                   COALESCE(c.component_type, 'SINGLE') AS component_type
             FROM student_enlistments se
             JOIN class_sections cs ON cs.section_id = se.section_id
             JOIN courses c ON c.course_id = se.course_id
@@ -657,8 +945,7 @@ public class WithdrawalService {
             : 0;
         Integer termId = enlistment.get("term_id") instanceof Number n ? n.intValue() : null;
         boolean afterMidterm = isAfterMidterm(termId, requestedOn);
-        double units = enlistment.get("credit_units") instanceof Number n ? n.doubleValue() : 0.0;
-        double originalCost = units * safeTuitionRate(studentNumber);
+        double originalCost = calculateDropOriginalCost(studentNumber, enlistment);
         int halfDays = readEnrollmentSettingInt("drop_penalty_days_half", 7);
         int fullDays = readEnrollmentSettingInt("drop_penalty_days_full", 21);
         double firstWeekPct = readEnrollmentSettingDouble("drop_penalty_first_week_percent", 25.0);
@@ -737,6 +1024,118 @@ public class WithdrawalService {
         } catch (Exception e) {
             return 0.0;
         }
+    }
+
+    private double calculateDropOriginalCost(String studentNumber, Map<String, Object> enlistment) {
+        if (studentNumber == null || studentNumber.isBlank() || enlistment == null) {
+            return 0.0;
+        }
+        double creditUnits = enlistment.get("credit_units") instanceof Number n ? n.doubleValue() : 0.0;
+        double lectureUnits = enlistment.get("lec_units") instanceof Number n ? n.doubleValue() : 0.0;
+        double labUnits = enlistment.get("lab_units") instanceof Number n ? n.doubleValue() : 0.0;
+        String courseCode = enlistment.get("course_code") != null ? String.valueOf(enlistment.get("course_code")) : null;
+        String courseTitle = enlistment.get("course_title") != null ? String.valueOf(enlistment.get("course_title")) : null;
+        String componentType = enlistment.get("component_type") != null ? String.valueOf(enlistment.get("component_type")) : null;
+        Integer termId = enlistment.get("term_id") instanceof Number n ? n.intValue() : null;
+
+        String programCode = null;
+        int yearLevel = 1;
+        try {
+            Map<String, Object> student = db.queryForMap(
+                "SELECT program_code, COALESCE(year_level, 1) AS year_level FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber);
+            programCode = student.get("program_code") != null ? String.valueOf(student.get("program_code")) : null;
+            yearLevel = student.get("year_level") instanceof Number n ? n.intValue() : 1;
+        } catch (Exception ignored) {
+        }
+
+        Integer programId = termFeeAdminService.resolveProgramId(programCode);
+        if (programId == null) {
+            double fallbackUnits = creditUnits > 0.0 ? creditUnits : Math.max(lectureUnits, labUnits);
+            return roundMoney(fallbackUnits * safeTuitionRate(studentNumber));
+        }
+
+        int semesterNumber = resolveSemesterNumber(termId);
+        Map<String, Double> rates = termFeeAdminService.getFeeRatesForScope(programId, termId, yearLevel, semesterNumber);
+        String normalizedType = componentType != null ? componentType.trim().toUpperCase() : "";
+        String normalizedCode = courseCode != null ? courseCode.trim().toUpperCase() : "";
+        String normalizedTitle = courseTitle != null ? courseTitle.trim().toUpperCase() : "";
+
+        if (isRleDropCourse(normalizedType, normalizedCode, normalizedTitle)) {
+            double rleRate = rates.getOrDefault("RLE_FEE_PER_UNIT", 0.0);
+            if (rleRate > 0.0) {
+                double rleUnits = creditUnits > 0.0 ? creditUnits : Math.max(lectureUnits, labUnits);
+                return roundMoney(Math.max(0.0, rleUnits) * rleRate);
+            }
+        }
+
+        if (isSpecialDropCourse(normalizedType, normalizedCode, normalizedTitle)) {
+            double specialRate = rates.getOrDefault("COMP_FEE_PER_UNIT", 0.0);
+            if (specialRate <= 0.0) {
+                specialRate = rates.getOrDefault("RLE_FEE_PER_UNIT", 0.0);
+            }
+            if (specialRate > 0.0) {
+                double specialUnits = creditUnits > 0.0 ? creditUnits : Math.max(lectureUnits, labUnits);
+                return roundMoney(Math.max(0.0, specialUnits) * specialRate);
+            }
+        }
+
+        double lectureRate = rates.getOrDefault("LEC_FEE_PER_UNIT", 0.0);
+        if (lectureRate <= 0.0) {
+            lectureRate = rates.getOrDefault("TUITION_PER_UNIT", safeTuitionRate(studentNumber));
+        }
+        double labRate = rates.getOrDefault("LAB_FEE_PER_UNIT", 0.0);
+        double resolvedLectureUnits = lectureUnits;
+        double resolvedLabUnits = labUnits;
+        if (resolvedLectureUnits <= 0.0 && resolvedLabUnits <= 0.0 && creditUnits > 0.0) {
+            resolvedLectureUnits = creditUnits;
+        }
+        return roundMoney((Math.max(0.0, resolvedLectureUnits) * Math.max(0.0, lectureRate))
+            + (Math.max(0.0, resolvedLabUnits) * Math.max(0.0, labRate)));
+    }
+
+    private int resolveSemesterNumber(Integer termId) {
+        if (termId == null) {
+            return 1;
+        }
+        try {
+            Integer sem = db.queryForObject(
+                "SELECT semester_number FROM academic_terms WHERE term_id = ? LIMIT 1",
+                Integer.class, termId);
+            return sem != null ? sem : 1;
+        } catch (Exception e) {
+            return 1;
+        }
+    }
+
+    private boolean isRleDropCourse(String componentType, String courseCode, String courseTitle) {
+        return "RLE".equals(componentType)
+            || containsAny(courseCode, "RLE", "NURS")
+            || containsAny(courseTitle, "RLE", "CLINICAL", "NURS", "NURSING");
+    }
+
+    private boolean isSpecialDropCourse(String componentType, String courseCode, String courseTitle) {
+        return "COMP".equals(componentType)
+            || "SPECIAL".equals(componentType)
+            || containsAny(courseCode, "THESIS", "CAPSTONE", "PRACTICUM", "PROJECT")
+            || containsAny(courseTitle, "THESIS", "CAPSTONE", "PRACTICUM", "PROJECT", "EXTERNSHIP", "INTERNSHIP");
+    }
+
+    private boolean containsAny(String value, String... tokens) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.toUpperCase();
+        for (String token : tokens) {
+            if (token != null && !token.isBlank() && normalized.contains(token.toUpperCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private double roundMoney(double value) {
+        return Math.round(Math.max(0.0, value) * 100.0) / 100.0;
     }
 
     private int readEnrollmentSettingInt(String key, int defaultValue) {
@@ -890,6 +1289,7 @@ public class WithdrawalService {
         return new DirectDropResult(requestId, subjectsDropped, totalCharge, scope);
     }
 
+    // Legacy approval path retained for archived records; live UI now executes withdrawals directly.
     @Transactional
     public DirectDropResult approveAndExecuteRequest(long requestId, String approvedBy) {
         prepareRegistrarApproval(requestId, approvedBy);
@@ -902,6 +1302,7 @@ public class WithdrawalService {
         markCompletedInternal(requestId, "registrar", "SINGLE_SUBJECT", null, List.of(), 0.0);
     }
 
+    // Legacy rejection path retained for archived records; live UI now executes withdrawals directly.
     @Transactional
     public String reject(long requestId, String rejectedBy, String reason) {
         ensureSchema();
@@ -958,7 +1359,7 @@ public class WithdrawalService {
                 : "registrar");
         String summary = "FULL_CURRENT_TERM".equalsIgnoreCase(scope)
             ? "Student withdrawn from current term"
-            : "Subject withdrawal completed";
+            : "Subject drop completed";
         String details;
         if (executedEnlistments == null || executedEnlistments.isEmpty()) {
             details = "Request #" + requestId + " completed.";

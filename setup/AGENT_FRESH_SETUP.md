@@ -99,6 +99,9 @@ Success criteria from the readiness SQL:
 - active-term faculty assignments exist
 - inactive-term faculty assignments are `0`
 - `prof.cruz` has active-term sections
+- registrar governance contract summary returns `PASS`
+- `grade_change_requests` exposes `reviewed_by`, `review_note`, and `rejected_at`
+- archive and released-number tables exist before UAT begins
 
 If fee gaps are non-zero, use `registrar/setup/fees/term-fee-import-template-1120242025.csv` in the Program Fees UI.
 

@@ -34,6 +34,7 @@ Demo login: `admin` / `1234`
 
 | Start here | Description |
 |------------|-------------|
+| [`CANON/README.md`](CANON/README.md) | Canonical D-drive landing page for the current registrar canon |
 | [`AGENTS.md`](AGENTS.md) | Compact registrar workflow and canon for future agent passes |
 | [`handoffNew/REGISTRAR_SYSTEM_SPECIFICATION_20260625.md`](handoffNew/REGISTRAR_SYSTEM_SPECIFICATION_20260625.md) | Current front-door system specification: scope, ownership, workflows, boundaries, and module map |
 | [`handoffNew/REPO_PUSH_GUIDE_REGISTRARCANON_20260625.md`](handoffNew/REPO_PUSH_GUIDE_REGISTRARCANON_20260625.md) | Agent-facing guide for publishing this updated Registrar state to the `registrarCanon` GitHub repo |

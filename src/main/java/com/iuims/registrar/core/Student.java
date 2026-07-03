@@ -17,6 +17,9 @@ public class Student {
     @Column(name = "reference_number", length = 100)
     private String referenceNumber;
 
+    @Column(name = "archive_key", length = 80)
+    private String archiveKey;
+
     @Column(name = "first_name", length = 100)
     private String firstName;
 
@@ -77,6 +80,9 @@ public class Student {
 
     public String getReferenceNumber() { return referenceNumber; }
     public void setReferenceNumber(String referenceNumber) { this.referenceNumber = referenceNumber; }
+
+    public String getArchiveKey() { return archiveKey; }
+    public void setArchiveKey(String archiveKey) { this.archiveKey = archiveKey; }
 
     public String getFirstName() { return firstName; }
     public void setFirstName(String firstName) { this.firstName = firstName; }

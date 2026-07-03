@@ -60,8 +60,8 @@ public class FinancePolicyService {
         db.update("INSERT IGNORE INTO enrollment_settings (setting_key, setting_value, description) VALUES " +
             "('downpayment_amount', '3000', 'Fixed downpayment (legacy mirror)'), " +
             "('downpayment_percent', '0', 'Percent of assessment (legacy mirror)'), " +
-            "('max_units_regular', '27', 'Legacy max units; year-level policy is authoritative in Registrar'), " +
-            "('max_units_graduating_bonus', '6', 'Graduating bonus'), " +
+            "('max_units_regular', '27', 'Legacy max units; assigned curriculum is authoritative in Registrar'), " +
+            "('max_units_graduating_bonus', '6', 'Legacy graduating bonus; assigned curriculum policy is authoritative'), " +
             "('enrollment_session_minutes', '15', 'Session timeout'), " +
             "('drop_penalty_days_half', '7', '50% withdrawal charge after first week'), " +
             "('drop_penalty_days_full', '21', '100% withdrawal charge after three weeks'), " +

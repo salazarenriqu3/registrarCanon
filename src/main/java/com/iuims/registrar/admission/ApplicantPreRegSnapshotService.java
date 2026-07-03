@@ -6,15 +6,20 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.text.DecimalFormat;
+import java.sql.Connection;
+import java.sql.DatabaseMetaData;
+import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class ApplicantPreRegSnapshotService {
 
     private static final String SNAPSHOT_SOURCE = "REGISTRAR";
+    private static final String SNAPSHOT_SOURCE_ENROLLMENT = "ENR_PRE_ADVISE";
 
     private final JdbcTemplate db;
     private final TermFeeAdminService termFeeAdminService;
@@ -30,6 +35,10 @@ public class ApplicantPreRegSnapshotService {
     }
 
     public void ensureSchema() {
+        String snapshotPk = snapshotPkColumn();
+        if (snapshotPk == null) {
+            snapshotPk = "snapshot_id";
+        }
         db.execute(
             "CREATE TABLE IF NOT EXISTS applicant_pre_reg_snapshots (" +
                 " snapshot_id BIGINT AUTO_INCREMENT PRIMARY KEY," +
@@ -79,7 +88,7 @@ public class ApplicantPreRegSnapshotService {
                 " KEY idx_pre_reg_lines_reference (reference_number)," +
                 " KEY idx_pre_reg_lines_section (section_id)," +
                 " CONSTRAINT fk_pre_reg_lines_snapshot FOREIGN KEY (snapshot_id) " +
-                "   REFERENCES applicant_pre_reg_snapshots(snapshot_id) ON DELETE CASCADE" +
+                "   REFERENCES applicant_pre_reg_snapshots(" + snapshotPk + ") ON DELETE CASCADE" +
             ")"
         );
         db.execute(
@@ -101,7 +110,7 @@ public class ApplicantPreRegSnapshotService {
                 " KEY idx_pre_reg_credit_snapshot (snapshot_id)," +
                 " KEY idx_pre_reg_credit_reference (reference_number)," +
                 " CONSTRAINT fk_pre_reg_credit_snapshot FOREIGN KEY (snapshot_id) " +
-                "   REFERENCES applicant_pre_reg_snapshots(snapshot_id) ON DELETE CASCADE" +
+                "   REFERENCES applicant_pre_reg_snapshots(" + snapshotPk + ") ON DELETE CASCADE" +
             ")"
         );
         ensureLineColumn("section_id", "INT NULL");
@@ -180,13 +189,9 @@ public class ApplicantPreRegSnapshotService {
 
     public Map<String, Object> findSnapshotByReference(String refNo) {
         ensureSchema();
-        Map<String, Object> header = findSnapshotHeader(refNo);
-        if (header != null) {
-            refreshSnapshotTotals(refNo);
-            header = findSnapshotHeader(refNo);
-        }
-        List<Map<String, Object>> lines = listSnapshotLines(refNo);
-        List<Map<String, Object>> credits = listCreditLines(refNo);
+        Map<String, Object> header = findSharedSnapshotHeader(refNo);
+        List<Map<String, Object>> lines = listSharedSnapshotLines(header);
+        List<Map<String, Object>> credits = List.of();
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("exists", header != null);
         out.put("reference_number", refNo);
@@ -560,12 +565,12 @@ public class ApplicantPreRegSnapshotService {
         if (applicantBlock != null) {
             return applicantBlock;
         }
-        Map<String, Object> header = findSnapshotHeader(refNo);
+        Map<String, Object> header = findSharedSnapshotHeader(refNo);
         if (header == null) {
-            return "Irregular applicant admission is blocked until Registrar saves a pre-registration snapshot.";
+            return "Irregular applicant admission is blocked until Enrollment3 faculty/dean pre-advising saves a finalized pre-registration snapshot.";
         }
         if (!isFinalized(header)) {
-            return "Irregular applicant admission is blocked until Registrar finalizes the pre-registration snapshot.";
+            return "Irregular applicant admission is blocked until Enrollment3 faculty/dean pre-advising finalizes the pre-registration snapshot.";
         }
 
         String snapshotProgramCode = asText(header.get("program_code"));
@@ -575,14 +580,142 @@ public class ApplicantPreRegSnapshotService {
                 + ") does not match the selected program (" + targetProgramCode + ").";
         }
 
-        Integer lineCount = db.queryForObject(
-            "SELECT COUNT(*) FROM applicant_pre_reg_subject_lines WHERE snapshot_id = ?",
-            Integer.class, header.get("snapshot_id")
-        );
-        if (lineCount == null || lineCount <= 0) {
-            return "Irregular applicant admission is blocked until Registrar assigns subject lines.";
+        List<Map<String, Object>> lines = listSharedSnapshotLines(header);
+        int lineCount = lines.size();
+        if (lineCount <= 0) {
+            return "Irregular applicant admission is blocked until Enrollment3 faculty/dean pre-advising assigns subject lines.";
         }
         return null;
+    }
+
+    private Map<String, Object> findSharedSnapshotHeader(String refNo) {
+        if (!hasText(refNo)) {
+            return null;
+        }
+        String pk = snapshotPkColumn();
+        if (pk == null) {
+            return null;
+        }
+        String updatedAt = hasSnapshotColumn("updated_at") ? "s.updated_at" : "s.snapshot_at";
+        try {
+            return db.queryForMap(
+                "SELECT s.* FROM applicant_pre_reg_snapshots s " +
+                    "WHERE s.reference_number = ? " +
+                    "AND UPPER(TRIM(COALESCE(s.snapshot_source, ''))) IN (?, ?) " +
+                    "ORDER BY CASE UPPER(TRIM(COALESCE(s.snapshot_source, ''))) " +
+                        "WHEN ? THEN 0 WHEN ? THEN 1 ELSE 2 END, " +
+                        "CASE WHEN UPPER(TRIM(COALESCE(s.snapshot_status, ''))) = 'FINAL' " +
+                            "OR s.evaluation_finalized_at IS NOT NULL THEN 0 ELSE 1 END, " +
+                        updatedAt + " DESC, s." + pk + " DESC LIMIT 1",
+                refNo.trim(),
+                SNAPSHOT_SOURCE_ENROLLMENT, SNAPSHOT_SOURCE,
+                SNAPSHOT_SOURCE_ENROLLMENT, SNAPSHOT_SOURCE
+            );
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private List<Map<String, Object>> listSharedSnapshotLines(Map<String, Object> header) {
+        if (header == null) {
+            return List.of();
+        }
+        String pk = snapshotPkColumn();
+        Object snapshotId = header.get(pk);
+        if (snapshotId == null) {
+            snapshotId = header.get("snapshot_id");
+        }
+        if (snapshotId == null) {
+            snapshotId = header.get("id");
+        }
+        if (!(snapshotId instanceof Number)) {
+            return List.of();
+        }
+        String linePk = hasLineColumn("id") ? "id" : "line_id";
+        String orderExpr = lineOrderExpression();
+        String selectYear = hasLineColumn("year_level") ? "year_level" : "NULL AS year_level";
+        String selectSem = hasLineColumn("semester_number") ? "semester_number" : "NULL AS semester_number";
+        String selectSectionId = hasLineColumn("section_id") ? "section_id" : "NULL AS section_id";
+        String selectSchedule = hasLineColumn("schedule_text") ? "schedule_text" : "NULL AS schedule_text";
+        String selectTuition = hasLineColumn("tuition_amount") ? "tuition_amount" : "0.00 AS tuition_amount";
+        return db.queryForList(
+            "SELECT " + linePk + " AS line_id, course_id, course_code, course_title, units, "
+                + selectYear + ", " + selectSem + ", " + selectSectionId + ", "
+                + "section_code, " + selectSchedule + ", " + selectTuition + " "
+                + "FROM applicant_pre_reg_subject_lines WHERE snapshot_id = ? "
+                + "ORDER BY " + orderExpr + ", " + linePk,
+            ((Number) snapshotId).longValue()
+        );
+    }
+
+    private String snapshotPkColumn() {
+        if (hasSnapshotColumn("snapshot_id")) {
+            return "snapshot_id";
+        }
+        if (hasSnapshotColumn("id")) {
+            return "id";
+        }
+        return null;
+    }
+
+    private String lineOrderExpression() {
+        List<String> parts = new ArrayList<>();
+        if (hasLineColumn("line_order")) {
+            parts.add("line_order");
+        }
+        if (hasLineColumn("sort_order")) {
+            parts.add("sort_order");
+        }
+        if (hasLineColumn("id")) {
+            parts.add("id");
+        }
+        if (hasLineColumn("line_id")) {
+            parts.add("line_id");
+        }
+        if (parts.isEmpty()) {
+            return "1";
+        }
+        if (parts.size() == 1) {
+            return parts.get(0);
+        }
+        return "COALESCE(" + String.join(", ", parts) + ")";
+    }
+
+    private boolean hasSnapshotColumn(String columnName) {
+        return hasColumn("applicant_pre_reg_snapshots", columnName);
+    }
+
+    private boolean hasLineColumn(String columnName) {
+        return hasColumn("applicant_pre_reg_subject_lines", columnName);
+    }
+
+    private boolean hasColumn(String tableName, String columnName) {
+        try {
+            return Boolean.TRUE.equals(db.execute((Connection conn) -> {
+                DatabaseMetaData meta = conn.getMetaData();
+                return hasColumn(meta, tableName, columnName);
+            }));
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    private boolean hasColumn(DatabaseMetaData meta, String tableName, String columnName) throws java.sql.SQLException {
+        try (ResultSet rs = meta.getColumns(null, null, tableName, null)) {
+            while (rs.next()) {
+                if (columnName.equalsIgnoreCase(rs.getString("COLUMN_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        try (ResultSet rs = meta.getColumns(null, null, tableName.toUpperCase(Locale.ROOT), null)) {
+            while (rs.next()) {
+                if (columnName.equalsIgnoreCase(rs.getString("COLUMN_NAME"))) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void refreshSnapshotTotals(String refNo) {

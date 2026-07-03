@@ -9,12 +9,14 @@ import com.iuims.registrar.curriculum.CreditGradeService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
 import com.iuims.registrar.core.EnlistmentSchemaService;
 import com.iuims.registrar.core.StudentProfileService;
+import com.iuims.registrar.core.StudentIdentityReleaseService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
 import com.iuims.registrar.finance.FinancePolicyService;
 import com.iuims.registrar.finance.OverpayDispositionService;
 import com.iuims.registrar.finance.TermFeeAdminService;
 import com.iuims.registrar.forms.RegFormEventService;
+import com.iuims.registrar.forms.RegistrationFormPdfService;
 import com.iuims.registrar.forms.StudentArchiveCustodyService;
 import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.core.DatabaseSetupService;
@@ -32,6 +34,7 @@ import com.iuims.registrar.curriculum.StudentCurriculumService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.core.io.Resource;
@@ -66,9 +69,11 @@ public class EnrollmentController {
     private final OverpayDispositionService overpayDispositionService;
     private final WithdrawalService withdrawalService;
     private final RegFormEventService regFormEventService;
+    private final RegistrationFormPdfService registrationFormPdfService;
     private final StudentArchiveCustodyService archiveCustodyService;
     private final StudentDocumentTrailService documentTrailService;
     private final StudentProfileService studentProfileService;
+    private final StudentIdentityReleaseService studentIdentityReleaseService;
     private final ApplicantDocumentReadService applicantDocumentReadService;
 
     public EnrollmentController(AcademicGradingService academicService, JaypeeIntegrationService jaypeeService,
@@ -78,9 +83,11 @@ public class EnrollmentController {
                                 OverpayDispositionService overpayDispositionService,
                                 WithdrawalService withdrawalService,
                                 RegFormEventService regFormEventService,
+                                RegistrationFormPdfService registrationFormPdfService,
                                 StudentArchiveCustodyService archiveCustodyService,
                                 StudentDocumentTrailService documentTrailService,
                                 StudentProfileService studentProfileService,
+                                StudentIdentityReleaseService studentIdentityReleaseService,
                                 ApplicantDocumentReadService applicantDocumentReadService) {
         this.academicService = academicService;
         this.jaypeeService = jaypeeService;
@@ -93,9 +100,11 @@ public class EnrollmentController {
         this.overpayDispositionService = overpayDispositionService;
         this.withdrawalService = withdrawalService;
         this.regFormEventService = regFormEventService;
+        this.registrationFormPdfService = registrationFormPdfService;
         this.archiveCustodyService = archiveCustodyService;
         this.documentTrailService = documentTrailService;
         this.studentProfileService = studentProfileService;
+        this.studentIdentityReleaseService = studentIdentityReleaseService;
         this.applicantDocumentReadService = applicantDocumentReadService;
     }
 
@@ -120,6 +129,9 @@ public class EnrollmentController {
                 
                 model.addAttribute("student", s);
                 model.addAttribute("studentProfile", studentProfileService.getEditableProfile(actualStudentNumber));
+                model.addAttribute("studentArchiveKey", studentProfileService.getArchiveKey(actualStudentNumber));
+                model.addAttribute("studentNumberRelease",
+                    studentIdentityReleaseService.findReleaseRecord(actualStudentNumber, studentProfileService.getArchiveKey(actualStudentNumber)));
                 model.addAttribute("admissionSnapshot",
                     applicantDocumentReadService.getAdmissionSnapshot(actualStudentNumber));
                 model.addAttribute("applicantDocuments",
@@ -129,29 +141,44 @@ public class EnrollmentController {
                 model.addAttribute("archiveEvents",
                     archiveCustodyService.listRecentEvents(actualStudentNumber));
                 model.addAttribute("enrollmentCashierUrl",
-                    "/enrollment/admin/cashier?keyword=" +
+                    "http://localhost:8082/admin/cashier?keyword=" +
                         UriUtils.encodeQueryParam(actualStudentNumber, StandardCharsets.UTF_8));
                 
                 List<Map<String, Object>> crossLoad = jaypeeService.getStudentLoad(actualStudentNumber);
                 model.addAttribute("studentLoad", crossLoad);
-                model.addAttribute("withdrawalReasons", withdrawalService.listActiveReasons());
+                model.addAttribute("withdrawalReasons", withdrawalService.listStandardReasons());
+                model.addAttribute("shiftWithdrawalReasons", withdrawalService.listShiftCleanupReasons());
                 model.addAttribute("studentWithdrawalRequests",
                     withdrawalService.listStudentRequests(actualStudentNumber));
                 model.addAttribute("regFormEvents", regFormEventService.listStudentEvents(actualStudentNumber));
                 String admStatus = s.get("admission_status") != null ? s.get("admission_status").toString() : "";
-                boolean hasEnrolledSubjects = !crossLoad.isEmpty();
+                boolean isWithdrawnStudent = "WITHDRAWN".equalsIgnoreCase(admStatus);
+                boolean hasEnrolledSubjects = !isWithdrawnStudent && !crossLoad.isEmpty();
                 boolean isEnrolledStatus = "ENROLLED".equalsIgnoreCase(admStatus) && hasEnrolledSubjects;
                 model.addAttribute("isEnrolledStatus", isEnrolledStatus);
                 model.addAttribute("hasEnrolledSubjects", hasEnrolledSubjects);
+                model.addAttribute("isWithdrawnStudent", isWithdrawnStudent);
+                Map<String, Object> currentCurriculum = studentCurriculumService.getCurrentAssignment(actualStudentNumber);
+                model.addAttribute("currentCurriculum", currentCurriculum);
+                String assignmentType = currentCurriculum != null && currentCurriculum.get("assignment_type") != null
+                    ? currentCurriculum.get("assignment_type").toString()
+                    : "";
+                boolean isProgramShifted = "PROGRAM_SHIFT".equalsIgnoreCase(assignmentType);
+                boolean readyForBulkAdd = currentCurriculum != null;
+                model.addAttribute("isProgramShifted", isProgramShifted);
+                model.addAttribute("readyForBulkAdd", readyForBulkAdd);
+                model.addAttribute("bulkEnrollLabel",
+                    isProgramShifted ? "Bulk Add Shifted Curriculum" : "Bulk Add Assigned Curriculum");
+                boolean canAddSubjects = !isWithdrawnStudent && (hasEnrolledSubjects || currentCurriculum != null);
+                model.addAttribute("canAddSubjects", canAddSubjects);
 
                 // Load grouped offerings (one row per course, sections as dropdown)
-                if (hasEnrolledSubjects) {
+                if (canAddSubjects) {
                     model.addAttribute("groupedCourses", jaypeeService.getGroupedCourseOfferings(
                         actualStudentNumber, offeringSchool, offeringProgram, offeringQ));
                 }
                 model.addAttribute("offeringSchools", jaypeeService.listOfferingSchools());
                 model.addAttribute("offeringPrograms", jaypeeService.listOfferingPrograms());
-                model.addAttribute("currentCurriculum", studentCurriculumService.getCurrentAssignment(actualStudentNumber));
                 List<Map<String, Object>> assignableCurricula = studentCurriculumService.listAssignableCurricula();
                 String studentProgramCode = s.get("program_code") != null ? s.get("program_code").toString().trim() : "";
                 model.addAttribute("assignableCurricula", assignableCurricula);
@@ -167,6 +194,8 @@ public class EnrollmentController {
                     studentCurriculumService.getShiftCarryOverSummary(actualStudentNumber));
                 model.addAttribute("transferCreditRequests",
                     creditGradeService.listRequestsForStudent(actualStudentNumber));
+                model.addAttribute("canSubmitTransferCreditRequests",
+                    "Dean".equalsIgnoreCase(currentUserRole(session)));
                 model.addAttribute("selectedOfferingSchool", offeringSchool != null ? offeringSchool : "__DEFAULT__");
                 model.addAttribute("selectedOfferingProgram", offeringProgram != null ? offeringProgram : "__ALL__");
                 model.addAttribute("offeringQ", offeringQ != null ? offeringQ : "");
@@ -188,19 +217,28 @@ public class EnrollmentController {
                 financeNode.put("balance_forwarded_fmt", finSummary.getOrDefault("balance_forwarded_fmt", "0.00"));
                 financeNode.put("total_assessment_fmt", finSummary.getOrDefault("total_assessment_fmt", "0.00"));
                 financeNode.put("total_paid_fmt",       finSummary.getOrDefault("total_paid_fmt", "0.00"));
+                financeNode.put("scholarship_discount_fmt", finSummary.getOrDefault("scholarship_discount_fmt", "0.00"));
                 financeNode.put("pending_term_credit", finSummary.getOrDefault("pending_term_credit", 0.0));
                 financeNode.put("pending_term_credit_fmt", finSummary.getOrDefault("pending_term_credit_fmt", "0.00"));
                 financeNode.put("has_pending_overpay", finSummary.getOrDefault("has_pending_overpay", false));
                 financeNode.put("has_accounting_block", finSummary.getOrDefault("has_accounting_block", false));
+                financeNode.put("withdrawal_charges", finSummary.getOrDefault("withdrawal_charges", 0.0));
+                financeNode.put("withdrawal_charges_fmt", String.format("%,.2f", numberValue(finSummary.get("withdrawal_charges"))));
+                financeNode.put("misc_core_fee_fmt", String.format("%,.2f", numberValue(finSummary.get("misc_fee"))));
+                financeNode.put("other_fee_fmt", String.format("%,.2f", numberValue(finSummary.get("other_fee"))));
                 model.addAttribute("finance", financeNode);
                 model.addAttribute("hasAccountingBlock", Boolean.TRUE.equals(finSummary.get("has_accounting_block")));
                 model.addAttribute("accountingBlockThresholdFmt", finSummary.getOrDefault("accounting_block_threshold_fmt", "0.00"));
                 model.addAttribute("forwardedBalanceFmt", finSummary.getOrDefault("balance_forwarded_fmt", "0.00"));
                 model.addAttribute("outstandingBalanceFmt", finSummary.getOrDefault("balance_fmt", "0.00"));
+                model.addAttribute("outstandingBalanceAmount", finSummary.getOrDefault("outstandingBalance", 0.0));
                 model.addAttribute("hasPendingOverpay", Boolean.TRUE.equals(finSummary.get("has_pending_overpay")));
                 model.addAttribute("pendingTermCreditFmt", finSummary.getOrDefault("pending_term_credit_fmt", "0.00"));
                 
-                model.addAttribute("ledger", financeService.getStudentLedger(actualStudentNumber));
+                List<Map<String, Object>> ledger = financeService.getStudentLedger(actualStudentNumber);
+                model.addAttribute("ledger", ledger);
+                int previewCount = Math.min(5, ledger.size());
+                model.addAttribute("ledgerPreview", ledger.subList(Math.max(0, ledger.size() - previewCount), ledger.size()));
 
                 Integer activeTermId = termFeeAdminService.getActiveTermId();
                 model.addAllAttributes(financePolicyService.buildStudentInstallmentView(actualStudentNumber, activeTermId));
@@ -210,7 +248,9 @@ public class EnrollmentController {
             model.addAttribute("offeringPrograms", jaypeeService.listOfferingPrograms());
             model.addAttribute("selectedOfferingProgram", offeringProgram != null ? offeringProgram : "All");
         }
-        model.addAttribute("enrollmentCashierUrl", "http://localhost:8082/admin/cashier");
+        if (!model.containsAttribute("enrollmentCashierUrl")) {
+            model.addAttribute("enrollmentCashierUrl", "http://localhost:8082/admin/cashier");
+        }
         return "admin_student_manager";
     }
 
@@ -382,6 +422,72 @@ public class EnrollmentController {
         return "redirect:/admin/student-manager";
     }
 
+    @GetMapping("/admin/scholar-ledger")
+    public String scholarLedger(@RequestParam(required = false) String keyword,
+                                Model model,
+                                HttpSession session) {
+        financeService.syncVerifiedPayments();
+        if (session.getAttribute("currentUser") == null) {
+            return "redirect:/login";
+        }
+
+        String safeKeyword = keyword != null ? keyword.trim() : "";
+        model.addAttribute("keyword", safeKeyword);
+
+        if (safeKeyword.isEmpty()) {
+            return "admin_scholar_ledger";
+        }
+
+        Map<String, Object> student = academicService.findStudentByIdOrName(safeKeyword);
+        if (student == null) {
+            model.addAttribute("errorMessage", "Student not found.");
+            return "admin_scholar_ledger";
+        }
+
+        String studentNumber = String.valueOf(student.get("username"));
+        financeService.refreshStudentFinanceSnapshot(studentNumber);
+        Map<String, Object> finSummary = financeService.calculateAssessment(studentNumber);
+
+        model.addAttribute("student", student);
+        model.addAttribute("finance", finSummary);
+        model.addAttribute("outstandingBalance", finSummary.getOrDefault("outstandingBalance", finSummary.getOrDefault("balance", 0.0)));
+        model.addAttribute("rawLedger", financeService.getStudentLedger(studentNumber));
+        model.addAttribute("paymentHistory", financeService.getStudentPayments(studentNumber));
+        model.addAttribute("academicLoad", normalizeAcademicLoad(jaypeeService.getStudentLoad(studentNumber)));
+        return "admin_scholar_ledger";
+    }
+
+    private List<Map<String, Object>> normalizeAcademicLoad(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty()) {
+            return java.util.List.of();
+        }
+        return rows.stream().map(row -> {
+            Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("COURSE_CODE", firstNonBlank(row, "COURSE_CODE", "course_code", "code"));
+            out.put("COURSE_TITLE", firstNonBlank(row, "COURSE_TITLE", "course_title", "DESCRIPTION", "description", "title"));
+            out.put("CREDIT_UNITS", firstNonNull(row, "CREDIT_UNITS", "credit_units", "units"));
+            out.put("GRADE", firstNonNull(row, "GRADE", "grade"));
+            return out;
+        }).toList();
+    }
+
+    private Object firstNonNull(Map<String, Object> row, String... keys) {
+        if (row == null) return null;
+        for (String key : keys) {
+            if (key == null) continue;
+            Object value = row.get(key);
+            if (value != null) {
+                return value;
+            }
+        }
+        return null;
+    }
+
+    private String firstNonBlank(Map<String, Object> row, String... keys) {
+        Object value = firstNonNull(row, keys);
+        return value != null ? value.toString() : "";
+    }
+
     @PostMapping("/admin/student-manager/profile")
     public String saveStudentProfile(@RequestParam Map<String, String> form,
                                      HttpSession session,
@@ -392,7 +498,7 @@ public class EnrollmentController {
             return "redirect:/admin/student-manager";
         }
         try {
-            List<String> changed = studentProfileService.updateProfile(studentNumber, form);
+            List<String> changed = studentProfileService.updateProfile(studentNumber, form, currentUsername(session));
             if (changed.isEmpty()) {
                 redir.addFlashAttribute("successMessage", "No profile changes detected.");
             } else {
@@ -424,17 +530,11 @@ public class EnrollmentController {
         }
         try {
             Path path = applicantDocumentReadService.resolveDocumentPath(studentNumber, documentKey);
-            if (path == null || !Files.isRegularFile(path) || !Files.isReadable(path)) {
-                return ResponseEntity.notFound().build();
-            }
-            String contentType = Files.probeContentType(path);
-            MediaType mediaType = contentType != null
-                ? MediaType.parseMediaType(contentType)
-                : MediaType.APPLICATION_OCTET_STREAM;
-            Resource resource = new UrlResource(path.toUri());
             String normalizedMode = "download".equalsIgnoreCase(mode) ? "download" : "view";
             boolean download = "download".equals(normalizedMode);
-            String fileName = path.getFileName().toString().replace("\"", "");
+            String fileName = path != null && path.getFileName() != null
+                ? path.getFileName().toString().replace("\"", "")
+                : documentKey.replace("\"", "");
             String sourceTable = documentKey.startsWith("normalized:")
                 ? "student_requirement_files"
                 : "applicants";
@@ -451,6 +551,20 @@ public class EnrollmentController {
             } catch (Exception ignored) {
                 // Document safekeeping access should remain available even if trail persistence fails.
             }
+            if (path == null || !Files.isRegularFile(path) || !Files.isReadable(path)) {
+                String fallbackUrl = applicantDocumentReadService.resolveDocumentFallbackUrl(studentNumber, documentKey, download);
+                if (fallbackUrl != null && !fallbackUrl.isBlank()) {
+                    return ResponseEntity.status(HttpStatus.FOUND)
+                        .header(HttpHeaders.LOCATION, fallbackUrl)
+                        .build();
+                }
+                return ResponseEntity.notFound().build();
+            }
+            String contentType = Files.probeContentType(path);
+            MediaType mediaType = contentType != null
+                ? MediaType.parseMediaType(contentType)
+                : MediaType.APPLICATION_OCTET_STREAM;
+            Resource resource = new UrlResource(path.toUri());
             return ResponseEntity.ok()
                 .contentType(mediaType)
                 .header(HttpHeaders.CONTENT_DISPOSITION,
@@ -569,7 +683,14 @@ public class EnrollmentController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String username = studentNumber != null ? studentNumber.trim() : "";
         CreditGradeService.CreditRequestActionResult result =
-            creditGradeService.submitCreditRequest(username, courseId, numericGrade, sourceSchool, note, currentUsername(session));
+            creditGradeService.submitCreditRequest(
+                username,
+                courseId,
+                numericGrade,
+                sourceSchool,
+                note,
+                currentUsername(session),
+                currentUserRole(session));
         if (result.ok()) {
             redir.addFlashAttribute("successMessage", result.message());
         } else {
@@ -588,7 +709,12 @@ public class EnrollmentController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String username = studentNumber != null ? studentNumber.trim() : "";
         CreditGradeService.BulkCreditResult result =
-            creditGradeService.submitBulkCreditRequestsFromCsv(username, bulkCreditCsv, defaultSourceSchool, currentUsername(session));
+            creditGradeService.submitBulkCreditRequestsFromCsv(
+                username,
+                bulkCreditCsv,
+                defaultSourceSchool,
+                currentUsername(session),
+                currentUserRole(session));
         String summary = "Bulk TOR request: " + result.credited() + " submitted, " + result.skipped() + " skipped.";
         if (result.credited() > 0) {
             redir.addFlashAttribute("successMessage", summary);
@@ -607,7 +733,7 @@ public class EnrollmentController {
                                                HttpSession session) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         CreditGradeService.CreditRequestActionResult result =
-            creditGradeService.approveCreditRequest(requestId, currentUsername(session));
+            creditGradeService.approveCreditRequest(requestId, currentUsername(session), currentUserRole(session));
         if (result.ok()) {
             redir.addFlashAttribute("successMessage", result.message());
         } else {
@@ -625,7 +751,11 @@ public class EnrollmentController {
                                               HttpSession session) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         CreditGradeService.CreditRequestActionResult result =
-            creditGradeService.rejectCreditRequest(requestId, currentUsername(session), rejectionReason);
+            creditGradeService.rejectCreditRequest(
+                requestId,
+                currentUsername(session),
+                currentUserRole(session),
+                rejectionReason);
         if (result.ok()) {
             redir.addFlashAttribute("successMessage", result.message());
         } else {
@@ -646,8 +776,16 @@ public class EnrollmentController {
                                       HttpSession session) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         String username = studentNumber != null ? studentNumber.trim() : "";
-        String result = jaypeeService.shiftStudentProgram(
-            username, targetProgramCode, targetYearLevel, targetSemester, targetCurriculumId, reason);
+        String result;
+        try {
+            result = jaypeeService.shiftStudentProgram(
+                username, targetProgramCode, targetYearLevel, targetSemester, targetCurriculumId, reason);
+        } catch (Exception e) {
+            redir.addFlashAttribute("errorMessage",
+                "Program shift failed: " + (e.getMessage() != null ? e.getMessage() : "Unexpected server error."));
+            redir.addAttribute("username", username);
+            return "redirect:/admin/student-manager";
+        }
         if (result.startsWith("SUCCESS:")) {
             redir.addFlashAttribute("successMessage", result);
             recordTrail(
@@ -687,6 +825,11 @@ public class EnrollmentController {
             redir.addAttribute("username", username);
             return "redirect:/admin/student-manager";
         }
+        if (isWithdrawnStudent(username)) {
+            redir.addFlashAttribute("errorMessage", "Withdrawn students cannot be reassigned to a curriculum.");
+            redir.addAttribute("username", username);
+            return "redirect:/admin/student-manager";
+        }
 
         String assignedBy = "registrar";
         Object currentUser = session.getAttribute("currentUser");
@@ -697,7 +840,7 @@ public class EnrollmentController {
             ? reason.trim()
             : "Assigned from Student Profile by " + assignedBy + ".";
         try {
-            studentCurriculumService.assignCurriculum(username, curriculumId, "REGISTRAR_PROFILE", note);
+            studentCurriculumService.assignCurriculum(username, curriculumId, "REGISTRAR_PROFILE", note, assignedBy);
             redir.addFlashAttribute("successMessage", "Current curriculum assigned for " + username + ".");
             recordTrail(
                 username,
@@ -720,7 +863,7 @@ public class EnrollmentController {
                             @RequestParam int scheduleId,
                             RedirectAttributes redir) {
         redir.addFlashAttribute("errorMessage",
-            "Direct subject removal is retired. Submit a formal withdrawal request from Student Profile.");
+            "Direct subject drop is retired. Use the Student Profile drop controls.");
         return "redirect:/admin/student-manager?username=" + studentId;
     }
 
@@ -747,40 +890,49 @@ public class EnrollmentController {
     
     @PostMapping("/admin/block-enroll")
     public String adminBlockEnroll(@RequestParam String studentId, HttpSession session, RedirectAttributes redir) {
-        String username = studentId;
-        List<Map<String, Object>> classes = jaypeeService.getCrossSystemAnalyzedOfferings(username, true);
-        int addedCount = 0;
-        java.util.Set<Integer> enrolledCourseIds = new java.util.HashSet<>();
-        
-        for (Map<String, Object> c : classes) {
-            boolean isDisabled = c.get("is_disabled") != null && (boolean) c.get("is_disabled");
-            if (!isDisabled) {
-                int courseId = ((Number) c.get("course_id")).intValue();
-                if (!enrolledCourseIds.contains(courseId)) {
-                    int scheduleId = ((Number) c.get("schedule_id")).intValue();
-                    String result = jaypeeService.addSubjectCrossSystem(username, scheduleId, true);
-                    if (result.startsWith("SUCCESS")) {
-                        addedCount++;
-                        enrolledCourseIds.add(courseId);
-                    }
-                }
-            }
-        }
-        if (addedCount == 0) redir.addAttribute("errorMsg", "Could not block enroll. Classes full, conflicting, or already enrolled.");
+        String username = studentId != null ? studentId.trim() : "";
+        BulkEnrollResult result = bulkEnrollEligibleSubjects(username);
+        if (!result.success()) redir.addAttribute("errorMsg", result.message());
         else {
-            redir.addAttribute("errorMsg", "SUCCESS: Block enrolled " + addedCount + " subjects.");
+            redir.addAttribute("errorMsg", "SUCCESS: Block enrolled " + result.addedCount() + " subjects.");
             recordTrail(
                 username,
                 "ENROLLMENT",
                 "BLOCK_ENROLL_COMPLETED",
                 "Registrar block enrollment completed",
-                "Block enrolled " + addedCount + " subject(s).",
+                "Block enrolled " + result.addedCount() + " subject(s).",
                 session,
                 "student_enlistments",
                 username);
         }
         redir.addAttribute("username", username);
         return "redirect:/admin/enrollment";
+    }
+
+    @PostMapping("/admin/student-manager/block-enroll")
+    public String adminStudentManagerBlockEnroll(@RequestParam String studentId,
+                                                 HttpSession session,
+                                                 RedirectAttributes redir) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        String username = studentId != null ? studentId.trim() : "";
+        BulkEnrollResult result = bulkEnrollEligibleSubjects(username);
+        if (!result.success()) {
+            redir.addFlashAttribute("errorMessage", result.message());
+        } else {
+            redir.addFlashAttribute("successMessage",
+                "Bulk added " + result.addedCount() + " eligible subject(s) from the assigned curriculum.");
+            recordTrail(
+                username,
+                "ENROLLMENT",
+                "STUDENT_PROFILE_BULK_ENROLL_COMPLETED",
+                "Registrar profile bulk enrollment completed",
+                "Bulk added " + result.addedCount() + " eligible subject(s) from Student Profile.",
+                session,
+                "student_enlistments",
+                username);
+        }
+        redir.addAttribute("username", username);
+        return "redirect:/admin/student-manager";
     }
     
     @PostMapping("/admin/force-enroll")
@@ -807,49 +959,70 @@ public class EnrollmentController {
     @PostMapping("/admin/enrollment-drop")
     public String adminEnrollmentDrop(@RequestParam String studentId, @RequestParam int scheduleId, RedirectAttributes redir) {
         redir.addFlashAttribute("errorMsg",
-            "Direct subject removal is retired. Open Student Profile and submit a formal withdrawal request.");
+            "Direct subject drop is retired. Open Student Profile and use the drop controls.");
         redir.addAttribute("username", studentId);
         return "redirect:/admin/enrollment";
     }
 
     @GetMapping("/admin/print-cor")
-    public String printCor(@RequestParam String username, Model model, HttpSession session) {
-        if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        Map<String, Object> student = academicService.findStudentByIdOrName(username);
-        if (student != null) {
-            model.addAttribute("student", student);
-            List<Map<String, Object>> crossLoad = jaypeeService.getStudentLoad((String) student.get("username"));
-            model.addAttribute("studentLoad", crossLoad);
-            int total = 0; for(Map<String,Object> cls : crossLoad) { if(cls.get("units") != null) total += ((Number)cls.get("units")).intValue(); }
-            model.addAttribute("totalUnits", total);
-            model.addAttribute("finance", financeService.calculateAssessment((String) student.get("username")));
-            model.addAttribute("ledger", financeService.getStudentLedger((String) student.get("username")));
-            model.addAttribute("corTermLabel", academicService.getCurrentTermLabel());
-            documentTrailService.recordStudentEvent(
-                String.valueOf(student.get("username")),
-                "STUDENT",
-                "REGISTRATION_FORM",
-                "PRINTED",
-                "Registration Form printed",
-                "Registrar generated Registration Form print output.",
-                currentUsername(session),
-                null,
-                "print_cor",
-                String.valueOf(student.get("username")));
-            return "print_cor";
+    public ResponseEntity<byte[]> printCor(@RequestParam String username, HttpSession session) {
+        if (session.getAttribute("currentUser") == null) {
+            return ResponseEntity.status(302).header(HttpHeaders.LOCATION, "/login").build();
         }
-        return "redirect:/admin/student-manager";
+        Map<String, Object> student = academicService.findStudentByIdOrName(username);
+        if (student == null) {
+            return ResponseEntity.status(302).header(HttpHeaders.LOCATION, "/admin/student-manager").build();
+        }
+        String studentNumber = String.valueOf(student.get("username"));
+        Map<String, Object> finance = financeService.calculateAssessment(studentNumber);
+        String releaseBlock = withdrawnDocumentReleaseBlock(student, finance, "Registration Form", session);
+        if (releaseBlock != null) {
+            return ResponseEntity.status(409)
+                .contentType(MediaType.TEXT_PLAIN)
+                .body(releaseBlock.getBytes(StandardCharsets.UTF_8));
+        }
+        List<Map<String, Object>> crossLoad = jaypeeService.getStudentLoad(studentNumber);
+        String corTermLabel = academicService.getCurrentTermLabel();
+        byte[] pdf = registrationFormPdfService.render(
+            student,
+            crossLoad,
+            finance,
+            corTermLabel,
+            currentUsername(session));
+        documentTrailService.recordStudentEvent(
+            studentNumber,
+            "STUDENT",
+            "REGISTRATION_FORM",
+            "PRINTED",
+            "Registration Form printed",
+            "Registrar generated registration form PDF aligned to the admission pre-registration format.",
+            currentUsername(session),
+            null,
+            "print_cor",
+            studentNumber);
+        return ResponseEntity.ok()
+            .contentType(MediaType.APPLICATION_PDF)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"registration-form-" + studentNumber + ".pdf\"")
+            .body(pdf);
     }
 
     @GetMapping("/admin/print-cog")
-    public String printCog(@RequestParam String username, Model model, HttpSession session) {
+    public String printCog(@RequestParam String username, Model model, HttpSession session,
+                           RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         Map<String, Object> student = academicService.findStudentByIdOrName(username);
         if (student != null) {
+            String studentNumber = String.valueOf(student.get("username"));
+            String releaseBlock = withdrawnDocumentReleaseBlock(
+                student, financeService.calculateAssessment(studentNumber), "Certificate of Grades", session);
+            if (releaseBlock != null) {
+                ra.addFlashAttribute("errorMessage", releaseBlock);
+                return "redirect:/admin/student-manager?username=" + studentNumber;
+            }
             model.addAttribute("student", student);
             model.addAttribute("academicHistory", academicService.getStudentAcademicHistory(((Number) student.get("user_id")).intValue()));
             documentTrailService.recordStudentEvent(
-                String.valueOf(student.get("username")),
+                studentNumber,
                 "STUDENT",
                 "COG",
                 "PRINTED",
@@ -858,21 +1031,29 @@ public class EnrollmentController {
                 currentUsername(session),
                 null,
                 "print_cog",
-                String.valueOf(student.get("username")));
+                studentNumber);
             return "print_cog";
         }
         return "redirect:/admin/student-manager";
     }
 
     @GetMapping("/admin/print-tor")
-    public String printTor(@RequestParam String username, Model model, HttpSession session) {
+    public String printTor(@RequestParam String username, Model model, HttpSession session,
+                           RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         Map<String, Object> student = academicService.findStudentByIdOrName(username);
         if (student != null) {
+            String studentNumber = String.valueOf(student.get("username"));
+            String releaseBlock = withdrawnDocumentReleaseBlock(
+                student, financeService.calculateAssessment(studentNumber), "Transcript of Records", session);
+            if (releaseBlock != null) {
+                ra.addFlashAttribute("errorMessage", releaseBlock);
+                return "redirect:/admin/student-manager?username=" + studentNumber;
+            }
             model.addAttribute("student", student);
             model.addAttribute("academicHistory", academicService.getStudentAcademicHistory(((Number) student.get("user_id")).intValue()));
             documentTrailService.recordStudentEvent(
-                String.valueOf(student.get("username")),
+                studentNumber,
                 "STUDENT",
                 "TOR",
                 "PRINTED",
@@ -881,7 +1062,7 @@ public class EnrollmentController {
                 currentUsername(session),
                 null,
                 "print_tor",
-                String.valueOf(student.get("username")));
+                studentNumber);
             return "print_tor";
         }
         return "redirect:/admin/student-manager";
@@ -984,6 +1165,97 @@ public class EnrollmentController {
         return "redirect:/admin/student-manager?username=" + studentNumber.trim();
     }
 
+    private BulkEnrollResult bulkEnrollEligibleSubjects(String username) {
+        if (username == null || username.isBlank()) {
+            return new BulkEnrollResult(0, "Student number is required.");
+        }
+        if (isWithdrawnStudent(username)) {
+            return new BulkEnrollResult(0,
+                "Withdrawn students cannot be enrolled in subjects. Their history stays under the archive record, and any future student-number reuse must happen through the registrar release workflow.");
+        }
+        List<Map<String, Object>> classes = jaypeeService.getCrossSystemAnalyzedOfferings(username, true);
+        int addedCount = 0;
+        java.util.Set<Integer> enrolledCourseIds = new java.util.HashSet<>();
+
+        for (Map<String, Object> c : classes) {
+            if (Boolean.TRUE.equals(c.get("is_disabled"))) {
+                continue;
+            }
+            if (!(c.get("course_id") instanceof Number courseIdNumber)
+                || !(c.get("schedule_id") instanceof Number scheduleIdNumber)) {
+                continue;
+            }
+            int courseId = courseIdNumber.intValue();
+            if (enrolledCourseIds.contains(courseId)) {
+                continue;
+            }
+            int scheduleId = scheduleIdNumber.intValue();
+            String result = jaypeeService.addSubjectCrossSystem(username, scheduleId, true);
+            if (result.startsWith("SUCCESS")) {
+                addedCount++;
+                enrolledCourseIds.add(courseId);
+            }
+        }
+
+        if (addedCount == 0) {
+            return new BulkEnrollResult(0,
+                "No eligible classes were bulk-added. Classes may be full, conflicting, already enrolled, missing prerequisites, or above the curriculum load limit.");
+        }
+        return new BulkEnrollResult(addedCount,
+            "Bulk added " + addedCount + " eligible subject(s) from the assigned curriculum.");
+    }
+
+    private boolean isWithdrawnStudent(String username) {
+        Map<String, Object> student = academicService.findStudentByIdOrName(username);
+        if (student == null) {
+            return false;
+        }
+        Object status = student.get("admission_status");
+        return status != null && "WITHDRAWN".equalsIgnoreCase(String.valueOf(status));
+    }
+
+    private String withdrawnDocumentReleaseBlock(Map<String, Object> student,
+                                                 Map<String, Object> finance,
+                                                 String documentName,
+                                                 HttpSession session) {
+        if (student == null) {
+            return null;
+        }
+        String status = String.valueOf(student.getOrDefault("admission_status", ""));
+        if (!"WITHDRAWN".equalsIgnoreCase(status)) {
+            return null;
+        }
+        double balance = numberValue(finance != null ? finance.get("balance") : null);
+        if (balance <= 0.01) {
+            return null;
+        }
+        String studentNumber = String.valueOf(student.get("username"));
+        String message = documentName + " release blocked: withdrawn student has outstanding balance of PHP "
+            + String.format("%,.2f", balance) + ". Settle the ledger before official document release.";
+        documentTrailService.recordStudentEvent(
+            studentNumber,
+            "STUDENT",
+            "DOCUMENT_RELEASE",
+            "DOCUMENT_RELEASE_BLOCKED",
+            documentName + " release blocked",
+            message,
+            currentUsername(session),
+            null,
+            "document_release_guard",
+            studentNumber);
+        return message;
+    }
+
+    private double numberValue(Object value) {
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
+    private record BulkEnrollResult(int addedCount, String message) {
+        private boolean success() {
+            return addedCount > 0;
+        }
+    }
+
     private void recordTrail(String studentNumber,
                              String documentType,
                              String eventType,
@@ -1011,6 +1283,14 @@ public class EnrollmentController {
             return user.get("username").toString();
         }
         return "registrar";
+    }
+
+    private String currentUserRole(HttpSession session) {
+        Object raw = session.getAttribute("currentUser");
+        if (raw instanceof Map<?, ?> user && user.get("role") != null) {
+            return user.get("role").toString();
+        }
+        return null;
     }
 
     private String csvCell(Object value) {

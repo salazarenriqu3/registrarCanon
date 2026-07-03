@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
 
+import com.iuims.registrar.core.StudentProfileService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -22,8 +23,9 @@ class StudentArchiveCustodyServiceTest {
         dataSource.setUsername("sa");
         dataSource.setPassword("");
         db = new JdbcTemplate(dataSource);
-        StudentDocumentTrailService trailService = new StudentDocumentTrailService(db);
-        service = new StudentArchiveCustodyService(db, trailService);
+        StudentProfileService studentProfileService = new StudentProfileService(db);
+        StudentDocumentTrailService trailService = new StudentDocumentTrailService(db, studentProfileService);
+        service = new StudentArchiveCustodyService(db, studentProfileService, trailService);
     }
 
     @Test

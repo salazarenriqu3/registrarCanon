@@ -31,6 +31,7 @@ public class CourseCatalogService {
             "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
                 "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
                 "COALESCE(c.lab_units, 0) AS lab_units, " +
+                "COALESCE(c.component_type, 'SINGLE') AS component_type, COALESCE(c.course_family_code, c.course_code) AS course_family_code, " +
                 "c.department_id, COALESCE(c.active_status, 1) AS active_status, " +
                 "COALESCE(d.department_name, 'Unassigned') AS department_name, " +
                 usageSubquery("curriculum_courses", "cc", "cc.course_id = c.course_id") + " AS curriculum_usage, " +
@@ -119,6 +120,13 @@ public class CourseCatalogService {
             throw new IllegalArgumentException("Total credit units must be between 1 and 12.");
         }
         int activeStatus = Boolean.FALSE.equals(active) ? 0 : 1;
+        String familyCode = stripComponentSuffix(normalizedCode);
+        boolean splitComponents = safeLectureUnits > 0 && safeLaboratoryUnits > 0;
+
+        if (splitComponents) {
+            return saveSplitCourse(courseId, normalizedCode, courseTitle.trim(), safeDepartmentId,
+                safeLectureUnits, safeLaboratoryUnits, activeStatus, familyCode);
+        }
 
         Integer existingId = findCourseIdByCode(normalizedCode);
         if (courseId == null || courseId <= 0) {
@@ -126,9 +134,10 @@ public class CourseCatalogService {
                 throw new IllegalStateException("A course with this code already exists.");
             }
             db.update(
-                "INSERT INTO courses (course_code, course_title, department_id, credit_units, lec_units, lab_units, active_status) " +
-                    "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits, activeStatus);
+                "INSERT INTO courses (course_code, course_title, department_id, credit_units, lec_units, lab_units, component_type, course_family_code, active_status) " +
+                    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits,
+                componentType(safeLectureUnits, safeLaboratoryUnits), familyCode, activeStatus);
             Integer created = findCourseIdByCode(normalizedCode);
             if (created == null) {
                 throw new IllegalStateException("Course was saved but could not be reopened.");
@@ -140,9 +149,10 @@ public class CourseCatalogService {
             throw new IllegalStateException("Another course already uses this code.");
         }
         int changed = db.update(
-            "UPDATE courses SET course_code = ?, course_title = ?, department_id = ?, credit_units = ?, lec_units = ?, lab_units = ?, active_status = ? " +
+            "UPDATE courses SET course_code = ?, course_title = ?, department_id = ?, credit_units = ?, lec_units = ?, lab_units = ?, component_type = ?, course_family_code = ?, parent_course_id = NULL, active_status = ? " +
                 "WHERE course_id = ?",
-            normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits, activeStatus, courseId);
+            normalizedCode, courseTitle.trim(), safeDepartmentId, safeUnits, safeLectureUnits, safeLaboratoryUnits,
+            componentType(safeLectureUnits, safeLaboratoryUnits), familyCode, activeStatus, courseId);
         if (changed == 0) {
             throw new IllegalArgumentException("Course was not found.");
         }
@@ -154,6 +164,7 @@ public class CourseCatalogService {
             "SELECT c.course_id, c.course_code, c.course_title, c.credit_units, " +
                 "CASE WHEN COALESCE(c.lec_units, 0) + COALESCE(c.lab_units, 0) = 0 THEN c.credit_units ELSE c.lec_units END AS lec_units, " +
                 "COALESCE(c.lab_units, 0) AS lab_units, " +
+                "COALESCE(c.component_type, 'SINGLE') AS component_type, COALESCE(c.course_family_code, c.course_code) AS course_family_code, " +
                 "COALESCE(d.department_name, 'Unassigned') AS department_name " +
                 "FROM courses c LEFT JOIN departments d ON d.department_id = c.department_id WHERE c.course_id = ?",
             courseId);
@@ -177,16 +188,22 @@ public class CourseCatalogService {
             : List.of());
         result.put("sections", tableExists("class_sections")
             ? db.queryForList(
-                "SELECT section_id, section_code, term_id, semester_number, section_status, faculty_id " +
-                    "FROM class_sections WHERE course_id = ? ORDER BY term_id DESC, section_code LIMIT 100",
+                "SELECT cs.section_id, cs.section_code, cs.term_id, cs.semester_number, cs.section_status, cs.faculty_id, " +
+                    "COALESCE(at.term_name, CONCAT('Term #', cs.term_id)) AS term_label, " +
+                    "CONCAT(COALESCE(f.first_name,''),' ',COALESCE(f.last_name,'')) AS faculty_name, " +
+                    "(SELECT COUNT(*) FROM class_schedules sch WHERE sch.section_id = cs.section_id) AS schedule_slot_count " +
+                    "FROM class_sections cs " +
+                    "LEFT JOIN academic_terms at ON at.term_id = cs.term_id " +
+                    "LEFT JOIN faculty f ON f.faculty_id = cs.faculty_id " +
+                    "WHERE cs.course_id = ? ORDER BY cs.term_id DESC, cs.section_code LIMIT 100",
                 courseId)
             : List.of());
 
         Map<String, Object> records = new LinkedHashMap<>();
         records.put("enlistments", tableUsageCount("student_enlistments", "course_id = ?", courseId));
         records.put("grades", tableUsageCount("grades", "course_id = ?", courseId));
-        records.put("waitlists", tableUsageCount("waitlists", "course_id = ?", courseId));
-        records.put("requests", tableUsageCount("student_requests", "course_id = ?", courseId));
+        records.put("waitlists", tableUsageCountAny(List.of("student_waitlist", "waitlists"), "course_id = ?", courseId));
+        records.put("requests", tableUsageCountAny(List.of("subject_requests", "student_requests"), "course_id = ?", courseId));
         result.put("records", records);
         result.put("prerequisites", tableExists("course_prerequisites")
             ? db.queryForList(
@@ -228,10 +245,109 @@ public class CourseCatalogService {
         count += tableUsageCount("class_sections", "course_id = ?", courseId);
         count += tableUsageCount("student_enlistments", "course_id = ?", courseId);
         count += tableUsageCount("grades", "course_id = ?", courseId);
-        count += tableUsageCount("waitlists", "course_id = ?", courseId);
-        count += tableUsageCount("student_requests", "course_id = ?", courseId);
+        count += tableUsageCountAny(List.of("student_waitlist", "waitlists"), "course_id = ?", courseId);
+        count += tableUsageCountAny(List.of("subject_requests", "student_requests"), "course_id = ?", courseId);
         count += tableUsageCount("course_prerequisites", "course_id = ? OR prerequisite_course_id = ?", courseId, courseId);
         return count;
+    }
+
+    private Integer saveSplitCourse(Integer courseId,
+                                    String submittedCode,
+                                    String courseTitle,
+                                    int departmentId,
+                                    int lectureUnits,
+                                    int laboratoryUnits,
+                                    int activeStatus,
+                                    String familyCode) {
+        String lecCode = componentCode(familyCode, "LEC");
+        String labCode = componentCode(familyCode, "LAB");
+        Integer submittedId = findCourseIdByCode(submittedCode);
+        Integer existingLecId = findCourseIdByCode(lecCode);
+        Integer existingLabId = findCourseIdByCode(labCode);
+
+        if (courseId == null || courseId <= 0) {
+            if (submittedId != null || existingLecId != null || existingLabId != null) {
+                throw new IllegalStateException("A course with this code or its LEC/LAB component code already exists.");
+            }
+            Integer lecId = insertCourseComponent(lecCode, courseTitle, departmentId, lectureUnits, lectureUnits, 0, "LEC", familyCode, activeStatus);
+            Integer labId = insertCourseComponent(labCode, courseTitle, departmentId, laboratoryUnits, 0, laboratoryUnits, "LAB", familyCode, activeStatus);
+            linkComponentFamily(lecId, labId);
+            return lecId;
+        }
+
+        if (usageCount(courseId) > 0) {
+            throw new IllegalStateException("This mixed lecture/lab course is already used. Create separate LEC/LAB catalog entries and migrate placements intentionally.");
+        }
+        if (existingLecId != null && existingLecId.intValue() != courseId.intValue()) {
+            throw new IllegalStateException("Another course already uses the LEC component code.");
+        }
+        if (existingLabId != null) {
+            throw new IllegalStateException("Another course already uses the LAB component code.");
+        }
+
+        int changed = db.update(
+            "UPDATE courses SET course_code = ?, course_title = ?, department_id = ?, credit_units = ?, lec_units = ?, lab_units = 0, component_type = 'LEC', course_family_code = ?, parent_course_id = NULL, active_status = ? " +
+                "WHERE course_id = ?",
+            lecCode, courseTitle, departmentId, lectureUnits, lectureUnits, familyCode, activeStatus, courseId);
+        if (changed == 0) {
+            throw new IllegalArgumentException("Course was not found.");
+        }
+        Integer labId = insertCourseComponent(labCode, courseTitle, departmentId, laboratoryUnits, 0, laboratoryUnits, "LAB", familyCode, activeStatus);
+        linkComponentFamily(courseId, labId);
+        return courseId;
+    }
+
+    private Integer insertCourseComponent(String courseCode,
+                                          String courseTitle,
+                                          int departmentId,
+                                          int creditUnits,
+                                          int lectureUnits,
+                                          int laboratoryUnits,
+                                          String componentType,
+                                          String familyCode,
+                                          int activeStatus) {
+        db.update(
+            "INSERT INTO courses (course_code, course_title, department_id, credit_units, lec_units, lab_units, component_type, course_family_code, active_status) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            courseCode, courseTitle, departmentId, creditUnits, lectureUnits, laboratoryUnits, componentType, familyCode, activeStatus);
+        Integer created = findCourseIdByCode(courseCode);
+        if (created == null) {
+            throw new IllegalStateException("Course component was saved but could not be reopened.");
+        }
+        return created;
+    }
+
+    private void linkComponentFamily(Integer lecId, Integer labId) {
+        if (lecId == null || labId == null) {
+            return;
+        }
+        db.update("UPDATE courses SET parent_course_id = ? WHERE course_id IN (?, ?)", lecId, lecId, labId);
+    }
+
+    private String componentCode(String baseCode, String component) {
+        String base = stripComponentSuffix(baseCode);
+        return base + "-" + component;
+    }
+
+    private String stripComponentSuffix(String courseCode) {
+        String normalized = normalizeCourseCode(courseCode);
+        if (normalized == null) {
+            return null;
+        }
+        return normalized
+            .replaceFirst("[-\\s]+LEC$", "")
+            .replaceFirst("[-\\s]+LAB$", "")
+            .trim();
+    }
+
+    private String componentType(int lectureUnits, int laboratoryUnits) {
+        if (lectureUnits > 0 && laboratoryUnits == 0) {
+            return "LEC";
+        }
+        if (laboratoryUnits > 0 && lectureUnits == 0) {
+            return "LAB";
+        }
+        return "SINGLE";
     }
 
     private String usageSubquery(String table, String alias, String condition) {
@@ -260,6 +376,15 @@ public class CourseCatalogService {
             Integer.class,
             args);
         return count != null ? count : 0;
+    }
+
+    private int tableUsageCountAny(List<String> tables, String condition, Object... args) {
+        for (String table : tables) {
+            if (tableExists(table)) {
+                return tableUsageCount(table, condition, args);
+            }
+        }
+        return 0;
     }
 
     private boolean tableExists(String table) {

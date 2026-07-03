@@ -1,5 +1,6 @@
 package com.iuims.registrar.withdrawal;
 
+import com.iuims.registrar.core.StudentIdentityReleaseService;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -14,19 +15,24 @@ import java.util.Map;
 public class WithdrawalController {
 
     private final WithdrawalService withdrawalService;
+    private final StudentIdentityReleaseService studentIdentityReleaseService;
 
-    public WithdrawalController(WithdrawalService withdrawalService) {
+    public WithdrawalController(WithdrawalService withdrawalService,
+                                StudentIdentityReleaseService studentIdentityReleaseService) {
         this.withdrawalService = withdrawalService;
+        this.studentIdentityReleaseService = studentIdentityReleaseService;
     }
 
     @GetMapping("/admin/withdrawals")
     public String registrarQueue(HttpSession session, Model model) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        model.addAttribute("queueMode", "REGISTRAR");
-        model.addAttribute("pageTitle", "Registrar Withdrawal Queue");
-        model.addAttribute("pageSubtitle", "Class and full-student withdrawal requests waiting for Registrar approval.");
-        model.addAttribute("requests", withdrawalService.listRequests(WithdrawalService.STATUS_PENDING_REGISTRAR));
+        model.addAttribute("queueMode", "REPORT");
+        model.addAttribute("pageTitle", "Withdrawal History");
+        model.addAttribute("pageSubtitle", "Completed registrar withdrawals, rejected legacy cases, and archived audit lines.");
+        model.addAttribute("requests", withdrawalService.listRequests(null));
         model.addAttribute("statusCounts", withdrawalService.statusCounts());
+        model.addAttribute("reasonSummary", withdrawalService.reasonSummary());
+        model.addAttribute("timingSummary", withdrawalService.timingSummary());
         return "withdrawal_queue";
     }
 
@@ -35,7 +41,7 @@ public class WithdrawalController {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
         model.addAttribute("queueMode", "REPORT");
         model.addAttribute("pageTitle", "Withdrawal History");
-        model.addAttribute("pageSubtitle", "Archived withdrawal requests, decisions, and completed registrar actions.");
+        model.addAttribute("pageSubtitle", "Completed registrar withdrawals, rejected legacy cases, and archived audit lines.");
         model.addAttribute("requests", withdrawalService.listRequests(null));
         model.addAttribute("statusCounts", withdrawalService.statusCounts());
         model.addAttribute("reasonSummary", withdrawalService.reasonSummary());
@@ -43,92 +49,83 @@ public class WithdrawalController {
         return "withdrawal_queue";
     }
 
-    @PostMapping("/admin/withdrawals/request")
-    public String requestWithdrawal(@RequestParam String studentNumber,
-                                    @RequestParam Integer scheduleId,
+    @PostMapping("/admin/withdrawals/drop-subject")
+    public String dropSubject(@RequestParam String studentNumber,
+                              @RequestParam Integer scheduleId,
+                              @RequestParam(required = false) String remarks,
+                              HttpSession session,
+                              RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        try {
+            WithdrawalService.DirectDropResult result = withdrawalService.dropSubjectByRegistrar(
+                studentNumber, scheduleId, remarks, currentUsername(session));
+            ra.addFlashAttribute("successMessage",
+                String.format("Subject drop completed. Request #%d archived. %d subject(s) processed. Applied charge: PHP %,.2f.",
+                    result.requestId(), result.subjectsDropped(), result.totalCharge()));
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", "Subject drop failed: " + e.getMessage());
+        }
+        ra.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
+        return "redirect:/admin/student-manager";
+    }
+
+    @PostMapping("/admin/withdrawals/drop-student")
+    public String dropStudent(@RequestParam String studentNumber,
+                              @RequestParam String reasonCode,
+                              @RequestParam(required = false) String remarks,
+                              HttpSession session,
+                              RedirectAttributes ra) {
+        if (session.getAttribute("currentUser") == null) return "redirect:/login";
+        try {
+            WithdrawalService.DirectDropResult result = withdrawalService.dropStudentByRegistrar(
+                studentNumber, reasonCode, remarks, currentUsername(session));
+            ra.addFlashAttribute("successMessage",
+                String.format("Student withdrawal completed. Request #%d archived. %d subject(s) processed. Applied charge: PHP %,.2f.",
+                    result.requestId(), result.subjectsDropped(), result.totalCharge()));
+        } catch (Exception e) {
+            ra.addFlashAttribute("errorMessage", "Student withdrawal failed: " + e.getMessage());
+        }
+        ra.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
+        return "redirect:/admin/student-manager";
+    }
+
+    @PostMapping("/admin/withdrawals/clear-load-for-shift")
+    public String clearLoadForShift(@RequestParam String studentNumber,
                                     @RequestParam String reasonCode,
                                     @RequestParam(required = false) String remarks,
                                     HttpSession session,
                                     RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        String username = studentNumber != null ? studentNumber.trim() : "";
         try {
-            long requestId = withdrawalService.createRequest(
-                username, scheduleId, reasonCode, remarks, currentUsername(session));
+            WithdrawalService.DirectDropResult result = withdrawalService.clearCurrentTermLoadForProgramShift(
+                studentNumber, reasonCode, remarks, currentUsername(session));
             ra.addFlashAttribute("successMessage",
-                "Class withdrawal request #" + requestId + " submitted for Registrar approval.");
-        } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Withdrawal request failed: " + e.getMessage());
-        }
-        ra.addAttribute("username", username);
-        return "redirect:/admin/student-manager";
-    }
-
-    @PostMapping("/admin/withdrawals/request-student")
-    public String requestFullStudentWithdrawal(@RequestParam String studentNumber,
-                                               @RequestParam String reasonCode,
-                                               @RequestParam(required = false) String remarks,
-                                               HttpSession session,
-                                               RedirectAttributes ra) {
-        if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        String username = studentNumber != null ? studentNumber.trim() : "";
-        try {
-            long requestId = withdrawalService.createFullCurrentTermRequest(
-                username, reasonCode, remarks, currentUsername(session));
-            ra.addFlashAttribute("successMessage",
-                "Full-student withdrawal request #" + requestId + " submitted for Registrar approval.");
-        } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Student withdrawal request failed: " + e.getMessage());
-        }
-        ra.addAttribute("username", username);
-        return "redirect:/admin/student-manager";
-    }
-
-    @PostMapping("/admin/student-manager/drop-subject")
-    public String legacyDropSubjectRequest(@RequestParam String studentNumber,
-                                           @RequestParam Integer scheduleId,
-                                           @RequestParam String reasonCode,
-                                           @RequestParam(required = false) String remarks,
-                                           HttpSession session,
-                                           RedirectAttributes ra) {
-        return requestWithdrawal(studentNumber, scheduleId, reasonCode, remarks, session, ra);
-    }
-
-    @PostMapping("/admin/student-manager/drop-student")
-    public String legacyDropStudentRequest(@RequestParam String studentNumber,
-                                           @RequestParam String reasonCode,
-                                           @RequestParam(required = false) String remarks,
-                                           HttpSession session,
-                                           RedirectAttributes ra) {
-        return requestFullStudentWithdrawal(studentNumber, reasonCode, remarks, session, ra);
-    }
-
-    @PostMapping("/admin/withdrawals/approve")
-    public String registrarApprove(@RequestParam long requestId,
-                                   HttpSession session,
-                                   RedirectAttributes ra) {
-        if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        try {
-            WithdrawalService.DirectDropResult result =
-                withdrawalService.approveAndExecuteRequest(requestId, currentUsername(session));
-            ra.addFlashAttribute("successMessage",
-                String.format("Withdrawal request #%d completed. %d subject(s) processed. Applied charge: PHP %,.2f.",
+                String.format("Subject load cleared for shifting. Request #%d archived. %d subject(s) processed. Student profile remains active/enrolled. Applied charge: PHP %,.2f.",
                     result.requestId(), result.subjectsDropped(), result.totalCharge()));
         } catch (Exception e) {
-            ra.addFlashAttribute("errorMessage", "Withdrawal approval failed: " + e.getMessage());
+            ra.addFlashAttribute("errorMessage", "Shift load cleanup failed: " + e.getMessage());
         }
-        return "redirect:/admin/withdrawals";
+        ra.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
+        return "redirect:/admin/student-manager";
     }
 
-    @PostMapping("/admin/withdrawals/reject")
-    public String reject(@RequestParam long requestId,
-                         @RequestParam(required = false) String rejectionReason,
-                         HttpSession session,
-                         RedirectAttributes ra) {
+    @PostMapping("/admin/withdrawals/release-student-number")
+    public String releaseStudentNumber(@RequestParam String studentNumber,
+                                       @RequestParam(required = false) String remarks,
+                                       HttpSession session,
+                                       RedirectAttributes ra) {
         if (session.getAttribute("currentUser") == null) return "redirect:/login";
-        ra.addFlashAttribute("successMessage",
-            withdrawalService.reject(requestId, currentUsername(session), rejectionReason));
-        return "redirect:/admin/withdrawals";
+        StudentIdentityReleaseService.ReleaseResult result =
+            studentIdentityReleaseService.releaseWithdrawnStudentNumber(
+                studentNumber, currentUsername(session), remarks);
+        if (result.ok()) {
+            ra.addFlashAttribute("successMessage", result.message());
+            ra.addAttribute("username", result.archiveKey() != null ? result.archiveKey() : studentNumber.trim());
+        } else {
+            ra.addFlashAttribute("errorMessage", result.message());
+            ra.addAttribute("username", studentNumber != null ? studentNumber.trim() : "");
+        }
+        return "redirect:/admin/student-manager";
     }
 
     private String currentUsername(HttpSession session) {

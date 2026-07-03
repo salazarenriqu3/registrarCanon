@@ -33,7 +33,7 @@ The loader is repeatable. Re-run it whenever the demo students get mutated.
 | Student | Use |
 |---|---|
 | `2026-1001` | Baseline profile, admission snapshot, applicant document viewing, registration form printing, reg-form history, document trail |
-| `ADDCLS-2026-001` | Add-subject demo from Student Profile using open `IRREG-A` sections |
+| `ADDCLS-2026-001` | Add-subject demo from Student Profile using block sections |
 | `TTRNS-2026-001` | TOR/transfer-credit demo and academic-history print demo |
 | `TSHFT-2026-001` | Program-shift demo |
 | `OVRPAY-2026-001` | Overpayment disposition demo |
@@ -48,14 +48,16 @@ Open these first:
 1. `/admin/settings`
 2. `/admin/class-scheduling?termId=1`
 3. `/admin/student-manager?username=2026-1001`
-4. `/admin/withdrawals`
-5. `/admin/scholarships`
+4. `/admin/grade-records`
+5. `/admin/withdrawals`
+6. `/admin/scholarships`
 
 Pass when:
 
 - active term is `1120242025`
 - `BSIT-1-1-A` and `BSCPE-1-1-A` show real rooms, not TBA
 - Maria shows an Admission Snapshot and Applicant Documents card
+- Grade Records shows summary cards plus at least the seeded Maria pending correction case
 - `prof.cruz` can still be used later for grading
 
 ## 5. Presentation order
@@ -145,7 +147,7 @@ Student: `ADDCLS-2026-001`
 1. Open `/admin/student-manager?username=ADDCLS-2026-001`.
 2. Scroll to `Add Subjects`.
 3. Use the local filter and look for `GE102` or `GE101`.
-4. In the section dropdown, choose the `IRREG-A` option with the seeded schedule.
+4. In the section dropdown, choose a seeded block section with the matching schedule.
 5. Click `Add`.
 6. Reload the profile if needed.
 7. Open `/admin/reg-form-history?studentNumber=ADDCLS-2026-001`.
@@ -264,12 +266,18 @@ Account: `prof.cruz / 1234`
 5. Save one disposable grade.
 6. Sign out and return as admin.
 7. Open the approvals/grade review surfaces.
+8. Approve or reject the pending request with a registrar note.
+9. Open `/admin/grade-records`.
+10. Open `/admin/document-trail?query=2026-1001`.
 
 Expected result:
 
 - Cruz sees real assigned classes with demo students
 - the grade save persists
 - the admin review surface can observe the change
+- registrar review actions now require a tracked decision path
+- Grade Records shows both the official row and the append-only event ledger
+- Document Trail shows both the grade-change request and grade-record events
 
 ### Part J. Optional overpayment disposition
 

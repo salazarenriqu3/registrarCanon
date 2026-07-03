@@ -59,7 +59,7 @@
         } else if (query.includes('fee') || query.includes('finance')) {
             window.location.href = '/admin/term-fees';
         } else if (query.includes('grade')) {
-            window.location.href = '/admin/approvals';
+            window.location.href = '/admin/grade-records';
         } else if (query.includes('course') || query.includes('catalog') || query.includes('subject')) {
             window.location.href = '/admin/courses';
         } else if (query.includes('program')) {
@@ -121,8 +121,11 @@
     <a th:href="@{/admin/faculty-load}" class="nav-item" th:classappend="${activeLink == 'faculty' ? 'active' : ''}">
         <i class="ti ti-chalkboard" aria-hidden="true"></i> <span>Faculty Load</span>
     </a>
-    <a th:href="@{/admin/approvals}" class="nav-item" th:classappend="${activeLink == 'grades' ? 'active' : ''}">
+    <a th:href="@{/admin/grade-records}" class="nav-item" th:classappend="${activeLink == 'grade-records' ? 'active' : ''}">
         <i class="ti ti-table" aria-hidden="true"></i> <span>Grade Records</span>
+    </a>
+    <a th:href="@{/admin/approvals}" class="nav-item" th:classappend="${activeLink == 'approvals' ? 'active' : ''}">
+        <i class="ti ti-checkup-list" aria-hidden="true"></i> <span>Grade Approvals</span>
     </a>
     <a th:href="@{/admin/withdrawals}" class="nav-item" th:classappend="${activeLink == 'withdrawals' ? 'active' : ''}">
         <i class="ti ti-file-minus" aria-hidden="true"></i> <span>Withdrawals</span>

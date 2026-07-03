@@ -17,7 +17,7 @@ This plan focuses on the academic spine:
 - policy windows
 - student profile and curriculum history
 - class scheduling and section control
-- withdrawals and program shifts
+- withdrawals and program shifts, with program shift preserving explicit curriculum assignment
 - academic records, TOR, COG, and evaluation
 - scholarships and grading policy
 
@@ -168,6 +168,7 @@ Check and improve:
 
 - program shift logs actor, timestamp, from/to program, from/to curriculum
 - current-term staged enlistments are cleared or preserved according to explicit rule
+- shifting may temporarily produce zero current-term load; this must not hide Add Subjects if the student still has an explicit current curriculum assignment
 - carried/orphan/required curriculum summary is visible
 - registration document trail receives a shift event
 

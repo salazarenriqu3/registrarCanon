@@ -279,7 +279,7 @@
                                 <div class="status-dot"></div>
                                 <span th:text="${preRegFinalized == true} ? 'FINALIZED' : 'DRAFT'"></span>
                             </span>
-                            <span class="text-muted small align-self-center">Dean advising is currently dormant.</span>
+                            <span class="text-muted small align-self-center">Enrollment3 Dean owns advising; Registrar previews the shared snapshot only.</span>
                             <a th:href="@{/admin/pre-reg/{refNo}/snapshot(refNo=${applicant.reference_number})}" target="_blank" class="btn btn-outline" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">
                                 <i class="ti ti-code" aria-hidden="true"></i> Preview Snapshot JSON
                             </a>
@@ -333,7 +333,7 @@
                 <div class="card" th:styleappend="${applicant.has_paid == true} ? 'border-left: 4px solid var(--success-color);' : 'border-left: 4px solid #f59e0b;'">
                     <div class="card-header border-bottom">
                         <h5 class="card-title" th:styleappend="${applicant.has_paid == true} ? 'color: var(--success-color);' : 'color: #d97706;'">
-                            <i class="ti ti-id-badge" aria-hidden="true"></i> Registrar Irregular Handoff Readiness
+                            <i class="ti ti-id-badge" aria-hidden="true"></i> Shared Irregular Handoff Readiness
                         </h5>
                     </div>
                     <div class="card-body">
@@ -341,7 +341,7 @@
                             <i class="ti ti-info-circle mt-1" aria-hidden="true"></i>
                             <div>
                                 <strong>Regular applicant path.</strong>
-                                Regular pre-registration, sectioning, payment, and student-number issuance continue through Admission and Cashier. Registrar only handles Dean / Faculty irregular advising here.
+                                Regular pre-registration, sectioning, payment, and student-number issuance continue through Admission and Enrollment/Cashier. Registrar only provides a read-only handoff preview here.
                             </div>
                         </div>
                         <div th:if="${applicant.has_existing_student_number == true}" class="alert alert-info" style="margin-bottom: 1.5rem; display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.9rem;">
@@ -361,7 +361,7 @@
                             <i class="ti ti-alert-triangle mt-1" aria-hidden="true"></i>
                             <div>
                                 <strong>Cashier payment is outside Registrar.</strong>
-                                Registrar can validate the irregular pre-registration handoff before payment. Cashier handles payment and student-number issuance after Admission continues the applicant.
+                                Registrar can review legacy irregular handoff context here. Enrollment pre-advising and Cashier handle pre-registration, payment, and student-number issuance.
                             </div>
                         </div>
 

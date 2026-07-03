@@ -43,6 +43,7 @@ public class RegistrarUserPrincipal implements UserDetails {
             Map.entry("user_id", user.getUserId()),
             Map.entry("username", nullToBlank(user.getUsername())),
             Map.entry("real_name", nullToBlank(user.getRealName())),
+            Map.entry("email", nullToBlank(user.getEmail())),
             Map.entry("role", nullToBlank(user.getRole())),
             Map.entry("password", nullToBlank(user.getPassword())),
             Map.entry("is_active", Boolean.TRUE.equals(user.getIsActive()) ? 1 : 0),

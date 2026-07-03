@@ -7,6 +7,7 @@ import com.iuims.registrar.admission.FinanceAdmissionService;
 import com.iuims.registrar.curriculum.CurriculumSeederService;
 import com.iuims.registrar.curriculum.StudentCurriculumService;
 import com.iuims.registrar.core.EnlistmentSchemaService;
+import com.iuims.registrar.core.RegistrarAuditTrailService;
 import com.iuims.registrar.curriculum.CurriculumLoadPolicyService;
 import com.iuims.registrar.faculty.FacultyLoadService;
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
@@ -62,8 +63,14 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     private final YearLevelLoadPolicyService yearLevelLoadPolicyService;
     private final CurriculumLoadPolicyService curriculumLoadPolicyService;
 
-    @Autowired
+    private final RegistrarAuditTrailService auditTrailService;
+
     public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService, YearLevelLoadPolicyService yearLevelLoadPolicyService, CurriculumLoadPolicyService curriculumLoadPolicyService) {
+        this(db, academicService, globalTermService, enlistmentSchemaService, studentCurriculumService, termFeeAdminService, yearLevelLoadPolicyService, curriculumLoadPolicyService, null);
+    }
+
+    @Autowired
+    public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService, YearLevelLoadPolicyService yearLevelLoadPolicyService, CurriculumLoadPolicyService curriculumLoadPolicyService, RegistrarAuditTrailService auditTrailService) {
         this.db = db;
         this.academicService = academicService;
         this.globalTermService = globalTermService;
@@ -72,11 +79,12 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         this.termFeeAdminService = termFeeAdminService;
         this.yearLevelLoadPolicyService = yearLevelLoadPolicyService;
         this.curriculumLoadPolicyService = curriculumLoadPolicyService;
+        this.auditTrailService = auditTrailService;
     }
 
     public ScholarEnrollmentService(JdbcTemplate db, AcademicGradingService academicService, GlobalTermService globalTermService, EnlistmentSchemaService enlistmentSchemaService, StudentCurriculumService studentCurriculumService, TermFeeAdminService termFeeAdminService) {
         this(db, academicService, globalTermService, enlistmentSchemaService, studentCurriculumService,
-            termFeeAdminService, null, null);
+            termFeeAdminService, null, null, null);
     }
 
 
@@ -597,8 +605,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     public Map<String, Object> findStudent(String keyword) {
         try {
             Map<String, Object> result = db.queryForMap(
-                "SELECT * FROM students WHERE (student_number = ? OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(?)) LIMIT 1",
-                keyword, "%" + keyword + "%"
+                "SELECT * FROM students WHERE (student_number = ? OR reference_number = ? OR LOWER(CONCAT(first_name, ' ', last_name)) LIKE LOWER(?)) LIMIT 1",
+                keyword, keyword, "%" + keyword + "%"
             );
             Map<String, Object> mutableResult = new java.util.HashMap<>(result);
             mutableResult.put("username", mutableResult.get("student_number"));
@@ -611,7 +619,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 );
                 Map<String, Object> mapped = new HashMap<>();
                 mapped.put("user_id", -1);
-                mapped.put("username", applicant.get("ref_no"));
+                Object applicantRef = applicant.get("reference_number");
+                mapped.put("username", applicantRef != null ? applicantRef.toString() : null);
                 mapped.put("real_name", (applicant.get("first_name") + " " + applicant.get("last_name")) + " (APPLICANT)");
                 mapped.put("year_level", 1);
                 mapped.put("semester", 1);
@@ -665,6 +674,9 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     public List<Map<String, Object>> getAcademicLoad(String studentNumber) {
         try {
+            if (isWithdrawnStudent(studentNumber)) {
+                return new ArrayList<>();
+            }
             return db.queryForList(
                 "SELECT se.enlistment_id, c.course_code AS course_code, c.course_title AS description, " +
                 "c.credit_units AS units, cc.semester_number AS semester, cc.year_level AS year_level, " +
@@ -776,23 +788,132 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     @Transactional
     public void dropSubjectByEnlistmentId(long enlistmentId, Double chargeOverride, String policyNote) {
         Map<String, Object> row = db.queryForMap(
-            "SELECT se.student_id, se.enlisted_date, c.course_code, c.credit_units AS units " +
+            "SELECT se.student_id, se.enlisted_date, c.course_code, c.course_title, c.credit_units AS units, " +
+                "c.lec_units, c.lab_units, COALESCE(c.component_type, 'SINGLE') AS component_type " +
                 "FROM student_enlistments se " +
                 "JOIN courses c ON se.course_id = c.course_id " +
                 "WHERE se.enlistment_id = ? LIMIT 1",
             enlistmentId);
         String studentNumber = (String) row.get("student_id");
         String courseCode = (String) row.get("course_code");
+        String courseTitle = (String) row.get("course_title");
         double units = ((Number) row.get("units")).doubleValue();
+        double lectureUnits = row.get("lec_units") instanceof Number n ? n.doubleValue() : 0.0;
+        double labUnits = row.get("lab_units") instanceof Number n ? n.doubleValue() : 0.0;
+        String componentType = row.get("component_type") != null ? String.valueOf(row.get("component_type")) : null;
         java.sql.Timestamp enlistedDate = (java.sql.Timestamp) row.get("enlisted_date");
         LocalDateTime enlistedAt = enlistedDate != null ? enlistedDate.toLocalDateTime() : null;
-        double originalCost = units * tuitionRatePerUnit(studentNumber);
+        double originalCost = resolveDropOriginalCost(studentNumber, courseCode, courseTitle,
+            units, lectureUnits, labUnits, componentType);
 
         db.update("DELETE FROM student_enlistments WHERE enlistment_id = ?", enlistmentId);
 
         if (chargeOverride != null || isOfficialEnrollment(studentNumber)) {
             processSubjectDrop(studentNumber, courseCode, units, enlistedAt, chargeOverride, policyNote, originalCost);
         }
+    }
+
+    private double resolveDropOriginalCost(String studentNumber, String courseCode, String courseTitle,
+                                           double units, double lectureUnits, double labUnits,
+                                           String componentType) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return 0.0;
+        }
+        Integer termId = globalTermService.getCurrentTermId();
+        Integer programId = null;
+        int yearLevel = 1;
+        try {
+            Map<String, Object> student = db.queryForMap(
+                "SELECT program_code, COALESCE(year_level, 1) AS year_level FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber);
+            String programCode = student.get("program_code") != null ? String.valueOf(student.get("program_code")) : null;
+            yearLevel = student.get("year_level") instanceof Number n ? n.intValue() : 1;
+            programId = termFeeAdminService.resolveProgramId(programCode);
+        } catch (Exception ignored) {
+        }
+        if (programId == null) {
+            return units * tuitionRatePerUnit(studentNumber);
+        }
+
+        int semesterNumber = 1;
+        if (termId != null) {
+            try {
+                Integer sem = db.queryForObject(
+                    "SELECT semester_number FROM academic_terms WHERE term_id = ? LIMIT 1",
+                    Integer.class, termId);
+                if (sem != null) {
+                    semesterNumber = sem;
+                }
+            } catch (Exception ignored) {
+            }
+        }
+
+        Map<String, Double> rates = termFeeAdminService.getFeeRatesForScope(programId, termId, yearLevel, semesterNumber);
+        String normalizedType = componentType != null ? componentType.trim().toUpperCase() : "";
+        String normalizedCode = courseCode != null ? courseCode.trim().toUpperCase() : "";
+        String normalizedTitle = courseTitle != null ? courseTitle.trim().toUpperCase() : "";
+
+        if (isRleDropCourse(normalizedType, normalizedCode, normalizedTitle)) {
+            double rleRate = rates.getOrDefault("RLE_FEE_PER_UNIT", 0.0);
+            if (rleRate > 0.0) {
+                int rleUnits = Math.max(1, (int) Math.round(units > 0.0 ? units : Math.max(lectureUnits, labUnits)));
+                return roundMoney(rleUnits * rleRate);
+            }
+        }
+
+        if (isSpecialDropCourse(normalizedType, normalizedCode, normalizedTitle)) {
+            double specialRate = rates.getOrDefault("COMP_FEE_PER_UNIT", 0.0);
+            if (specialRate <= 0.0) {
+                specialRate = rates.getOrDefault("RLE_FEE_PER_UNIT", 0.0);
+            }
+            if (specialRate > 0.0) {
+                double specialUnits = units > 0.0 ? units : Math.max(lectureUnits, labUnits);
+                return roundMoney(Math.max(0.0, specialUnits) * specialRate);
+            }
+        }
+
+        double lectureRate = rates.getOrDefault("LEC_FEE_PER_UNIT", 0.0);
+        if (lectureRate <= 0.0) {
+            lectureRate = rates.getOrDefault("TUITION_PER_UNIT", tuitionRatePerUnit(studentNumber));
+        }
+        double labRate = rates.getOrDefault("LAB_FEE_PER_UNIT", 0.0);
+        double resolvedLectureUnits = lectureUnits;
+        double resolvedLabUnits = labUnits;
+        if (resolvedLectureUnits <= 0.0 && resolvedLabUnits <= 0.0 && units > 0.0) {
+            resolvedLectureUnits = units;
+        }
+        return roundMoney((Math.max(0.0, resolvedLectureUnits) * Math.max(0.0, lectureRate))
+            + (Math.max(0.0, resolvedLabUnits) * Math.max(0.0, labRate)));
+    }
+
+    private boolean isRleDropCourse(String componentType, String courseCode, String courseTitle) {
+        return "RLE".equals(componentType)
+            || containsAny(courseCode, "RLE", "NURS")
+            || containsAny(courseTitle, "RLE", "CLINICAL", "NURS", "NURSING");
+    }
+
+    private boolean isSpecialDropCourse(String componentType, String courseCode, String courseTitle) {
+        return "COMP".equals(componentType)
+            || "SPECIAL".equals(componentType)
+            || containsAny(courseCode, "THESIS", "CAPSTONE", "PRACTICUM", "PROJECT")
+            || containsAny(courseTitle, "THESIS", "CAPSTONE", "PRACTICUM", "PROJECT", "EXTERNSHIP", "INTERNSHIP");
+    }
+
+    private boolean containsAny(String value, String... tokens) {
+        if (value == null || value.isBlank()) {
+            return false;
+        }
+        String normalized = value.toUpperCase();
+        for (String token : tokens) {
+            if (token != null && !token.isBlank() && normalized.contains(token.toUpperCase())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private double roundMoney(double value) {
+        return Math.round(Math.max(0.0, value) * 100.0) / 100.0;
     }
 
     /**
@@ -915,6 +1036,9 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
     @Transactional
     public String processWalkInPayment(String studentNumber, double amount, String paymentType, String remarks, int semester, int yearLevel, String termYear) {
         try {
+            if (isWithdrawnStudent(studentNumber)) {
+                return "ERROR: Withdrawn students cannot post payments through the cashier.";
+            }
             Map<String, Object> student = findStudent(studentNumber);
             if (student == null) return "ERROR: Student not found.";
             String txId = "WLK-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
@@ -929,6 +1053,28 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             }
             return "SUCCESS:" + txId;
         } catch (Exception e) { return "ERROR: " + e.getMessage(); }
+    }
+
+    private boolean isWithdrawnStudent(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> row = db.queryForMap(
+                "SELECT admission_status, status, COALESCE(is_active, 1) AS is_active " +
+                    "FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber.trim());
+            String admissionStatus = row.get("admission_status") != null
+                ? String.valueOf(row.get("admission_status"))
+                : "";
+            String status = row.get("status") != null ? String.valueOf(row.get("status")) : "";
+            boolean inactive = row.get("is_active") instanceof Number n && n.intValue() == 0;
+            return "WITHDRAWN".equalsIgnoreCase(admissionStatus)
+                || "WITHDRAWN".equalsIgnoreCase(status)
+                || inactive;
+        } catch (Exception e) {
+            return false;
+        }
     }
 
     public List<Map<String, Object>> buildLedgerHistory(Map<String, Object> student) {
@@ -1175,6 +1321,8 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "JOIN students s ON s.student_number = g.student_id " +
                 "LEFT JOIN sys_users u ON u.username = s.student_number " +
                 "WHERE cs.term_id = ? " +
+                "AND COALESCE(s.is_active, 1) = 1 " +
+                "AND UPPER(COALESCE(s.admission_status, s.status, '')) <> 'WITHDRAWN' " +
                 "AND (" + finalPoint + " IS NOT NULL " +
                 "OR " + GradeOutcomeSql.outcome("g") + " IN ('FAILED', 'INC', 'PASSED')) " +
                 "GROUP BY s.student_number, s.real_name, u.real_name, s.program_code, s.year_level, s.semester, s.scholarship_approved, s.scholarship_type, s.discount_percentage " +
@@ -1311,6 +1459,9 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
         ensureScholarshipReviewWorkflow();
         Integer resolvedTermId = termId != null && termId > 0 ? termId : getDefaultScholarshipTermId();
         if (resolvedTermId == null) return "ERROR: Academic term not found.";
+        if (isWithdrawnScholarshipStudent(studentNumber)) {
+            return "ERROR: Withdrawn students cannot receive academic scholarship.";
+        }
 
         Map<String, Object> candidate = evaluateAcademicScholarshipCandidates(resolvedTermId).stream()
             .filter(row -> studentNumber.equals(String.valueOf(row.get("student_number"))))
@@ -1338,7 +1489,37 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                     "VALUES (?, ?, 'ACADEMIC', 'PENDING', ?, 0, ?, CURRENT_TIMESTAMP)",
                 studentNumber, resolvedTermId, discount, cleanActor(requestedBy));
         }
+        auditScholarship(
+            studentNumber,
+            "ACADEMIC_SCHOLARSHIP_REQUESTED",
+            requestedBy,
+            "Academic scholarship review requested",
+            "Term #" + resolvedTermId + "; discount " + discount + "%.");
         return "SUCCESS";
+    }
+
+    private boolean isWithdrawnScholarshipStudent(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) {
+            return false;
+        }
+        try {
+            Map<String, Object> student = db.queryForMap(
+                "SELECT COALESCE(admission_status, status, '') AS lifecycle_status, " +
+                    "COALESCE(is_active, 1) AS is_active " +
+                    "FROM students WHERE student_number = ? LIMIT 1",
+                studentNumber.trim());
+            String lifecycleStatus = String.valueOf(student.get("lifecycle_status"));
+            boolean active = true;
+            Object activeRaw = student.get("is_active");
+            if (activeRaw instanceof Number n) {
+                active = n.intValue() != 0;
+            } else if (activeRaw != null) {
+                active = !"0".equals(String.valueOf(activeRaw).trim());
+            }
+            return !active || "WITHDRAWN".equalsIgnoreCase(lifecycleStatus);
+        } catch (Exception ignored) {
+            return false;
+        }
     }
 
     @Transactional
@@ -1349,6 +1530,14 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
                 "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC' AND status = 'PENDING'",
             cleanNote(note), cleanActor(reviewedBy), studentNumber, termId);
+        if (updated == 1) {
+            auditScholarship(
+                studentNumber,
+                "ACADEMIC_SCHOLARSHIP_APPROVED",
+                reviewedBy,
+                "Academic scholarship approved",
+                cleanNote(note));
+        }
         return updated == 1 ? "SUCCESS" : "ERROR: Only a pending review can be approved.";
     }
 
@@ -1360,6 +1549,14 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
                 "reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
                 "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC' AND status IN ('PENDING', 'APPROVED')",
             cleanNote(note), cleanActor(reviewedBy), studentNumber, termId);
+        if (updated == 1) {
+            auditScholarship(
+                studentNumber,
+                "ACADEMIC_SCHOLARSHIP_REJECTED",
+                reviewedBy,
+                "Academic scholarship rejected",
+                cleanNote(note));
+        }
         return updated == 1 ? "SUCCESS" : "ERROR: Only a pending or approved review can be rejected.";
     }
 
@@ -1382,17 +1579,31 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
             "UPDATE scholarship_review_workflow SET status = 'POSTED', posted_by = ?, posted_at = CURRENT_TIMESTAMP, " +
                 "updated_at = CURRENT_TIMESTAMP WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC'",
             cleanActor(postedBy), studentNumber, termId);
+        auditScholarship(
+            studentNumber,
+            "ACADEMIC_SCHOLARSHIP_POSTED",
+            postedBy,
+            "Academic scholarship posted",
+            "Term #" + termId + ".");
         return "SUCCESS";
     }
 
     public void markAcademicScholarshipRevoked(String studentNumber, Integer termId, String actor) {
         if (termId == null) return;
         ensureScholarshipReviewWorkflow();
-        db.update(
+        int updated = db.update(
             "UPDATE scholarship_review_workflow SET status = 'REVOKED', decision_note = 'Revoked by registrar', " +
                 "reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP " +
                 "WHERE student_number = ? AND term_id = ? AND classification = 'ACADEMIC'",
             cleanActor(actor), studentNumber, termId);
+        if (updated > 0) {
+            auditScholarship(
+                studentNumber,
+                "ACADEMIC_SCHOLARSHIP_REVOKED",
+                actor,
+                "Academic scholarship revoked",
+                "Term #" + termId + ".");
+        }
     }
 
     private void ensureScholarshipReviewWorkflow() {
@@ -1409,6 +1620,25 @@ public class ScholarEnrollmentService implements StudentOverpaymentBalancePort {
 
     private String cleanActor(String actor) {
         return actor == null || actor.isBlank() ? "SYSTEM" : actor.trim();
+    }
+
+    private void auditScholarship(String studentNumber,
+                                  String actionName,
+                                  String actor,
+                                  String summary,
+                                  String details) {
+        if (auditTrailService == null) {
+            return;
+        }
+        auditTrailService.recordStudentAction(
+            cleanActor(actor),
+            "SCHOLARSHIP",
+            actionName,
+            studentNumber,
+            summary,
+            details,
+            "scholarship_review_workflow",
+            studentNumber);
     }
 
     private String cleanNote(String note) {

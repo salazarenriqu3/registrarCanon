@@ -12,6 +12,6 @@ import java.util.Optional;
 public interface StudentRepository extends JpaRepository<Student, String> {
     Optional<Student> findByUserId(Integer userId);
 
-    @Query("SELECT s FROM Student s WHERE s.studentNumber = :query OR LOWER(s.realName) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(CONCAT(s.firstName, ' ', s.lastName)) LIKE LOWER(CONCAT('%', :query, '%'))")
+    @Query("SELECT s FROM Student s WHERE s.studentNumber = :query OR s.archiveKey = :query OR LOWER(s.realName) LIKE LOWER(CONCAT('%', :query, '%')) OR LOWER(CONCAT(s.firstName, ' ', s.lastName)) LIKE LOWER(CONCAT('%', :query, '%'))")
     List<Student> searchStudents(@Param("query") String query);
 }

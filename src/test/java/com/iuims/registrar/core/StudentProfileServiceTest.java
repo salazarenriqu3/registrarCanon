@@ -31,6 +31,21 @@ class StudentProfileServiceTest {
                 real_name VARCHAR(100)
             )
             """);
+        db.execute("""
+            CREATE TABLE student_number_release_registry (
+                released_student_number VARCHAR(100) PRIMARY KEY,
+                archive_key VARCHAR(80) NOT NULL,
+                release_status VARCHAR(30) NOT NULL DEFAULT 'AVAILABLE',
+                released_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                released_by VARCHAR(100) NULL,
+                release_note VARCHAR(500) NULL,
+                reissued_reference_number VARCHAR(100) NULL,
+                reissued_student_number VARCHAR(100) NULL,
+                reissued_at TIMESTAMP NULL,
+                reissued_by VARCHAR(100) NULL,
+                updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+            )
+            """);
         service = new StudentProfileService(db);
         service.ensureSchema();
     }
@@ -90,5 +105,27 @@ class StudentProfileServiceTest {
         assertThat(user).containsEntry("last_name", "Ramos");
         assertThat(user).containsEntry("email", "lia.ramos@example.edu");
         assertThat(user).containsEntry("mobile", "09170001111");
+    }
+
+    @Test
+    void archivedIdentityResolvesWithoutMintingNewArchiveKey() {
+        db.update("""
+            INSERT INTO students (student_number, archive_key, reference_number, first_name, last_name, real_name,
+                admission_status, status, is_active)
+            VALUES ('ARCH-OLD-001', 'ARCH-OLD-001', 'REF-OLD-001', 'Nina', 'Reyes', 'Nina Reyes',
+                'WITHDRAWN', 'WITHDRAWN', 0)
+            """);
+        db.update("""
+            INSERT INTO student_number_release_registry (
+                released_student_number, archive_key, release_status, released_by, release_note
+            ) VALUES ('26-1-00009', 'ARCH-OLD-001', 'AVAILABLE', 'registrar', 'archived release')
+            """);
+
+        assertThat(service.resolveCurrentStudentNumber("26-1-00009")).isEqualTo("ARCH-OLD-001");
+        assertThat(service.ensureArchiveKey("26-1-00009")).isEqualTo("ARCH-OLD-001");
+
+        Map<String, Object> profile = service.getEditableProfile("26-1-00009");
+        assertThat(profile).containsEntry("student_number", "ARCH-OLD-001");
+        assertThat(profile).containsEntry("archive_key", "ARCH-OLD-001");
     }
 }

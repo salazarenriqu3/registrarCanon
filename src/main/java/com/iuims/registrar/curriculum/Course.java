@@ -11,7 +11,7 @@ public class Course {
     @Column(name = "course_id")
     private Integer courseId;
 
-    @Column(name = "course_code", length = 20)
+    @Column(name = "course_code", length = 40)
     private String courseCode;
 
     @Column(name = "course_title", length = 150)
@@ -22,6 +22,21 @@ public class Course {
 
     @Column(name = "credit_units")
     private Integer creditUnits;
+
+    @Column(name = "lec_units")
+    private Integer lecUnits;
+
+    @Column(name = "lab_units")
+    private Integer labUnits;
+
+    @Column(name = "component_type", length = 10)
+    private String componentType;
+
+    @Column(name = "course_family_code", length = 40)
+    private String courseFamilyCode;
+
+    @Column(name = "parent_course_id")
+    private Integer parentCourseId;
 
     // Getters and Setters
     public Integer getCourseId() { return courseId; }
@@ -38,4 +53,19 @@ public class Course {
 
     public Integer getCreditUnits() { return creditUnits; }
     public void setCreditUnits(Integer creditUnits) { this.creditUnits = creditUnits; }
+
+    public Integer getLecUnits() { return lecUnits; }
+    public void setLecUnits(Integer lecUnits) { this.lecUnits = lecUnits; }
+
+    public Integer getLabUnits() { return labUnits; }
+    public void setLabUnits(Integer labUnits) { this.labUnits = labUnits; }
+
+    public String getComponentType() { return componentType; }
+    public void setComponentType(String componentType) { this.componentType = componentType; }
+
+    public String getCourseFamilyCode() { return courseFamilyCode; }
+    public void setCourseFamilyCode(String courseFamilyCode) { this.courseFamilyCode = courseFamilyCode; }
+
+    public Integer getParentCourseId() { return parentCourseId; }
+    public void setParentCourseId(Integer parentCourseId) { this.parentCourseId = parentCourseId; }
 }

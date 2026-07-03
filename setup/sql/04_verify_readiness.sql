@@ -167,5 +167,62 @@ SELECT 'ENLISTMENT STATUS COLUMN' AS check_name,
 FROM information_schema.COLUMNS
 WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'student_enlistments' AND COLUMN_NAME = 'enlistment_status';
 
+SELECT 'REGISTRAR CONTRACT TABLES' AS check_name,
+       SUM(CASE WHEN table_name = 'student_identity_archive' THEN 1 ELSE 0 END) AS has_student_identity_archive,
+       SUM(CASE WHEN table_name = 'student_number_release_registry' THEN 1 ELSE 0 END) AS has_student_number_release_registry,
+       SUM(CASE WHEN table_name = 'student_archive_files' THEN 1 ELSE 0 END) AS has_student_archive_files,
+       SUM(CASE WHEN table_name = 'student_archive_custody_events' THEN 1 ELSE 0 END) AS has_student_archive_custody_events,
+       SUM(CASE WHEN table_name = 'grade_record_events' THEN 1 ELSE 0 END) AS has_grade_record_events
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND table_name IN (
+      'student_identity_archive',
+      'student_number_release_registry',
+      'student_archive_files',
+      'student_archive_custody_events',
+      'grade_record_events'
+  );
+
+SELECT 'GRADE CHANGE REVIEW COLUMNS' AS check_name,
+       SUM(CASE WHEN column_name = 'reviewed_by' THEN 1 ELSE 0 END) AS has_reviewed_by,
+       SUM(CASE WHEN column_name = 'review_note' THEN 1 ELSE 0 END) AS has_review_note,
+       SUM(CASE WHEN column_name = 'rejected_at' THEN 1 ELSE 0 END) AS has_rejected_at
+FROM information_schema.COLUMNS
+WHERE TABLE_SCHEMA = DATABASE()
+  AND TABLE_NAME = 'grade_change_requests'
+  AND column_name IN ('reviewed_by', 'review_note', 'rejected_at');
+
+SELECT 'TRANSFER CREDIT REQUEST TABLE' AS check_name,
+       COUNT(*) AS has_transfer_credit_requests
+FROM information_schema.TABLES
+WHERE TABLE_SCHEMA = DATABASE()
+  AND table_name = 'transfer_credit_requests';
+
+SELECT 'REGISTRAR CONTRACT SUMMARY' AS check_name,
+       CASE
+           WHEN (
+               SELECT COUNT(*)
+               FROM information_schema.TABLES
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND table_name IN (
+                     'student_identity_archive',
+                     'student_number_release_registry',
+                     'student_archive_files',
+                     'student_archive_custody_events',
+                     'grade_record_events',
+                     'transfer_credit_requests'
+                 )
+           ) = 6
+            AND (
+               SELECT COUNT(*)
+               FROM information_schema.COLUMNS
+               WHERE TABLE_SCHEMA = DATABASE()
+                 AND TABLE_NAME = 'grade_change_requests'
+                 AND column_name IN ('reviewed_by', 'review_note', 'rejected_at')
+           ) = 3
+           THEN 'PASS'
+           ELSE 'FAIL'
+       END AS status;
+
 SELECT 'ADMIN USER' AS check_name, username, role, is_active
 FROM sys_users WHERE username = 'admin';

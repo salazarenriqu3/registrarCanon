@@ -75,6 +75,23 @@ FROM class_sections cs
 JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
 WHERE NOT EXISTS (SELECT 1 FROM class_schedules sch WHERE sch.section_id = cs.section_id);
 
+SELECT 'MISSING ROOM ROWS active term' AS check_name, COUNT(*) AS cnt
+FROM class_schedules sch
+JOIN class_sections cs ON cs.section_id = sch.section_id
+JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
+WHERE sch.room_id IS NULL;
+
+SELECT 'MISSING FACULTY ROWS active term' AS check_name, COUNT(*) AS cnt
+FROM class_schedules sch
+JOIN class_sections cs ON cs.section_id = sch.section_id
+JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
+WHERE sch.faculty_id IS NULL;
+
+SELECT 'SECTIONS WITHOUT FACULTY active term' AS check_name, COUNT(*) AS cnt
+FROM class_sections cs
+JOIN academic_terms t ON t.term_id = cs.term_id AND t.is_active = 1
+WHERE cs.faculty_id IS NULL;
+
 SELECT 'ROOM CONFLICTS active term' AS check_name, COUNT(*) AS cnt
 FROM class_schedules s1
 JOIN class_schedules s2

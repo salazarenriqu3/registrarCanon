@@ -60,6 +60,7 @@ The bootstrap uses the self-contained SQL package tracked in this repository. Ad
 ## What bootstrap seeds
 
 - Full schema plus finance gates and installment-plan support
+- Registrar governance contract tables for withdrawal archive, custody tracking, released student-number reuse, transfer-credit approval, and grade-event monitoring
 - Curriculum for active programs and calendar terms through 2728
 - Block sections, block offerings, and `IRREG-A` sections on every seeded calendar term
 - Schedules, faculty accounts, and grading windows
@@ -90,6 +91,16 @@ The separate full-demo loader overlays:
 |-------|----------|
 | `admin` | `1234` |
 | `prof.cruz` | `1234` |
+
+The bundled verification SQL now also confirms that these registrar contract items exist after bootstrap:
+
+- `student_identity_archive`
+- `student_number_release_registry`
+- `student_archive_files`
+- `student_archive_custody_events`
+- `grade_record_events`
+- `grade_change_requests.reviewed_by`, `review_note`, and `rejected_at`
+- `transfer_credit_requests`
 
 Human UAT: `handoffNew/HUMAN_UAT_CHECKLIST.md`
 Feature demo script: `handoffNew/REGISTRAR_FEATURE_DEMO_MANUAL_20260625.md`

@@ -1,6 +1,5 @@
 package com.iuims.registrar.finance;
 
-import com.iuims.registrar.forms.RegFormEventService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -13,20 +12,12 @@ public class OverpayDispositionService {
 
     private final JdbcTemplate db;
     private final StudentOverpaymentBalancePort balancePort;
-    private final RegFormEventService regFormEventService;
 
     @Autowired
     public OverpayDispositionService(JdbcTemplate db,
-                                     StudentOverpaymentBalancePort balancePort,
-                                     RegFormEventService regFormEventService) {
+                                     StudentOverpaymentBalancePort balancePort) {
         this.db = db;
         this.balancePort = balancePort;
-        this.regFormEventService = regFormEventService;
-    }
-
-    public OverpayDispositionService(JdbcTemplate db,
-                                     StudentOverpaymentBalancePort balancePort) {
-        this(db, balancePort, null);
     }
 
     public record DispositionResult(
@@ -116,33 +107,6 @@ public class OverpayDispositionService {
         }
 
         insertDispositionAudit(sn, pending, refundAmount, creditAmount, decidedBy, note);
-        try {
-            String eventType;
-            if (refundAmount > 0.01 && creditAmount > 0.01) {
-                eventType = "OVERPAY_SPLIT";
-            } else if (refundAmount > 0.01) {
-                eventType = "OVERPAY_REFUND";
-            } else {
-                eventType = "OVERPAY_CREDIT";
-            }
-            StringBuilder remarksBuilder = new StringBuilder(note);
-            remarksBuilder.append(" | refund=").append(String.format("%.2f", refundAmount));
-            remarksBuilder.append(" | credit=").append(String.format("%.2f", creditAmount));
-            if (decidedBy != null && !decidedBy.isBlank()) {
-                remarksBuilder.append(" | decidedBy=").append(decidedBy.trim());
-            }
-            if (regFormEventService != null) {
-                regFormEventService.recordEvent(
-                    sn,
-                    eventType,
-                    "Overpayment disposition recorded",
-                    null,
-                    remarksBuilder.toString(),
-                    "registrar");
-            }
-        } catch (Exception ignored) {
-        }
-
         double pendingRemaining = balancePort.getPendingTermCredit(sn);
         double forwardNet = balancePort.getForwardedBalanceNet(sn);
         return DispositionResult.ok(

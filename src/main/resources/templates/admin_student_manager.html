@@ -6,9 +6,27 @@
     <div th:replace="~{fragments/layout :: topbar}"></div>
 
     <style>
+        .profile-intake-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .profile-intake-card {
+            margin: 0;
+            min-width: 0;
+        }
+        .archive-custody-card {
+            grid-column: 1 / -1;
+        }
         .profile-collapse {
             margin-bottom: 1.5rem;
             border-left: 4px solid #0F766E;
+        }
+        .profile-collapse:focus-within,
+        .profile-collapse summary:focus,
+        .profile-collapse summary:focus-visible {
+            outline: none;
         }
         .profile-collapse summary {
             list-style: none;
@@ -18,6 +36,20 @@
             align-items: center;
             gap: 1rem;
             padding: 1.1rem 1.5rem;
+        }
+        .profile-collapse summary:hover {
+            background: var(--bg-tertiary);
+        }
+        .collapse-chip {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            border: 1px solid currentColor;
+            border-radius: var(--radius-md);
+            padding: 0.45rem 0.7rem;
+            font-size: 0.82rem;
+            font-weight: 700;
+            white-space: nowrap;
         }
         .profile-collapse summary::-webkit-details-marker {
             display: none;
@@ -48,6 +80,136 @@
             margin-top: 0.25rem;
             word-break: break-word;
         }
+        .profile-edit-form {
+            padding: 1.25rem 1.5rem 1.5rem;
+        }
+        .profile-edit-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+            gap: 0.85rem 1.1rem;
+            margin-bottom: 1rem;
+        }
+        .profile-field-section {
+            grid-column: 1 / -1;
+            margin-top: 0.45rem;
+            padding-top: 0.8rem;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            font-size: 0.76rem;
+            font-weight: 800;
+            text-transform: uppercase;
+        }
+        .profile-edit-grid label {
+            display: block;
+            margin-bottom: 0.25rem;
+            font-size: 0.72rem;
+            font-weight: 800;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        .profile-edit-grid .form-control {
+            width: 100%;
+            min-width: 0;
+        }
+        .subject-card-header {
+            display: grid;
+            gap: 0.85rem;
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+        .subject-card-titlebar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .subject-filter-form {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.35fr) auto;
+            gap: 0.6rem;
+            align-items: end;
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: var(--radius-md);
+        }
+        .subject-filter-form .form-control {
+            width: 100%;
+            min-width: 0;
+        }
+        .subject-local-search {
+            margin-bottom: 1rem;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            padding: 0.5rem 1rem;
+        }
+        .subject-table-wrap {
+            max-height: 450px;
+            overflow: auto;
+            border-top: 1px solid var(--border-color);
+        }
+        table.subject-add-table {
+            table-layout: auto;
+            min-width: 860px;
+        }
+        .subject-add-form {
+            display: flex;
+            gap: 0.5rem;
+            margin: 0;
+            align-items: center;
+        }
+        .subject-add-form select {
+            min-width: 360px;
+        }
+        .student-detail-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.65fr) minmax(360px, 1fr);
+            gap: 1.5rem;
+            align-items: start;
+        }
+        .student-detail-main,
+        .student-detail-sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            min-width: 0;
+        }
+        .student-detail-sidebar .shift-panel { order: 1; }
+        .student-detail-sidebar .curriculum-panel { order: 2; }
+        .student-detail-sidebar .mini-ledger-panel { order: 3; }
+        .student-detail-sidebar .full-ledger-panel { order: 4; }
+        .student-detail-sidebar .overpay-panel { order: 5; }
+        .student-detail-sidebar .reg-form-panel { order: 6; }
+        .student-detail-sidebar .installment-panel { order: 7; }
+        .student-detail-sidebar .scholarship-panel { order: 8; }
+        @media (max-width: 1180px) {
+            .subject-filter-form {
+                grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            }
+            .subject-filter-form button {
+                width: 100%;
+            }
+        }
+        @media (max-width: 1480px) {
+            .student-detail-grid {
+                grid-template-columns: 1fr;
+            }
+            .student-detail-sidebar {
+                order: -1;
+            }
+        }
+        @media (max-width: 920px) {
+            .profile-intake-grid {
+                grid-template-columns: 1fr;
+            }
+            .subject-add-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .subject-add-form select {
+                min-width: 0;
+            }
+        }
         @media (max-width: 720px) {
             .document-row {
                 align-items: flex-start;
@@ -55,6 +217,14 @@
             }
             .document-actions {
                 justify-content: flex-start;
+            }
+            .profile-collapse summary,
+            .subject-card-titlebar {
+                align-items: flex-start;
+                flex-direction: column;
+            }
+            .subject-filter-form {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -77,9 +247,12 @@
                     <p class="page-subtitle">One registrar workspace for identity, academic placement, current load, finance, and records.</p>
                 </div>
                 <div th:if="${student != null}" style="display: flex; gap: 0.5rem;">
-                    <a th:href="${enrollmentCashierUrl}" target="_blank" rel="noopener" class="btn btn-primary" style="background: var(--red); border-color: var(--red);">
+                    <a th:if="${!isWithdrawnStudent}" th:href="${enrollmentCashierUrl}" target="_blank" rel="noopener" class="btn btn-primary" style="background: var(--red); border-color: var(--red);">
                         <i class="ti ti-external-link" aria-hidden="true"></i> Open Enrollment System (External)
                     </a>
+                    <span th:if="${isWithdrawnStudent}" class="btn btn-ghost" style="border: 1px solid #DC2626; color: #B91C1C; cursor: not-allowed;">
+                        <i class="ti ti-lock" aria-hidden="true"></i> Enrollment Actions Locked
+                    </span>
                     <a th:href="@{/admin/document-trail(query=${student.username})}" class="btn btn-ghost" style="border: 1px solid #0EA5E9; color: #0EA5E9;">
                         <i class="ti ti-route" aria-hidden="true"></i> Document Trail
                     </a>
@@ -107,6 +280,43 @@
             <div th:if="${errorMessage != null}" class="status-badge inactive" style="margin-bottom: 1.5rem; display: inline-flex; width: auto; font-size: 1rem; padding: 0.75rem 1rem;">
                 <div class="status-dot"></div>
                 <span th:text="${errorMessage}"></span>
+            </div>
+            <div th:if="${student != null and isWithdrawnStudent}" class="card" style="margin-bottom: 1rem; border-left: 4px solid #B91C1C; background: #FEF2F2;">
+                <div style="padding: 0.9rem 1rem; color: #7F1D1D; line-height: 1.45;">
+                    <strong>Withdrawn student record.</strong>
+                    Registrar history, ledger, archive custody, and document trail remain viewable. Enrollment actions are locked.
+                    Official document release is held while an outstanding balance remains
+                    (<span th:text="${'PHP ' + outstandingBalanceFmt}">PHP 0.00</span>).
+                    <span th:if="${studentArchiveKey != null and !#strings.isEmpty(studentArchiveKey)}" style="display: inline-block; margin-left: 0.5rem; font-family: monospace; background: rgba(185, 28, 28, 0.08); border: 1px solid rgba(185, 28, 28, 0.25); border-radius: 999px; padding: 0.15rem 0.55rem;">
+                        Archive Key: <span th:text="${studentArchiveKey}">ARCH-000000000000</span>
+                    </span>
+                </div>
+            </div>
+            <div th:if="${student != null and isWithdrawnStudent}" class="card" style="margin-bottom: 1rem; border-left: 4px solid #1D4ED8; background: #EFF6FF;">
+                <div style="padding: 0.95rem 1rem;">
+                    <div style="font-weight: 700; color: #1D4ED8; margin-bottom: 0.35rem;">Student Number Release</div>
+                    <p th:if="${studentNumberRelease == null}" style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.75rem;">
+                        When this record is ready for long-term archive custody, the Registrar can release the live student number.
+                        The history remains accessible through the archive key and student name.
+                    </p>
+                    <p th:if="${studentNumberRelease != null}" style="font-size: 0.82rem; color: var(--text-muted); margin: 0 0 0.75rem;">
+                        Release status:
+                        <strong th:text="${studentNumberRelease.release_status}">AVAILABLE</strong>.
+                        Former live number
+                        <span style="font-family: monospace;" th:text="${studentNumberRelease.released_student_number}">26-1-00001</span>
+                        is now tracked under
+                        <span style="font-family: monospace;" th:text="${studentNumberRelease.archive_key}">ARCH-000000000000</span>.
+                    </p>
+                    <form th:if="${studentNumberRelease == null}" th:action="@{/admin/withdrawals/release-student-number}" method="post"
+                          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
+                          onsubmit="return confirm('Archive this withdrawn identity and release the former student number for future reissue?');">
+                        <input type="hidden" name="studentNumber" th:value="${student.username}">
+                        <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Release note / case reference" style="flex: 1 1 240px;">
+                        <button type="submit" class="btn" style="background: #1D4ED8; color: #fff; white-space: nowrap;">
+                            <i class="ti ti-key" aria-hidden="true"></i> Release Student Number
+                        </button>
+                    </form>
+                </div>
             </div>
 
             <div class="card" style="margin-bottom: 2rem; overflow: visible;">
@@ -139,6 +349,9 @@
                                         <div class="status-dot"></div>
                                         <span th:text="${student.admission_status != null ? student.admission_status : 'PROFILE'}">PROFILE</span>
                                     </div>
+                                    <span th:if="${studentArchiveKey != null and !#strings.isEmpty(studentArchiveKey)}"
+                                          style="font-family: monospace; background: #EFF6FF; color: #1D4ED8; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.78rem; border: 1px solid #BFDBFE;"
+                                          th:text="${studentArchiveKey}">ARCH-000000000000</span>
                                 </div>
                             </div>
 
@@ -173,12 +386,19 @@
                             <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem;">
                                 <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Current Load</div>
                                 <div style="font-weight: 700; color: var(--text-primary); margin-top: 0.25rem;"><span th:text="${totalUnits != null ? totalUnits : 0}">0</span> units</div>
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;" th:text="${hasEnrolledSubjects ? 'Active subject load found' : 'No current subjects found'}"></div>
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;">
+                                    <span th:if="${hasEnrolledSubjects}">Active subject load found</span>
+                                    <span th:if="${!hasEnrolledSubjects and isProgramShifted}">Shift completed; ready for curriculum bulk add</span>
+                                    <span th:if="${!hasEnrolledSubjects and !isProgramShifted}">No current subjects found</span>
+                                </div>
                             </div>
                             <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.75rem;">
                                 <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Profile State</div>
                                 <div style="font-weight: 700; color: var(--text-primary); margin-top: 0.25rem;" th:text="${student.admission_status != null ? student.admission_status : 'No admission status'}"></div>
                                 <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.15rem;" th:text="${student.term_year != null ? 'Term year ' + student.term_year : 'No term year listed'}"></div>
+                                <div th:if="${isProgramShifted}" class="status-badge waitlist" style="font-size: 0.72rem; padding: 0.15rem 0.45rem; margin-top: 0.4rem; display: inline-flex;">
+                                    <div class="status-dot"></div> Shifted
+                                </div>
                             </div>
                             <div th:style="${hasAccountingBlock or (curriculumDeficiencyCount != null and curriculumDeficiencyCount > 0)} ? 'background: #FEF2F2; border: 1px solid #FCA5A5; border-left: 4px solid #DC2626; border-radius: var(--radius-md); padding: 0.75rem;' : 'background: #F0FDF4; border: 1px solid #BBF7D0; border-left: 4px solid #16A34A; border-radius: var(--radius-md); padding: 0.75rem;'">
                                 <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Registrar Alerts</div>
@@ -269,8 +489,8 @@
                 </div>
             </div>
 
-            <div th:if="${student != null}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                <div class="card" style="border-left: 4px solid #2563EB; margin: 0;">
+            <div th:if="${student != null}" class="profile-intake-grid">
+                <div class="card profile-intake-card" style="border-left: 4px solid #2563EB;">
                     <div class="card-header">
                         <div>
                             <h5 class="card-title" style="margin: 0; color: #1D4ED8;">
@@ -330,7 +550,7 @@
                     </div>
                 </div>
 
-                <div class="card" style="border-left: 4px solid #D97706; margin: 0;">
+                <div class="card profile-intake-card" style="border-left: 4px solid #D97706;">
                     <div class="card-header">
                         <div>
                             <h5 class="card-title" style="margin: 0; color: #B45309;">
@@ -371,7 +591,7 @@
                     </div>
                 </div>
 
-                <details class="card profile-collapse" th:if="${student != null}" style="border-left: 4px solid #334155; margin: 0;">
+                <details class="card profile-collapse archive-custody-card" th:if="${student != null}" style="border-left: 4px solid #334155; margin: 0;">
                     <summary>
                         <div>
                             <h5 class="card-title" style="margin: 0; color: #334155;">
@@ -381,7 +601,7 @@
                                 Tracks physical file request, release, evaluation, scanning handoff, return, and refile.
                             </div>
                         </div>
-                        <span class="btn btn-ghost" style="border: 1px solid #334155; color: #334155; pointer-events: none;">
+                        <span class="collapse-chip" style="color: #334155; pointer-events: none;">
                             <i class="ti ti-chevron-down toggle-icon" aria-hidden="true"></i> Expand
                         </span>
                     </summary>
@@ -469,14 +689,15 @@
                         </h5>
                         <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem;">Collapsed by default; expand only when registrar identity or background records need correction.</div>
                     </div>
-                    <span class="btn btn-ghost" style="border: 1px solid #0F766E; color: #0F766E; pointer-events: none;">
+                    <span class="collapse-chip" style="color: #0F766E; pointer-events: none;">
                         <i class="ti ti-chevron-down toggle-icon" aria-hidden="true"></i> Expand
                     </span>
                 </summary>
-                <form th:action="@{/admin/student-manager/profile}" method="post" style="padding: 1.5rem;">
+                <form th:action="@{/admin/student-manager/profile}" method="post" class="profile-edit-form">
                     <input type="hidden" name="studentNumber" th:value="${student.username}">
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section" style="border-top: 0; padding-top: 0; margin-top: 0;">Identity &amp; Contact</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">First Name</label>
                             <input name="first_name" class="form-control" th:value="${studentProfile.first_name}">
@@ -503,7 +724,8 @@
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section">Personal Details</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Sex</label>
                             <input name="sex" class="form-control" th:value="${studentProfile.sex}">
@@ -530,7 +752,8 @@
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section">Birthplace &amp; Address</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Place of Birth</label>
                             <input name="place_of_birth" class="form-control" th:value="${studentProfile.place_of_birth}">
@@ -553,7 +776,8 @@
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section">Emergency &amp; Guardian</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Emergency Contact</label>
                             <input name="emergency_contact_name" class="form-control" th:value="${studentProfile.emergency_contact_name}">
@@ -580,7 +804,8 @@
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section">Parents</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Father Name</label>
                             <input name="father_name" class="form-control" th:value="${studentProfile.father_name}">
@@ -615,7 +840,8 @@
                         </div>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.85rem; margin-bottom: 1rem;">
+                    <div class="profile-field-section">Prior Schooling</div>
+                    <div class="profile-edit-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Elementary School</label>
                             <input name="elementary_school" class="form-control" th:value="${studentProfile.elementary_school}">
@@ -680,10 +906,10 @@
             </details>
 
             <!-- Detailed Content Grid -->
-            <div th:if="${student != null}" style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem; align-items: start;">
+            <div th:if="${student != null}" class="student-detail-grid">
                 
                 <!-- Left Column -->
-                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="student-detail-main">
                     
                     <!-- Enrolled Subjects -->
                     <div class="card" th:if="${hasEnrolledSubjects}" style="border-left: 4px solid var(--primary-color);">
@@ -698,7 +924,7 @@
                                         <th>Description</th>
                                         <th>Units</th>
                                         <th>Schedule</th>
-                                        <th style="text-align: right;">Withdrawal</th>
+                                        <th style="text-align: right;">Drop</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -709,17 +935,11 @@
                                         <td th:text="${c.units}"></td>
                                         <td style="font-size: 0.85rem; color: var(--text-muted);" th:text="${c.pretty_schedule}"></td>
                                         <td style="text-align: right; min-width: 260px;">
-                                            <form th:action="@{/admin/withdrawals/drop-subject}" method="post" style="display: grid; grid-template-columns: 1fr; gap: 0.35rem; margin: 0;" onsubmit="return confirm('Execute this class withdrawal immediately as the Registrar?');">
+                                            <form th:action="@{/admin/withdrawals/drop-subject}" method="post" style="display: flex; gap: 0.35rem; margin: 0; align-items: center;" onsubmit="return confirm('Execute this class drop immediately as the Registrar?');">
                                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                                 <input type="hidden" name="scheduleId" th:value="${c.schedule_id}">
-                                                <select name="reasonCode" class="form-control" required style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">
-                                                    <option value="" disabled selected>Withdrawal reason</option>
-                                                    <option th:each="reason : ${withdrawalReasons}" th:value="${reason.reason_code}" th:text="${reason.reason_label}"></option>
-                                                </select>
-                                                <div style="display: flex; gap: 0.35rem;">
-                                                    <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Remarks" style="font-size: 0.75rem; padding: 0.2rem 0.4rem;">
-                                                    <button type="submit" class="btn btn-ghost" style="color: #DC2626; border: 1px solid rgba(220,38,38,0.2); padding: 0.2rem 0.45rem; font-size: 0.75rem; white-space: nowrap;"><i class="ti ti-file-minus"></i> Withdraw Now</button>
-                                                </div>
+                                                <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Internal note / remarks (optional)" style="flex: 1 1 180px; font-size: 0.75rem; padding: 0.2rem 0.4rem;">
+                                                <button type="submit" class="btn btn-ghost" style="color: #DC2626; border: 1px solid rgba(220,38,38,0.2); padding: 0.2rem 0.45rem; font-size: 0.75rem; white-space: nowrap;"><i class="ti ti-file-minus"></i> Drop Now</button>
                                             </form>
                                         </td>
                                     </tr>
@@ -732,22 +952,24 @@
                                 </tfoot>
                             </table>
                         </div>
-                        <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); background: rgba(220,38,38,0.035);">
-                            <div style="font-weight: 700; color: #B91C1C; margin-bottom: 0.35rem;">Withdraw Student From School</div>
+                        <div style="padding: 1rem 1.25rem; border-top: 1px solid var(--border-color); background: #EFF6FF;">
+                            <div style="font-weight: 700; color: #1D4ED8; margin-bottom: 0.35rem;">Clear Subject Load for Shift</div>
                             <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem;">
-                                This immediately withdraws the student from every current-term class and archives one case row per subject.
+                                Removes every current-term subject for a program shift, defaults the archival reason to <strong>Shifting</strong>, archives each class line, and keeps the student active/enrolled.
                             </p>
-                            <form th:action="@{/admin/withdrawals/drop-student}" method="post"
+                            <form th:action="@{/admin/withdrawals/clear-load-for-shift}" method="post"
                                   style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
-                                  onsubmit="return confirm('Withdraw this student immediately as the Registrar? This removes every current-term class and deactivates the student account.');">
+                                  onsubmit="return confirm('Clear all current enrolled subjects for shifting? This keeps the student active and does not withdraw the student from school.');">
                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                 <select name="reasonCode" class="form-control" required style="flex: 1 1 180px;">
-                                    <option value="" disabled selected>Withdrawal reason</option>
-                                    <option th:each="reason : ${withdrawalReasons}" th:value="${reason.reason_code}" th:text="${reason.reason_label}"></option>
+                                    <option th:each="reason : ${shiftWithdrawalReasons != null ? shiftWithdrawalReasons : withdrawalReasons}"
+                                            th:value="${reason.reason_code}"
+                                            th:text="${reason.reason_label}"
+                                            th:selected="${reason.reason_code == 'SHIFTING'}"></option>
                                 </select>
-                                <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Case reference / remarks" style="flex: 2 1 220px;">
-                                <button type="submit" class="btn" style="background: #B91C1C; color: #fff; white-space: nowrap;">
-                                    <i class="ti ti-user-minus" aria-hidden="true"></i> Withdraw Student
+                                <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Shift case / target program / remarks" style="flex: 2 1 220px;">
+                                <button type="submit" class="btn" style="background: #1D4ED8; color: #fff; white-space: nowrap;">
+                                    <i class="ti ti-arrows-right-left" aria-hidden="true"></i> Clear Load for Shift
                                 </button>
                             </form>
                         </div>
@@ -773,9 +995,9 @@
                                     <tr th:each="wr : ${studentWithdrawalRequests}">
                                         <td>
                                             <div style="font-weight: 700;"
-                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'FULL STUDENT' : wr.course_code}">COURSE</div>
+                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'SCHOOL WITHDRAWAL' : (wr.withdrawal_scope == 'SHIFT_PROGRAM_CLEANUP' ? 'SHIFT LOAD CLEANUP' : wr.course_code)}">COURSE</div>
                                             <div style="font-size: 0.78rem; color: var(--text-muted);"
-                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? wr.subject_count + ' classes archived' : wr.section_code}">SECTION</div>
+                                                 th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' or wr.withdrawal_scope == 'SHIFT_PROGRAM_CLEANUP' ? wr.subject_count + ' classes archived' : wr.section_code}">SECTION</div>
                                         </td>
                                         <td>
                                             <div th:text="${wr.reason_label}">Reason</div>
@@ -795,29 +1017,88 @@
                         </div>
                     </div>
 
-                    <!-- Not Enrolled State -->
+                    <!-- Empty Current Load State -->
                     <div th:if="${!hasEnrolledSubjects}" class="card" style="border-left: 4px solid #3B82F6; text-align: center; padding: 3rem 1rem;">
                         <i class="ti ti-info-circle" style="font-size: 3rem; color: #3B82F6; margin-bottom: 1rem; display: block; opacity: 0.8;"></i>
                         <h5 th:if="${student.admission_status == 'WITHDRAWN'}" style="font-weight: 700; color: #B91C1C; font-size: 1.25rem; margin-bottom: 0.5rem;">Withdrawn From School</h5>
-                        <h5 th:unless="${student.admission_status == 'WITHDRAWN'}" style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">Not Yet Enrolled</h5>
+                        <h5 th:if="${student.admission_status != 'WITHDRAWN' and isProgramShifted}" style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">Shifted Student - Ready for Curriculum Load</h5>
+                        <h5 th:if="${student.admission_status != 'WITHDRAWN' and !isProgramShifted and readyForBulkAdd}" style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">Ready for Curriculum Load</h5>
+                        <h5 th:if="${student.admission_status != 'WITHDRAWN' and !isProgramShifted and !readyForBulkAdd}" style="font-weight: 700; color: var(--text-primary); font-size: 1.25rem; margin-bottom: 0.5rem;">No Current Subject Load</h5>
                         <p th:if="${student.admission_status == 'WITHDRAWN'}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
                             The Registrar completed the full-student withdrawal. The profile, class-line snapshots, and document trail remain archived.
                         </p>
-                        <p th:unless="${student.admission_status == 'WITHDRAWN'}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
-                            This student has a Student ID but has not yet been enrolled in any subjects.<br>
-                            Enrollment is processed via the <a th:href="${enrollmentCashierUrl}" target="_blank" style="color: var(--primary-color); font-weight: 600; text-decoration: none;">External Enrollment System</a>.
+                        <p th:if="${student.admission_status != 'WITHDRAWN' and isProgramShifted}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+                            This student has already been shifted. The assigned
+                            <span th:text="${currentCurriculum != null ? currentCurriculum.program_code : student.program_code}">program</span>
+                            curriculum now governs subject placement.<br>
+                            Bulk-add all eligible classes below, or add sections one by one when you need a custom irregular load.
+                        </p>
+                        <p th:if="${student.admission_status != 'WITHDRAWN' and !isProgramShifted and readyForBulkAdd}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+                            This student has no current subject load, but an explicit
+                            <span th:text="${currentCurriculum != null ? currentCurriculum.program_code : student.program_code}">program</span>
+                            curriculum is already assigned.<br>
+                            You can bulk-add all eligible classes now, or add sections one by one for a custom load.
+                        </p>
+                        <form th:if="${student.admission_status != 'WITHDRAWN' and readyForBulkAdd}" th:action="@{/admin/student-manager/block-enroll}" method="post" style="margin-top: 1rem;">
+                            <input type="hidden" name="studentId" th:value="${student.username}">
+                            <button type="submit" class="btn btn-primary" style="background: var(--success-color); border-color: var(--success-color);">
+                                <i class="ti ti-list-check" aria-hidden="true"></i> <span th:text="${bulkEnrollLabel}">Bulk Add Shifted Curriculum</span>
+                            </button>
+                        </form>
+                        <p th:if="${student.admission_status != 'WITHDRAWN' and !readyForBulkAdd}" style="color: var(--text-muted); font-size: 0.95rem; margin: 0;">
+                            This student remains active. No current-term subjects are attached yet, but the explicit curriculum assignment still governs subject placement.<br>
+                            Use Program Shift below if this load was cleared for shifting, or process new enrollment through the <a th:href="${enrollmentCashierUrl}" target="_blank" style="color: var(--primary-color); font-weight: 600; text-decoration: none;">External Enrollment System</a>.
                         </p>
                     </div>
 
+                    <div th:if="${student.admission_status != 'WITHDRAWN'}" class="card" style="border-left: 4px solid #B91C1C;">
+                        <div style="padding: 1rem 1.25rem; background: rgba(220,38,38,0.035);">
+                            <div style="font-weight: 700; color: #B91C1C; margin-bottom: 0.35rem;">Withdraw Student From School</div>
+                            <p th:if="${hasEnrolledSubjects}" style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem;">
+                                This removes every current-term class, deactivates the student account, and marks the student withdrawn from school.
+                            </p>
+                            <p th:if="${!hasEnrolledSubjects}" style="font-size: 0.8rem; color: var(--text-muted); margin: 0 0 0.75rem;">
+                                This deactivates the student account and marks the student withdrawn from school. No current-term class load remains, but the archival and status change will still be completed.
+                            </p>
+                            <div th:if="${outstandingBalanceAmount != null and outstandingBalanceAmount > 0.01}"
+                                 style="margin: 0 0 0.75rem; padding: 0.75rem 0.9rem; border: 1px solid #FCD34D; background: #FFFBEB; color: #92400E; border-radius: 10px; font-size: 0.8rem; line-height: 1.45;">
+                                Withdrawal is still allowed even when the ledger still shows an outstanding balance of
+                                <strong th:text="${'PHP ' + outstandingBalanceFmt}">PHP 0.00</strong>.
+                                The balance remains collectible on the historical record, and official document release stays blocked until it is settled.
+                            </div>
+                            <form th:action="@{/admin/withdrawals/drop-student}" method="post"
+                                  style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center;"
+                                  onsubmit="return confirm('Withdraw this student immediately as the Registrar? This removes every current-term class and deactivates the student account.');">
+                                <input type="hidden" name="studentNumber" th:value="${student.username}">
+                                <select name="reasonCode" class="form-control" required style="flex: 1 1 180px;">
+                                    <option value="" disabled selected>Withdrawal reason</option>
+                                    <option th:each="reason : ${withdrawalReasons}" th:value="${reason.reason_code}" th:text="${reason.reason_label}"></option>
+                                </select>
+                                <input type="text" name="remarks" maxlength="500" class="form-control" placeholder="Case reference / remarks" style="flex: 2 1 220px;">
+                                <button type="submit" class="btn" style="background: #B91C1C; color: #fff; white-space: nowrap;">
+                                    <i class="ti ti-user-minus" aria-hidden="true"></i> Withdraw Student
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
                     <!-- Add Subjects Form -->
-                    <div th:if="${hasEnrolledSubjects}" class="card" style="border-left: 4px solid var(--success-color);">
-                        <div class="card-header" style="border-bottom: none; padding-bottom: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                    <div th:if="${student.admission_status != 'WITHDRAWN' and (hasEnrolledSubjects or currentCurriculum != null)}" class="card" style="border-left: 4px solid var(--success-color);">
+                        <div class="card-header subject-card-header">
+                            <div class="subject-card-titlebar">
                                 <h5 class="card-title" style="color: var(--success-color); margin: 0;"><i class="ti ti-circle-plus" aria-hidden="true"></i> Add Subjects</h5>
-                                <span class="status-badge waitlist" id="subjectCount" style="font-family: monospace;"></span>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; justify-content: flex-end;">
+                                    <form th:if="${readyForBulkAdd}" th:action="@{/admin/student-manager/block-enroll}" method="post" style="margin: 0;">
+                                        <input type="hidden" name="studentId" th:value="${student.username}">
+                                        <button type="submit" class="btn btn-primary" style="background: var(--success-color); border-color: var(--success-color); padding: 0.35rem 0.75rem; font-size: 0.85rem;">
+                                            <i class="ti ti-list-check" aria-hidden="true"></i> <span th:text="${bulkEnrollLabel}">Bulk Add Assigned Curriculum</span>
+                                        </button>
+                                    </form>
+                                    <span class="status-badge waitlist" id="subjectCount" style="font-family: monospace;"></span>
+                                </div>
                             </div>
                             
-                            <form th:action="@{/admin/student-manager}" method="get" style="display: grid; grid-template-columns: 1fr 1fr 1.5fr auto; gap: 0.5rem; align-items: end; margin-bottom: 1rem; background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md);">
+                            <form th:action="@{/admin/student-manager}" method="get" class="subject-filter-form">
                                 <input type="hidden" name="username" th:value="${student.username}">
                                 <div>
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">College</label>
@@ -846,8 +1127,8 @@
                             <input type="text" id="subjectSearch" class="form-control" style="margin-bottom: 1rem; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.5rem 1rem;" placeholder="🔍 Filter loaded subjects locally..." oninput="filterSubjects()">
                         </div>
                         
-                        <div style="max-height: 450px; overflow-y: auto; border-top: 1px solid var(--border-color);">
-                            <table class="table-eac" id="addSubjectsTable" style="margin: 0;">
+                        <div class="subject-table-wrap">
+                            <table class="table-eac subject-add-table" id="addSubjectsTable" style="margin: 0;">
                                 <thead style="position: sticky; top: 0; background: var(--bg-tertiary); z-index: 1;">
                                     <tr>
                                         <th style="width:110px">Code</th>
@@ -871,7 +1152,7 @@
                                         
                                         <!-- AVAILABLE -->
                                         <td th:if="${!c['is_disabled']}" style="padding-top: 0.5rem; padding-bottom: 0.5rem;">
-                                            <form th:action="@{/admin/student-manager/enroll}" method="post" style="display: flex; gap: 0.5rem; margin: 0;">
+                                            <form th:action="@{/admin/student-manager/enroll}" method="post" class="subject-add-form">
                                                 <input type="hidden" name="studentId" th:value="${student.username}">
                                                 <select name="scheduleId" class="form-control" required style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
                                                     <option value="" disabled selected>— select section —</option>
@@ -920,15 +1201,20 @@
                         </div>
 
                         <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border-color);">
-                            <form th:action="@{/admin/student-manager/bulk-credit}" method="post">
-                                <input type="hidden" name="studentNumber" th:value="${student.username}">
-                                <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">BULK TOR CSV</label>
-                                <textarea name="bulkCreditCsv" class="form-control" rows="4" placeholder="course_code,numeric_grade,source_school,note&#10;AECO 11,1.75,Prior College,TOR 2024&#10;MATH 101,2.0,," style="font-size: 0.8rem; font-family: monospace; margin-bottom: 0.5rem;"></textarea>
-                                <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="text" name="defaultSourceSchool" placeholder="Default prior school" class="form-control" style="font-size: 0.8rem; max-width: 220px;">
-                                    <button type="submit" class="btn btn-primary" style="background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Submit bulk request</button>
-                                </div>
-                            </form>
+                            <div th:if="${canSubmitTransferCreditRequests}">
+                                <form th:action="@{/admin/student-manager/bulk-credit}" method="post">
+                                    <input type="hidden" name="studentNumber" th:value="${student.username}">
+                                    <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); display: block; margin-bottom: 0.35rem;">BULK TOR CSV</label>
+                                    <textarea name="bulkCreditCsv" class="form-control" rows="4" placeholder="course_code,numeric_grade,source_school,note&#10;AECO 11,1.75,Prior College,TOR 2024&#10;MATH 101,2.0,," style="font-size: 0.8rem; font-family: monospace; margin-bottom: 0.5rem;"></textarea>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input type="text" name="defaultSourceSchool" placeholder="Default prior school" class="form-control" style="font-size: 0.8rem; max-width: 220px;">
+                                        <button type="submit" class="btn btn-primary" style="background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Submit bulk request</button>
+                                    </div>
+                                </form>
+                            </div>
+                            <div th:if="${!canSubmitTransferCreditRequests}" style="font-size: 0.82rem; color: var(--text-muted);">
+                                TOR accreditation requests are created by the Enrollment Dean. Registrar review and posting happen below once a dean-submitted request reaches this queue.
+                            </div>
                             <div th:if="${bulkCreditLines != null}" style="margin-top: 0.75rem; font-size: 0.78rem; max-height: 120px; overflow-y: auto;">
                                 <div th:each="line : ${bulkCreditLines}" th:style="${line.ok} ? 'color: var(--success-color);' : 'color: #DC2626;'" th:text="${line.courseCode + ': ' + line.detail}"></div>
                             </div>
@@ -938,7 +1224,7 @@
                             <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;">
                                 <div>
                                     <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted);">ACCREDITATION REQUESTS</div>
-                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Registrar approves or rejects TOR/prior-school credits here before they are posted into the academic record.</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-muted);">Registrar approves or rejects dean-submitted TOR/prior-school credits here before they are posted into the academic record.</div>
                                 </div>
                                 <div th:if="${transferCreditRequests != null}" style="font-size: 0.78rem; color: var(--text-muted);">
                                     <span th:text="${#lists.size(transferCreditRequests)}"></span> request(s)
@@ -974,6 +1260,7 @@
                                             </td>
                                             <td style="font-size: 0.78rem;">
                                                 <div th:text="${req.requested_by != null ? req.requested_by : 'registrar'}"></div>
+                                                <div style="color: var(--text-muted);" th:text="${req.requested_by_role != null and !#strings.isEmpty(req.requested_by_role) ? req.requested_by_role : 'role not captured'}"></div>
                                                 <div style="color: var(--text-muted);" th:text="${req.requested_at}"></div>
                                             </td>
                                             <td style="font-size: 0.78rem;">
@@ -1035,7 +1322,7 @@
                                         <td style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" th:text="${d.course_title}" th:title="${d.course_title}"></td>
                                         <td th:text="${d.credit_units}" style="white-space: nowrap;"></td>
                                         <td>
-                                            <form th:action="@{/admin/student-manager/credit-grade}" method="post" style="display: flex; flex-wrap: nowrap; gap: 0.35rem; margin: 0; align-items: center;">
+                                            <form th:if="${canSubmitTransferCreditRequests}" th:action="@{/admin/student-manager/credit-grade}" method="post" style="display: flex; flex-wrap: nowrap; gap: 0.35rem; margin: 0; align-items: center;">
                                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                                 <input type="hidden" name="courseId" th:value="${d.course_id}">
                                                 <input type="text" name="sourceSchool" placeholder="Prior school" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: 100px; min-width: 100px;">
@@ -1043,6 +1330,9 @@
                                                 <input type="text" name="note" placeholder="Note" class="form-control" style="font-size: 0.75rem; padding: 0.2rem 0.4rem; width: 88px; min-width: 88px;">
                                                 <button type="submit" class="btn btn-primary" style="padding: 0.2rem 0.45rem; font-size: 0.75rem; background: #F59E0B; border-color: #F59E0B; white-space: nowrap;">Submit</button>
                                             </form>
+                                            <div th:if="${!canSubmitTransferCreditRequests}" style="font-size: 0.78rem; color: var(--text-muted);">
+                                                Waiting for Enrollment Dean accreditation request.
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>
@@ -1052,7 +1342,7 @@
                             No curriculum deficiencies — assigned catalog is fully credited/passed.
                         </div>
                         <div style="padding: 0.75rem 1rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--border-color);">
-                            Submit prior-school/TOR rows here or via bulk CSV. Approved credits are posted into grades and then count as passed for prerequisites, curriculum carry-over, and irregular enrollment.
+                            Dean-submitted TOR rows are approved here, then posted into grades and counted as passed for prerequisites, curriculum carry-over, and irregular enrollment.
                         </div>
                     </div>
 
@@ -1102,10 +1392,10 @@
                 </div>
 
                 <!-- Right Column -->
-                <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                <div class="student-detail-sidebar">
 
                     <!-- Pending overpayment disposition (Registrar phase 1) -->
-                    <div class="card" th:if="${hasPendingOverpay}" style="border-left: 4px solid #0EA5E9;">
+                    <div class="card overpay-panel" th:if="${hasPendingOverpay}" style="border-left: 4px solid #0EA5E9;">
                         <div class="card-header">
                             <h5 class="card-title" style="margin: 0; color: #0EA5E9;"><i class="ti ti-cash" aria-hidden="true"></i> Prior-Term Overpayment</h5>
                         </div>
@@ -1143,7 +1433,7 @@
                     </div>
                     
                     <!-- Registration form transaction history -->
-                    <div class="card" th:if="${regFormEvents != null and !#lists.isEmpty(regFormEvents)}" style="border-left: 4px solid #2563EB;">
+                    <div class="card reg-form-panel" th:if="${regFormEvents != null and !#lists.isEmpty(regFormEvents)}" style="border-left: 4px solid #2563EB;">
                         <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                             <h5 class="card-title" style="margin: 0; color: #2563EB;"><i class="ti ti-file-description" aria-hidden="true"></i> Reg Form History</h5>
                             <a th:href="@{/admin/print-cor(username=${student.username})}" target="_blank" class="btn btn-outline" style="font-size: 0.8rem;">Print Current Registration Form</a>
@@ -1174,34 +1464,107 @@
                         </div>
                     </div>
 
-                    <!-- Financial Ledger Summary -->
-                    <div class="card" th:if="${isEnrolledStatus}" style="border-left: 4px solid #F59E0B;">
-                        <div class="card-header">
-                            <h5 class="card-title" style="margin: 0; color: var(--text-primary);"><i class="ti ti-receipt-2" aria-hidden="true" style="color: #F59E0B;"></i> Financial Ledger</h5>
+                    <!-- Mini Ledger Snapshot -->
+                    <div class="card mini-ledger-panel" th:if="${student != null}" style="border-left: 4px solid #10B981;">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; gap: 0.75rem;">
+                            <h5 class="card-title" style="margin: 0; color: #047857;"><i class="ti ti-calculator" aria-hidden="true"></i> Mini Ledger Snapshot</h5>
+                            <a th:href="@{/admin/scholar-ledger(keyword=${student.username})}" class="btn btn-outline" style="font-size: 0.8rem;">Open Full Ledger</a>
                         </div>
-                        <div style="max-height: 400px; overflow-y: auto;">
-                            <table class="table-eac" style="margin: 0;">
-                                <thead style="background: var(--bg-tertiary); position: sticky; top: 0;">
-                                    <tr>
-                                        <th>Description</th>
-                                        <th style="text-align: right;">Debit</th>
-                                        <th style="text-align: right;">Credit</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr th:if="${ledger.empty}"><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No records.</td></tr>
-                                    <tr th:each="r : ${ledger}">
-                                        <td style="font-size: 0.8rem; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" th:title="${r.description}" th:text="${r.description}"></td>
-                                        <td style="text-align: right; color: #DC2626; font-size: 0.85rem;" th:text="${r.debit != null ? #numbers.formatDecimal(r.debit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
-                                        <td style="text-align: right; color: var(--success-color); font-size: 0.85rem;" th:text="${r.credit != null ? #numbers.formatDecimal(r.credit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
-                                    </tr>
-                                </tbody>
-                            </table>
+                        <div style="padding: 1rem 1.25rem 1.25rem;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 0.75rem; margin-bottom: 1rem;">
+                                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Assessment Total</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #7C2D12;" th:text="${'₱ ' + finance.total_assessment_fmt}">₱ 0.00</div>
+                                </div>
+                                <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Applied Payments</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #075985;" th:text="${'₱ ' + finance.total_paid_fmt}">₱ 0.00</div>
+                                </div>
+                                <div style="background: #FFF7ED; border: 1px solid #FCD34D; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Forwarded Balance</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #B45309;" th:text="${'₱ ' + finance.balance_forwarded_fmt}">₱ 0.00</div>
+                                </div>
+                                <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Withdrawal Charges</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #B91C1C;" th:text="${'₱ ' + finance.withdrawal_charges_fmt}">₱ 0.00</div>
+                                </div>
+                                <div style="background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Scholarship</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #15803D;" th:text="${'₱ ' + finance.scholarship_discount_fmt}">₱ 0.00</div>
+                                </div>
+                                <div style="background: #FFF1F2; border: 1px solid #FDA4AF; border-radius: 10px; padding: 0.85rem;">
+                                    <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: #64748B;">Outstanding Balance</div>
+                                    <div style="font-size: 1.25rem; font-weight: 800; color: #BE123C;" th:text="${'₱ ' + finance.balance_fmt}">₱ 0.00</div>
+                                </div>
+                            </div>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-bottom: 0.85rem;">
+                                Current term fees = Tuition <strong th:text="${'₱ ' + finance.tuition_fee_fmt}">₱ 0.00</strong>
+                                + Misc <strong th:text="${'₱ ' + finance.misc_core_fee_fmt}">₱ 0.00</strong>
+                                + Other <strong th:text="${'₱ ' + finance.other_fee_fmt}">₱ 0.00</strong>.
+                            </div>
+                            <div style="max-height: 240px; overflow-y: auto; border: 1px solid var(--border-color); border-radius: 10px;">
+                                <table class="table-eac" style="margin: 0;">
+                                    <thead style="background: var(--bg-tertiary); position: sticky; top: 0;">
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Description</th>
+                                            <th style="text-align: right;">Debit</th>
+                                            <th style="text-align: right;">Credit</th>
+                                            <th style="text-align: right;">Running</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${ledgerPreview == null or #lists.isEmpty(ledgerPreview)}">
+                                            <td colspan="6" style="text-align: center; color: var(--text-muted); padding: 1rem;">No recent transactions.</td>
+                                        </tr>
+                                        <tr th:each="r : ${ledgerPreview}">
+                                            <td style="font-size: 0.78rem; white-space: nowrap;" th:text="${r.transaction_date}">date</td>
+                                            <td style="font-size: 0.78rem; font-weight: 700;" th:text="${r.transaction_type}">TYPE</td>
+                                            <td style="font-size: 0.78rem; max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" th:title="${r.description}" th:text="${r.description}">Description</td>
+                                            <td style="text-align: right; color: #DC2626; font-size: 0.78rem;" th:text="${r.debit != null ? #numbers.formatDecimal(r.debit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
+                                            <td style="text-align: right; color: var(--success-color); font-size: 0.78rem;" th:text="${r.credit != null ? #numbers.formatDecimal(r.credit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
+                                            <td style="text-align: right; color: var(--primary-color); font-size: 0.78rem;" th:text="${r.running_balance != null ? #numbers.formatDecimal(r.running_balance, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
 
+                    <!-- Financial Ledger Summary -->
+                    <details class="card profile-collapse full-ledger-panel" th:if="${isEnrolledStatus}" style="border-left: 4px solid #F59E0B;">
+                        <summary class="card-header" style="cursor: pointer; list-style: none;">
+                            <h5 class="card-title" style="margin: 0; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                                <i class="ti ti-receipt-2" aria-hidden="true" style="color: #F59E0B;"></i>
+                                Financial Ledger
+                            </h5>
+                        </summary>
+                        <div style="padding: 0 0 1rem;">
+                            <div style="max-height: 400px; overflow-y: auto; margin-top: 0.75rem;">
+                                <table class="table-eac" style="margin: 0;">
+                                    <thead style="background: var(--bg-tertiary); position: sticky; top: 0;">
+                                        <tr>
+                                            <th>Description</th>
+                                            <th style="text-align: right;">Debit</th>
+                                            <th style="text-align: right;">Credit</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr th:if="${ledger.empty}"><td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No records.</td></tr>
+                                        <tr th:each="r : ${ledger}">
+                                            <td style="font-size: 0.8rem; max-width: 120px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" th:title="${r.description}" th:text="${r.description}"></td>
+                                            <td style="text-align: right; color: #DC2626; font-size: 0.85rem;" th:text="${r.debit != null ? #numbers.formatDecimal(r.debit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
+                                            <td style="text-align: right; color: var(--success-color); font-size: 0.85rem;" th:text="${r.credit != null ? #numbers.formatDecimal(r.credit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </details>
+
                     <!-- Per-student installment override -->
-                    <div class="card" th:if="${student != null and installmentTermId != null}" style="border-left: 4px solid #0EA5E9;">
+                    <div class="card installment-panel" th:if="${student != null and installmentTermId != null}" style="border-left: 4px solid #0EA5E9;">
                         <div class="card-header">
                             <h5 class="card-title" style="margin: 0; color: #0EA5E9;"><i class="ti ti-calendar-dollar" aria-hidden="true"></i> Installment Plan Override</h5>
                         </div>
@@ -1263,7 +1626,7 @@
                     </div>
 
                     <!-- Curriculum Assignment -->
-                    <div class="card" style="border-left: 4px solid #0EA5E9;">
+                    <div th:if="${student.admission_status != 'WITHDRAWN'}" class="card curriculum-panel" style="border-left: 4px solid #0EA5E9;">
                         <div class="card-header">
                             <h5 class="card-title" style="margin: 0; color: #0EA5E9;"><i class="ti ti-book-upload" aria-hidden="true"></i> Current Curriculum Assignment</h5>
                         </div>
@@ -1307,7 +1670,7 @@
                     </div>
 
                     <!-- Program Shift -->
-                    <div class="card" style="border-left: 4px solid #DC2626;">
+                    <div th:if="${student.admission_status != 'WITHDRAWN'}" class="card shift-panel" style="border-left: 4px solid #DC2626;">
                         <div class="card-header">
                             <h5 class="card-title" style="margin: 0; color: #DC2626;"><i class="ti ti-arrows-right-left" aria-hidden="true"></i> Program Shift</h5>
                         </div>
@@ -1323,16 +1686,20 @@
                                 <input type="hidden" name="studentNumber" th:value="${student.username}">
                                 <div style="margin-bottom: 0.75rem;">
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Target Program</label>
-                                    <select name="targetProgramCode" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" required>
+                                    <select id="targetProgramCode" name="targetProgramCode" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" required>
                                         <option value="" disabled selected>Choose program</option>
                                         <option th:each="prog : ${offeringPrograms}" th:value="${prog.program_code}" th:text="${prog.program_code + ' - ' + prog.program_name}" th:selected="${prog.program_code == student.program_code}"></option>
                                     </select>
                                 </div>
                                 <div style="margin-bottom: 0.75rem;">
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Destination Curriculum</label>
-                                    <select name="targetCurriculumId" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;">
+                                    <select id="targetCurriculumId" name="targetCurriculumId" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;">
                                         <option value="">Use target program active curriculum</option>
-                                        <option th:each="curr : ${assignableCurricula}" th:value="${curr.curriculum_id}" th:text="${curr.program_code + ' - ' + curr.curriculum_name + (curr.academic_year != null ? ' (' + curr.academic_year + ')' : '') + (curr.is_active == 1 ? ' [Default]' : '')}" th:selected="${currentCurriculum != null and curr.curriculum_id == currentCurriculum.curriculum_id}"></option>
+                                        <option th:each="curr : ${assignableCurricula}"
+                                                th:value="${curr.curriculum_id}"
+                                                th:attr="data-program=${curr.program_code}"
+                                                th:text="${curr.program_code + ' - ' + curr.curriculum_name + (curr.academic_year != null ? ' (' + curr.academic_year + ')' : '') + (curr.is_active == 1 ? ' [Default]' : '')}"
+                                                th:selected="${currentCurriculum != null and curr.curriculum_id == currentCurriculum.curriculum_id}"></option>
                                     </select>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
@@ -1362,7 +1729,7 @@
                     </div>
 
                     <!-- Academic Scholarship Summary -->
-                    <div class="card" style="border-left: 4px solid var(--primary-color);">
+                    <div class="card scholarship-panel" style="border-left: 4px solid var(--primary-color);">
                         <div class="card-header">
                             <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-award" aria-hidden="true"></i> Academic Scholarship</h5>
                         </div>
@@ -1419,7 +1786,8 @@
                         div.style.padding = "0.75rem 1rem";
                         div.style.borderBottom = "1px solid var(--border-color)";
                         div.style.cursor = "pointer";
-                        div.innerHTML = `<span style="font-weight: 600; color: var(--text-primary);">${s.real_name}</span> <br><small style="font-family: monospace; color: var(--primary-color);">${s.username}</small>`;
+                        const archiveKey = s.archive_key ? `<br><small style="font-family: monospace; color: #1D4ED8;">${s.archive_key}</small>` : '';
+                        div.innerHTML = `<span style="font-weight: 600; color: var(--text-primary);">${s.real_name}</span> <br><small style="font-family: monospace; color: var(--primary-color);">${s.username}</small>${archiveKey}`;
                         div.onmouseover = () => div.style.backgroundColor = "var(--bg-tertiary)";
                         div.onmouseout = () => div.style.backgroundColor = "transparent";
                         div.onclick = () => {
@@ -1460,6 +1828,68 @@
         if (badge) badge.textContent = query ? visible + ' / ' + rows.length + ' shown' : rows.length + ' subjects';
     }
     document.addEventListener('DOMContentLoaded', filterSubjects);
+
+    function normalizeVisibleTextArtifacts() {
+        const replacements = [
+            [/\u00f0\u0178\u201d\u008d\s*/g, ''],
+            [/\u00e2\u20ac\u201d/g, '-'],
+            [/\u00e2\u0153\u2014/g, 'FULL'],
+            [/\u00e2\u0161\u00a0/g, 'CONFLICT'],
+            [/\u00c2\u00b7/g, ' - ']
+        ];
+        const root = document.getElementById('main-content');
+        if (!root) return;
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        nodes.forEach(node => {
+            let text = node.nodeValue;
+            replacements.forEach(([pattern, value]) => { text = text.replace(pattern, value); });
+            node.nodeValue = text;
+        });
+        root.querySelectorAll('[placeholder], [title]').forEach(el => {
+            ['placeholder', 'title'].forEach(attr => {
+                if (!el.hasAttribute(attr)) return;
+                let value = el.getAttribute(attr);
+                replacements.forEach(([pattern, replacement]) => { value = value.replace(pattern, replacement); });
+                el.setAttribute(attr, value);
+            });
+        });
+        const subjectSearch = document.getElementById('subjectSearch');
+        if (subjectSearch) {
+            subjectSearch.classList.add('subject-local-search');
+            subjectSearch.setAttribute('placeholder', 'Filter loaded subjects locally...');
+        }
+        root.querySelectorAll('#addSubjectsTable select option').forEach(option => {
+            const text = option.textContent || '';
+            option.textContent = text
+                .replace(/\u00e2\u20ac\u201d/g, '-')
+                .replace(/\u00e2\u0153\u2014/g, 'FULL')
+                .replace(/\u00e2\u0161\u00a0/g, 'CONFLICT');
+        });
+    }
+    document.addEventListener('DOMContentLoaded', normalizeVisibleTextArtifacts);
+
+    function filterShiftCurricula() {
+        const programSelect = document.getElementById('targetProgramCode');
+        const curriculumSelect = document.getElementById('targetCurriculumId');
+        if (!programSelect || !curriculumSelect) return;
+
+        const selectedProgram = (programSelect.value || '').trim().toUpperCase();
+        let selectedOptionVisible = curriculumSelect.value === '';
+        Array.from(curriculumSelect.options).forEach(option => {
+            const optionProgram = (option.dataset.program || '').trim().toUpperCase();
+            const keep = option.value === '' || optionProgram === selectedProgram;
+            option.hidden = !keep;
+            option.disabled = !keep;
+            if (option.selected && keep) selectedOptionVisible = true;
+        });
+        if (!selectedOptionVisible) {
+            curriculumSelect.value = '';
+        }
+    }
+    document.addEventListener('DOMContentLoaded', filterShiftCurricula);
+    document.getElementById('targetProgramCode')?.addEventListener('change', filterShiftCurricula);
 
     (function () {
         const tbody = document.getElementById('studentInstallmentRows');

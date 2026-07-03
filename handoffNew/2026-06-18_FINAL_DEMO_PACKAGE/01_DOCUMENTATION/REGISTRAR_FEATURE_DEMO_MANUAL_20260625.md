@@ -33,7 +33,7 @@ The loader is repeatable. Re-run it whenever the demo students get mutated.
 | Student | Use |
 |---|---|
 | `2026-1001` | Baseline profile, admission snapshot, applicant document viewing, registration form printing, reg-form history, document trail |
-| `ADDCLS-2026-001` | Add-subject demo from Student Profile using open `IRREG-A` sections |
+| `ADDCLS-2026-001` | Add-subject demo from Student Profile using block sections |
 | `TTRNS-2026-001` | TOR/transfer-credit demo and academic-history print demo |
 | `TSHFT-2026-001` | Program-shift demo |
 | `OVRPAY-2026-001` | Overpayment disposition demo |
@@ -141,7 +141,7 @@ Student: `ADDCLS-2026-001`
 1. Open `/admin/student-manager?username=ADDCLS-2026-001`.
 2. Scroll to `Add Subjects`.
 3. Use the local filter and look for `GE102` or `GE101`.
-4. In the section dropdown, choose the `IRREG-A` option with the seeded schedule.
+4. In the section dropdown, choose a seeded block section with the matching schedule.
 5. Click `Add`.
 6. Reload the profile if needed.
 7. Open `/admin/reg-form-history?studentNumber=ADDCLS-2026-001`.

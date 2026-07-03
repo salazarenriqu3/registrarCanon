@@ -205,7 +205,7 @@ AECO 11,1.75,Prior College,TOR 2024
 |---|---|
 | **URL** | http://localhost:8083/registrar/admin/class-scheduling?termId=1 |
 | **Do** | Search `BSIT` or `BSCPE`; expand block; **Add Slot** on a course |
-| **Pass** | Schedule tags show day/time/room; `IRREG-A` visible under Course Sections |
+| **Pass** | Schedule tags show day/time/room; seeded block and special sections are visible under Course Sections |
 
 ☐ A7
 
@@ -285,7 +285,7 @@ Use student from **A9** or search by number.
 | **B6** | **Finalize** Regular | `ENROLLED`, load **COMMITTED** |
 | **B7** | Export / print COR | Matches enlisted courses |
 | **B8** | Enrollment ledger | No staged-only rows after finalize |
-| **B9** | Irregular: enlist **`IRREG-A`** OK; try block `BSIT-1-1-A` on irregular student → **rejected** | Policy enforced |
+| **B9** | Irregular: enroll across seeded block sections; legacy irregular-open sections stay rejected | Policy enforced |
 | **B10** | Drop a subject *(if UI available)* | Penalty/refund reasonable |
 
 ☐ Session B complete

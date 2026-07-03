@@ -19,13 +19,13 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
                 <div>
                     <h1 class="page-title" th:text="${pageTitle}">Withdrawal Approvals</h1>
-                    <p class="page-subtitle" th:text="${pageSubtitle}">Review withdrawal requests.</p>
+                    <p class="page-subtitle" th:text="${pageSubtitle}">Review completed withdrawal history.</p>
                 </div>
                 <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                     <a th:if="${queueMode != 'REPORT'}" th:href="@{/admin/withdrawals/report}" class="btn btn-outline" style="font-size: 0.85rem;">Withdrawal History</a>
-                    <span class="status-badge pending"><div class="status-dot"></div>Pending Registrar: <span th:text="${statusCounts.get('PENDING_REGISTRAR')}">0</span></span>
-                    <span class="status-badge enrolled"><div class="status-dot"></div>Approved: <span th:text="${statusCounts.get('APPROVED')}">0</span></span>
+                    <span class="status-badge pending"><div class="status-dot"></div>Completed: <span th:text="${statusCounts.get('APPROVED')}">0</span></span>
                     <span class="status-badge inactive"><div class="status-dot"></div>Rejected: <span th:text="${statusCounts.get('REJECTED')}">0</span></span>
+                    <span class="status-badge enrolled"><div class="status-dot"></div>Superseded: <span th:text="${statusCounts.get('SUPERSEDED')}">0</span></span>
                 </div>
             </div>
 
@@ -69,7 +69,7 @@
                 <div class="card-header">
                     <h4 class="card-title" style="margin: 0; color: #DC2626;">
                         <i class="ti ti-file-minus" aria-hidden="true"></i>
-                        <span th:text="${queueMode == 'REPORT' ? 'Withdrawal History' : 'Pending Registrar Approval'}">Pending Requests</span>
+                        <span th:text="${queueMode == 'REPORT' ? 'Withdrawal History' : 'Registrar Archive'}">Withdrawal History</span>
                     </h4>
                 </div>
                 <div style="padding: 1rem 1.5rem 1.5rem;">
@@ -89,7 +89,7 @@
                             <tbody>
                                 <tr th:if="${requests == null or #lists.isEmpty(requests)}">
                                     <td colspan="7" style="text-align: center; color: var(--text-muted); padding: 2.5rem;">
-                                        No withdrawal requests in this queue.
+                                        No withdrawal history yet.
                                     </td>
                                 </tr>
                                 <tr th:each="wr : ${requests}">
@@ -128,26 +128,17 @@
                                             <div style="font-weight: 600;" th:text="${wr.registrar_approved_by}">Registrar</div>
                                             <div style="font-size: 0.75rem; color: var(--text-muted);" th:text="${wr.registrar_approved_at}">time</div>
                                         </div>
-                                        <div th:if="${wr.registrar_approved_at == null}" style="color: var(--text-muted); font-size: 0.85rem;">Pending Registrar</div>
+                                        <div th:if="${wr.registrar_approved_at == null}" style="color: var(--text-muted); font-size: 0.85rem;">Legacy Pending</div>
                                     </td>
                                     <td style="padding-right: 1.5rem; text-align: right; min-width: 230px;">
-                                        <form th:if="${queueMode == 'REGISTRAR'}" th:action="@{/admin/withdrawals/approve}" method="post" style="display: inline-block; margin: 0 0.35rem 0 0;" onsubmit="return confirm('Final-approve this withdrawal and remove the subject from the student load?');">
-                                            <input type="hidden" name="requestId" th:value="${wr.request_id}">
-                                            <button class="btn btn-primary" style="background: #DC2626; border-color: #DC2626;" th:text="${wr.withdrawal_scope == 'FULL_CURRENT_TERM' ? 'Execute Full Withdrawal' : 'Registrar Approve'}">Registrar Approve</button>
-                                        </form>
-                                        <form th:if="${queueMode != 'REPORT'}" th:action="@{/admin/withdrawals/reject}" method="post" style="display: inline-grid; grid-template-columns: 1fr auto; gap: 0.35rem; margin-top: 0.5rem;">
-                                            <input type="hidden" name="requestId" th:value="${wr.request_id}">
-                                            <input type="text" name="rejectionReason" maxlength="500" class="form-control" placeholder="Reject reason" style="font-size: 0.75rem; padding: 0.25rem 0.4rem;">
-                                            <button class="btn btn-ghost" style="border: 1px solid var(--border-color); font-size: 0.8rem;">Reject</button>
-                                        </form>
-                                        <a th:if="${queueMode == 'REPORT'}" th:href="@{/admin/student-manager(username=${wr.student_number})}" class="btn btn-outline" style="font-size: 0.8rem;">Open Profile</a>
+                                        <a th:href="@{/admin/student-manager(username=${wr.archive_key != null and wr.archive_key != '' ? wr.archive_key : wr.student_number})}" class="btn btn-outline" style="font-size: 0.8rem;">Open Profile</a>
                                     </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                     <p style="font-size: 0.8rem; color: var(--text-muted); margin: 1rem 0 0;">
-                        Every withdrawal case is archived. Registrar approval executes the queued request and preserves the full history trail.
+                        Every withdrawal case is archived. Registrar actions execute immediately and preserve the full history trail.
                     </p>
                 </div>
             </div>

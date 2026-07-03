@@ -1,12 +1,15 @@
 package com.iuims.registrar.scholarship;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import java.util.List;
 import java.util.Map;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import com.iuims.registrar.core.GlobalTermService;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
@@ -14,6 +17,7 @@ class ScholarshipReviewWorkflowTest {
 
     private JdbcTemplate db;
     private ScholarEnrollmentService service;
+    private GlobalTermService globalTermService;
 
     @BeforeEach
     void setUp() {
@@ -23,7 +27,9 @@ class ScholarshipReviewWorkflowTest {
         dataSource.setUsername("sa");
         dataSource.setPassword("");
         db = new JdbcTemplate(dataSource);
-        service = new ScholarEnrollmentService(db, null, null, null, null, null) {
+        globalTermService = mock(GlobalTermService.class);
+        when(globalTermService.getCurrentStudentTermYear(1)).thenReturn("2025-2026_1st");
+        service = new ScholarEnrollmentService(db, null, globalTermService, null, null, null) {
             @Override
             public void syncCoreLedgerAssessment(String studentNumber) {
                 // Ledger behavior is covered separately; this fixture isolates review-state transitions.
@@ -93,6 +99,30 @@ class ScholarshipReviewWorkflowTest {
         assertThat((String) candidate.get("reason")).contains("PE/NSTP is still being taken in 3rd/4th year");
     }
 
+    @Test
+    void findStudentResolvesApplicantReferenceNumberAsUsername() {
+        db.execute("""
+            CREATE TABLE applicants (
+                reference_number VARCHAR(100) PRIMARY KEY,
+                first_name VARCHAR(100),
+                last_name VARCHAR(100),
+                term_year VARCHAR(30),
+                program1 VARCHAR(20),
+                applicant_status VARCHAR(50)
+            )
+            """);
+        db.update("""
+            INSERT INTO applicants (reference_number, first_name, last_name, term_year, program1, applicant_status)
+            VALUES ('EAC-0001', 'Maya', 'Santos', '2025-2026_1st', 'BSN', 'QUALIFIED FOR ENROLLMENT')
+            """);
+
+        Map<String, Object> found = service.findStudent("EAC-0001");
+
+        assertThat(found).isNotNull();
+        assertThat(found.get("username")).isEqualTo("EAC-0001");
+        assertThat(found.get("real_name")).isEqualTo("Maya Santos (APPLICANT)");
+    }
+
     private String reviewStatus() {
         return db.queryForObject(
             "SELECT status FROM scholarship_review_workflow WHERE student_number = '2026-0001' AND term_id = 15",
@@ -133,9 +163,19 @@ class ScholarshipReviewWorkflowTest {
         db.execute("CREATE TABLE class_sections (section_id INT PRIMARY KEY, term_id INT NOT NULL, course_id INT NOT NULL)");
         db.execute("""
             CREATE TABLE students (
-                student_number VARCHAR(100) PRIMARY KEY, real_name VARCHAR(100), program_code VARCHAR(20),
-                year_level INT DEFAULT 1, semester INT DEFAULT 1, scholarship_approved TINYINT DEFAULT 0,
-                scholarship_type VARCHAR(50), scholarship_amount DECIMAL(10,2), discount_percentage DECIMAL(5,2)
+                student_number VARCHAR(100) PRIMARY KEY,
+                real_name VARCHAR(100),
+                program_code VARCHAR(20),
+                year_level INT DEFAULT 1,
+                semester INT DEFAULT 1,
+                scholarship_approved TINYINT DEFAULT 0,
+                scholarship_type VARCHAR(50),
+                scholarship_amount DECIMAL(10,2),
+                discount_percentage DECIMAL(5,2),
+                admission_status VARCHAR(40),
+                status VARCHAR(40),
+                is_active TINYINT DEFAULT 1,
+                term_year VARCHAR(40)
             )
             """);
         db.execute("""

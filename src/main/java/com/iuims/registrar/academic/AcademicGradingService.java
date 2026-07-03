@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.beans.factory.ObjectProvider;
 import java.math.BigDecimal;
 
 import com.iuims.registrar.scholarship.ScholarEnrollmentService;
@@ -17,6 +18,7 @@ import com.iuims.registrar.forms.StudentDocumentTrailService;
 import com.iuims.registrar.core.PolicySettings;
 import com.iuims.registrar.core.GradeOutcomeSql;
 import com.iuims.registrar.core.EnlistmentSchemaService;
+import com.iuims.registrar.curriculum.CurriculumLoadPolicyService;
 import com.iuims.registrar.core.SystemSettingRepository;
 import com.iuims.registrar.core.SystemSetting;
 
@@ -48,12 +50,15 @@ public class AcademicGradingService {
     private final ClassScheduleRepository classScheduleRepository;
     private final AcademicGradingRepository academicGradingRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final GradeRecordEventService gradeRecordEventService;
     private final EnlistmentSchemaService enlistmentSchemaService;
     private final ScheduleConflictValidator scheduleConflictValidator;
+    private final ObjectProvider<CurriculumLoadPolicyService> curriculumLoadPolicyService;
     
     // Phase 3.5: Entity Expansion Repositories
     private final com.iuims.registrar.core.SysUserRepository sysUserRepository;
     private final com.iuims.registrar.core.StudentRepository studentRepository;
+    private final com.iuims.registrar.core.StudentProfileService studentProfileService;
     private final com.iuims.registrar.curriculum.CourseRepository courseRepository;
     private final com.iuims.registrar.academic.VpaaExtensionRepository vpaaExtensionRepository;
     private final com.iuims.registrar.academic.GradeChangeRequestRepository gradeChangeRequestRepository;
@@ -71,9 +76,11 @@ public class AcademicGradingService {
             ClassScheduleRepository classScheduleRepository,
             AcademicGradingRepository academicGradingRepository,
             ApplicationEventPublisher eventPublisher,
+            GradeRecordEventService gradeRecordEventService,
             EnlistmentSchemaService enlistmentSchemaService,
             com.iuims.registrar.core.SysUserRepository sysUserRepository,
             com.iuims.registrar.core.StudentRepository studentRepository,
+            com.iuims.registrar.core.StudentProfileService studentProfileService,
             com.iuims.registrar.curriculum.CourseRepository courseRepository,
             com.iuims.registrar.academic.VpaaExtensionRepository vpaaExtensionRepository,
             com.iuims.registrar.academic.GradeChangeRequestRepository gradeChangeRequestRepository,
@@ -84,7 +91,8 @@ public class AcademicGradingService {
             com.iuims.registrar.curriculum.CurriculumCatalogRepository curriculumCatalogRepository,
             GradingTermWindowRepository gradingTermWindowRepository,
             AcademicTermPolicyRepository academicTermPolicyRepository,
-            StudentDocumentTrailService documentTrailService) {
+            StudentDocumentTrailService documentTrailService,
+            ObjectProvider<CurriculumLoadPolicyService> curriculumLoadPolicyService) {
         this.db = db;
         this.termFeeAdminService = termFeeAdminService;
         this.academicTermRepository = academicTermRepository;
@@ -95,10 +103,12 @@ public class AcademicGradingService {
         this.classScheduleRepository = classScheduleRepository;
         this.academicGradingRepository = academicGradingRepository;
         this.eventPublisher = eventPublisher;
+        this.gradeRecordEventService = gradeRecordEventService;
         this.enlistmentSchemaService = enlistmentSchemaService;
         this.scheduleConflictValidator = new ScheduleConflictValidator(db);
         this.sysUserRepository = sysUserRepository;
         this.studentRepository = studentRepository;
+        this.studentProfileService = studentProfileService;
         this.courseRepository = courseRepository;
         this.vpaaExtensionRepository = vpaaExtensionRepository;
         this.gradeChangeRequestRepository = gradeChangeRequestRepository;
@@ -110,20 +120,28 @@ public class AcademicGradingService {
         this.gradingTermWindowRepository = gradingTermWindowRepository;
         this.academicTermPolicyRepository = academicTermPolicyRepository;
         this.documentTrailService = documentTrailService;
+        this.curriculumLoadPolicyService = curriculumLoadPolicyService;
     }
 
     // ==========================================
     // 1. GRADING COMPUTATIONS
     // ==========================================
-    @Transactional 
+    @Transactional
     public Map<String, Object> saveGradeAsync(int gradeId, String prelimStr, String midStr, String finalStr) {
+        return saveGradeAsync(gradeId, prelimStr, midStr, finalStr, "faculty", "Faculty");
+    }
+
+    @Transactional
+    public Map<String, Object> saveGradeAsync(int gradeId, String prelimStr, String midStr, String finalStr,
+                                              String actor, String actorRole) {
 
         double p = parseScore(prelimStr); double m = parseScore(midStr); double f = parseScore(finalStr);
         
         Grade grade = gradeRepository.findById(gradeId).orElse(null);
         if (grade == null) return new HashMap<>();
+        GradeRecordEventService.GradeSnapshot before = GradeRecordEventService.snapshotOf(grade);
 
-        if ("LOCKED".equalsIgnoreCase(grade.getGradeLockStatus())) {
+        if (isRegistrarLocked(grade.getGradeLockStatus())) {
             grade.setPrelim(BigDecimal.valueOf(p));
             grade.setMidterm(BigDecimal.valueOf(m));
             grade.setFinalGrade(BigDecimal.valueOf(f));
@@ -156,8 +174,21 @@ public class AcademicGradingService {
         grade.setFinalGrade(BigDecimal.valueOf(f));
         grade.setSemestralGrade(BigDecimal.valueOf(pointGrade));
         grade.setRemarks(remarks);
+        if (grade.getDateRecorded() == null) {
+            grade.setDateRecorded(java.time.LocalDateTime.now());
+        }
         syncLegacyAcademicStatus(grade, remarks);
         gradeRepository.saveAndFlush(grade);
+        gradeRecordEventService.recordEvent(
+            grade,
+            null,
+            "GRADE_DRAFT_SAVED",
+            defaultLifecycleStatus(grade),
+            actor,
+            actorRole,
+            "Faculty draft grade save.",
+            before,
+            GradeRecordEventService.snapshotOf(grade));
 
         Map<String, Object> result = new HashMap<>();
         result.put("semestral_grade", remarks.equals("INC") ? "INC" : (pointGrade > 0 ? String.format("%.2f", pointGrade) : "-"));
@@ -174,6 +205,26 @@ public class AcademicGradingService {
     private boolean scoreChanged(double incoming, BigDecimal existing) {
         double current = existing != null ? existing.doubleValue() : 0.0;
         return Double.compare(incoming, current) != 0;
+    }
+
+    private boolean isRegistrarLocked(String gradeLockStatus) {
+        if (gradeLockStatus == null || gradeLockStatus.isBlank()) {
+            return false;
+        }
+        String normalized = gradeLockStatus.trim().toUpperCase();
+        return "LOCKED".equals(normalized) || "FINALIZED".equals(normalized);
+    }
+
+    private String defaultLifecycleStatus(Grade grade) {
+        if (grade == null) {
+            return "DRAFT";
+        }
+        if (isRegistrarLocked(grade.getGradeLockStatus())) {
+            return "FINALIZED";
+        }
+        return grade.getStatus() != null && !grade.getStatus().isBlank()
+            ? grade.getStatus().trim().toUpperCase()
+            : "DRAFT";
     }
 
     private Map<String, Object> blockedPeriodSave(Grade grade, Map<String, Object> windows,
@@ -235,9 +286,12 @@ public class AcademicGradingService {
         grade.setRemarks(finalRemarks);
         grade.setRegistrarFinalGrade(finalGrade != null ? BigDecimal.valueOf(finalGrade) : null);
         grade.setRegistrarFinalRemarks(finalRemarks);
-        grade.setGradeLockStatus("LOCKED");
+        grade.setGradeLockStatus("FINALIZED");
         grade.setGradeLockReason(reason);
         grade.setRegistrarFinalizedAt(java.time.LocalDateTime.now());
+        if (grade.getDateRecorded() == null) {
+            grade.setDateRecorded(java.time.LocalDateTime.now());
+        }
         syncLegacyAcademicStatus(grade, finalRemarks);
         
         gradeRepository.saveAndFlush(grade);
@@ -345,6 +399,7 @@ public class AcademicGradingService {
                 r.put("registrar_final_grade", g.getRegistrarFinalGrade());
                 r.put("registrar_final_remarks", g.getRegistrarFinalRemarks());
                 r.put("grade_lock_status", g.getGradeLockStatus() != null ? g.getGradeLockStatus() : "");
+                r.put("row_locked", isRegistrarLocked(g.getGradeLockStatus()));
                 r.put("curriculum_year", String.valueOf(yearLevel));
 
                 r.put("prelim_score", p > 0 ? String.valueOf(p) : "-");
@@ -378,70 +433,29 @@ public class AcademicGradingService {
     }
 
     public int getDynamicMaxUnits(int sid) {
-        try {
-            String studentNumber = sysUserRepository.findById(sid)
-                .map(com.iuims.registrar.core.SysUser::getUsername)
-                .orElse(null);
-            if (studentNumber == null) return 24;
-
-            com.iuims.registrar.core.Student student = studentRepository.findById(studentNumber).orElse(null);
-            if (student == null) return 24;
-            
-            int yearLevel    = student.getYearLevel() != null ? student.getYearLevel() : 1;
-            int semester     = student.getSemester() != null ? student.getSemester() : 1;
-            String programCode = student.getProgramCode();
-
-            int curriculumUnits = 0;
-            com.iuims.registrar.curriculum.Program p = programRepository.findByProgramCode(programCode);
-            if (p != null) {
-                List<com.iuims.registrar.curriculum.CurriculumTemplate> templates = curriculumTemplateRepository.findByProgramId(p.getProgramId());
-                for (com.iuims.registrar.curriculum.CurriculumTemplate ct : templates) {
-                    List<com.iuims.registrar.curriculum.CurriculumCourse> courses = curriculumCourseRepository.findByCurriculumId(ct.getCurriculumId());
-                    for (com.iuims.registrar.curriculum.CurriculumCourse cc : courses) {
-                        if (cc.getYearLevel() != null && cc.getYearLevel() == yearLevel && 
-                            cc.getSemesterNumber() != null && cc.getSemesterNumber() == semester) {
-                            if (cc.getCourseId() != null) {
-                                com.iuims.registrar.curriculum.Course course = courseRepository.findById(cc.getCourseId()).orElse(null);
-                                if (course != null && course.getCreditUnits() != null) {
-                                    curriculumUnits += course.getCreditUnits();
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            int maxUnits = curriculumUnits > 0 ? Math.max(24, curriculumUnits) : 24;
-
-            if (isGraduating(programCode, yearLevel)) {
-                maxUnits += 6;
-            }
-
-            return maxUnits;
-        } catch (Exception e) { return 24; }
+        String studentNumber = sysUserRepository.findById(sid)
+            .map(com.iuims.registrar.core.SysUser::getUsername)
+            .orElseThrow(() -> new IllegalStateException("Student account was not found."));
+        BigDecimal maxUnits = requireCurriculumLoadPolicyService().effectiveMaximumUnits(studentNumber);
+        return maxUnits.setScale(0, java.math.RoundingMode.CEILING).intValue();
     }
 
-    /**
-     * A student is "graduating" if their year_level equals the highest
-     * year_level defined in their program's curriculum mapping.
-     */
+    public boolean isGraduatingStudent(String studentNumber) {
+        return requireCurriculumLoadPolicyService().isGraduatingStudent(studentNumber);
+    }
+
+    /** Use {@link #isGraduatingStudent(String)} for live registrar decisions. */
+    @Deprecated
     public boolean isGraduating(String programCode, int yearLevel) {
-        try {
-            com.iuims.registrar.curriculum.Program p = programRepository.findByProgramCode(programCode);
-            if (p == null) return false;
-            
-            List<com.iuims.registrar.curriculum.CurriculumTemplate> templates = curriculumTemplateRepository.findByProgramId(p.getProgramId());
-            int maxYear = 0;
-            for (com.iuims.registrar.curriculum.CurriculumTemplate ct : templates) {
-                List<com.iuims.registrar.curriculum.CurriculumCourse> courses = curriculumCourseRepository.findByCurriculumId(ct.getCurriculumId());
-                for (com.iuims.registrar.curriculum.CurriculumCourse cc : courses) {
-                    if (cc.getYearLevel() != null && cc.getYearLevel() > maxYear) {
-                        maxYear = cc.getYearLevel();
-                    }
-                }
-            }
-            return maxYear > 0 && yearLevel >= maxYear;
-        } catch (Exception e) { return false; }
+        throw new IllegalStateException("Graduating status now requires a student curriculum assignment.");
+    }
+
+    private CurriculumLoadPolicyService requireCurriculumLoadPolicyService() {
+        CurriculumLoadPolicyService service = curriculumLoadPolicyService.getIfAvailable();
+        if (service == null) {
+            throw new IllegalStateException("Curriculum load policy service is required for unit-load decisions.");
+        }
+        return service;
     }
 
     // ==========================================
@@ -802,6 +816,7 @@ public class AcademicGradingService {
             map.put("registrar_final_remarks", g.getRegistrarFinalRemarks());
             map.put("grade_lock_status", g.getGradeLockStatus() != null ? g.getGradeLockStatus() : "");
             map.put("grade_lock_reason", g.getGradeLockReason());
+            map.put("row_locked", isRegistrarLocked(g.getGradeLockStatus()));
             map.put("lab_remarks", "Ongoing");
             map.put("status", g.getStatus() != null ? g.getStatus() : "DRAFT");
             
@@ -836,42 +851,104 @@ public class AcademicGradingService {
     // ==========================================
     // 4. VPAA & APPROVALS
     // ==========================================
-    @Transactional 
-    public void submitClassGrades(int scheduleId) { 
+    @Transactional
+    public void submitClassGrades(int scheduleId) {
+        submitClassGrades(scheduleId, "faculty", "Faculty");
+    }
+
+    @Transactional
+    public void submitClassGrades(int scheduleId, String actor, String actorRole) {
         setSqlSafeUpdates(false); 
         try { 
+            List<Grade> beforeGrades = gradeRepository.findBySectionId(scheduleId).stream()
+                .map(this::copyGrade)
+                .toList();
             finalizeSectionGradeRemarks(scheduleId); 
             gradeRepository.updateStatusBySectionId(scheduleId, "SUBMITTED");
             classSectionRepository.updateStatus(scheduleId, "PENDING_APPROVAL");
             vpaaExtensionRepository.updateStatusByScheduleId(scheduleId, "COMPLETED"); 
+            logSectionLifecycleEvents(scheduleId, beforeGrades, "GRADE_CLASS_SUBMITTED", "SUBMITTED",
+                "Faculty submitted class grades for registrar review.", actor, actorRole, null);
         } catch (Exception e) {} finally { setSqlSafeUpdates(true); } 
     }
 
-    @Transactional 
-    public void unsubmitClassGrades(int scheduleId) { 
+    @Transactional
+    public void unsubmitClassGrades(int scheduleId) {
+        unsubmitClassGrades(scheduleId, "registrar", "Registrar");
+    }
+
+    @Transactional
+    public void unsubmitClassGrades(int scheduleId, String actor, String actorRole) {
         setSqlSafeUpdates(false); 
         try { 
+            List<Grade> beforeGrades = gradeRepository.findBySectionId(scheduleId).stream()
+                .map(this::copyGrade)
+                .toList();
             gradeRepository.updateStatusBySectionIdAndStatus(scheduleId, "DRAFT", "SUBMITTED");
             classSectionRepository.updateStatusIfIn(scheduleId, "Open", List.of("SUBMITTED", "PENDING_APPROVAL"));
+            logSectionLifecycleEvents(scheduleId, beforeGrades, "GRADE_CLASS_REOPENED_DRAFT", "DRAFT",
+                "Class grade submission reopened to draft.", actor, actorRole, null);
         } catch (Exception e) {} finally { setSqlSafeUpdates(true); } 
     }
 
-    @Transactional 
-    public void finalizeClassGrades(int scheduleId) { 
+    @Transactional
+    public void finalizeClassGrades(int scheduleId) {
+        finalizeClassGrades(scheduleId, "registrar", "Registrar");
+    }
+
+    @Transactional
+    public void finalizeClassGrades(int scheduleId, String actor, String actorRole) {
         setSqlSafeUpdates(false); 
         try { 
+            List<Grade> beforeGrades = gradeRepository.findBySectionId(scheduleId).stream()
+                .map(this::copyGrade)
+                .toList();
             finalizeSectionGradeRemarks(scheduleId); 
             gradeRepository.updateStatusBySectionId(scheduleId, "SUBMITTED");
             classSectionRepository.updateStatus(scheduleId, "SUBMITTED");
+            for (Grade grade : gradeRepository.findBySectionId(scheduleId)) {
+                GradeRecordEventService.GradeSnapshot before = snapshotById(beforeGrades, grade.getId());
+                if (!isRegistrarLocked(grade.getGradeLockStatus())) {
+                    lockRegistrarOutcome(grade.getId(),
+                        grade.getSemestralGrade() != null ? grade.getSemestralGrade().doubleValue() : null,
+                        grade.getRemarks(),
+                        "CLASS_POSTED_TO_TRANSCRIPT");
+                    grade = gradeRepository.findById(grade.getId()).orElse(grade);
+                    if (grade != null) {
+                        grade.setStatus("SUBMITTED");
+                        gradeRepository.saveAndFlush(grade);
+                    }
+                }
+                gradeRecordEventService.recordEvent(
+                    grade,
+                    null,
+                    "GRADE_CLASS_POSTED",
+                    "FINALIZED",
+                    actor,
+                    actorRole,
+                    "Registrar posted approved class grades to the official record.",
+                    before,
+                    GradeRecordEventService.snapshotOf(grade));
+            }
         } catch (Exception e) {} finally { setSqlSafeUpdates(true); } 
     }
 
-    @Transactional 
-    public void revertClassToDraft(int scheduleId) { 
+    @Transactional
+    public void revertClassToDraft(int scheduleId) {
+        revertClassToDraft(scheduleId, "registrar", "Registrar");
+    }
+
+    @Transactional
+    public void revertClassToDraft(int scheduleId, String actor, String actorRole) {
         setSqlSafeUpdates(false); 
         try { 
+            List<Grade> beforeGrades = gradeRepository.findBySectionId(scheduleId).stream()
+                .map(this::copyGrade)
+                .toList();
             gradeRepository.updateStatusBySectionId(scheduleId, "DRAFT");
             classSectionRepository.updateStatus(scheduleId, "Open");
+            logSectionLifecycleEvents(scheduleId, beforeGrades, "GRADE_CLASS_REVERTED_TO_DRAFT", "DRAFT",
+                "Registrar reverted class grade rows to draft.", actor, actorRole, null);
         } catch (Exception e) {} finally { setSqlSafeUpdates(true); } 
     }
 
@@ -897,7 +974,19 @@ public class AcademicGradingService {
                 "WHERE cs.term_id = ? AND " + GradeOutcomeSql.outcome("g") + " = 'INC'",
             Long.class, resolvedTermId);
         for (Long gradeId : gradeIds) {
+            Grade before = gradeRepository.findById(gradeId.intValue()).orElse(null);
             lockRegistrarOutcome(gradeId, 5.00, "Failed", "INC_EXPIRED");
+            Grade after = gradeRepository.findById(gradeId.intValue()).orElse(null);
+            gradeRecordEventService.recordEvent(
+                after,
+                null,
+                "INC_EXPIRED",
+                "FINALIZED",
+                "registrar",
+                "Registrar",
+                "INC deadline expired; official outcome set to Failed.",
+                GradeRecordEventService.snapshotOf(before),
+                GradeRecordEventService.snapshotOf(after));
         }
         return gradeIds.size();
     }
@@ -905,7 +994,7 @@ public class AcademicGradingService {
     private void finalizeSectionGradeRemarks(int sectionId) {
         List<Grade> grades = gradeRepository.findBySectionId(sectionId);
         for (Grade grade : grades) {
-            if ("LOCKED".equalsIgnoreCase(grade.getGradeLockStatus())) {
+            if (isRegistrarLocked(grade.getGradeLockStatus())) {
                 continue;
             }
 
@@ -923,9 +1012,71 @@ public class AcademicGradingService {
 
             grade.setSemestralGrade(BigDecimal.valueOf(pointGrade));
             grade.setRemarks(remarks);
-            syncLegacyAcademicStatus(grade, remarks);
         }
         gradeRepository.saveAllAndFlush(grades);
+    }
+
+    private void logSectionLifecycleEvents(int sectionId,
+                                           List<Grade> beforeGrades,
+                                           String actionType,
+                                           String lifecycleStatus,
+                                           String reason,
+                                           String actor,
+                                           String actorRole,
+                                           Long requestId) {
+        Map<Integer, GradeRecordEventService.GradeSnapshot> snapshots = new LinkedHashMap<>();
+        for (Grade grade : beforeGrades) {
+            snapshots.put(grade.getId(), GradeRecordEventService.snapshotOf(grade));
+        }
+        for (Grade grade : gradeRepository.findBySectionId(sectionId)) {
+            gradeRecordEventService.recordEvent(
+                grade,
+                requestId,
+                actionType,
+                lifecycleStatus,
+                actor,
+                actorRole,
+                reason,
+                snapshots.get(grade.getId()),
+                GradeRecordEventService.snapshotOf(grade));
+        }
+    }
+
+    private GradeRecordEventService.GradeSnapshot snapshotById(List<Grade> grades, Integer gradeId) {
+        if (gradeId == null || grades == null) {
+            return null;
+        }
+        for (Grade grade : grades) {
+            if (gradeId.equals(grade.getId())) {
+                return GradeRecordEventService.snapshotOf(grade);
+            }
+        }
+        return null;
+    }
+
+    private Grade copyGrade(Grade source) {
+        Grade copy = new Grade();
+        copy.setId(source.getId());
+        copy.setStudentId(source.getStudentId());
+        copy.setSectionId(source.getSectionId());
+        copy.setCourseId(source.getCourseId());
+        copy.setStudentName(source.getStudentName());
+        copy.setPrelim(source.getPrelim());
+        copy.setMidterm(source.getMidterm());
+        copy.setFinalGrade(source.getFinalGrade());
+        copy.setSemestralGrade(source.getSemestralGrade());
+        copy.setRemarks(source.getRemarks());
+        copy.setPreviousGrade(source.getPreviousGrade());
+        copy.setGradeLockStatus(source.getGradeLockStatus());
+        copy.setGradeLockReason(source.getGradeLockReason());
+        copy.setRegistrarFinalGrade(source.getRegistrarFinalGrade());
+        copy.setRegistrarFinalRemarks(source.getRegistrarFinalRemarks());
+        copy.setRegistrarFinalizedAt(source.getRegistrarFinalizedAt());
+        copy.setCurriculumYear(source.getCurriculumYear());
+        copy.setGrade(source.getGrade());
+        copy.setDateRecorded(source.getDateRecorded());
+        copy.setStatus(source.getStatus());
+        return copy;
     }
 
     private void setSqlSafeUpdates(boolean enabled) {
@@ -968,8 +1119,10 @@ public class AcademicGradingService {
                         if (facultyName == null) facultyName = "";
                     } catch (Exception ignored) {
                         try {
-                            facultyName = sysUserRepository.findById(cs.getFacultyId())
-                                .map(com.iuims.registrar.core.SysUser::getRealName).orElse("");
+                            facultyName = db.queryForObject(
+                                "SELECT COALESCE(NULLIF(real_name, ''), username) FROM sys_users WHERE user_id = ?",
+                                String.class, cs.getFacultyId());
+                            if (facultyName == null) facultyName = "";
                         } catch (Exception ignored2) {}
                     }
                 }
@@ -1058,6 +1211,7 @@ public class AcademicGradingService {
         
         int gradeId = req.getGradeId().intValue();
         String requestType = normalizeRequestType(req.getRequestType());
+        Grade beforeGrade = gradeRepository.findById(gradeId).orElse(null);
         switch (requestType) {
             case "COMPONENT_GRADE_CORRECTION" -> approveComponentGradeCorrection(gradeId, req);
             case "REOPEN_FOR_EDIT" -> approveReopenForEdit(gradeId);
@@ -1076,9 +1230,22 @@ public class AcademicGradingService {
         req.setStatus("APPROVED");
         req.setAppliedAction(requestType);
         req.setApprovedAt(java.time.LocalDateTime.now());
+        req.setReviewedBy(approvedBy);
+        req.setReviewNote("Approved by registrar.");
         gradeChangeRequestRepository.saveAndFlush(req);
         Grade grade = gradeRepository.findById(gradeId).orElse(null);
         if (grade != null) {
+            String eventType = "REOPEN_FOR_EDIT".equals(requestType) ? "GRADE_ROW_REOPENED" : "GRADE_CHANGE_APPROVED";
+            gradeRecordEventService.recordEvent(
+                grade,
+                req.getRequestId() != null ? req.getRequestId().longValue() : null,
+                eventType,
+                defaultLifecycleStatus(grade),
+                approvedBy,
+                "Registrar",
+                req.getReason(),
+                GradeRecordEventService.snapshotOf(beforeGrade),
+                GradeRecordEventService.snapshotOf(grade));
             documentTrailService.recordStudentEvent(
                 grade.getStudentId(),
                 "STUDENT",
@@ -1135,22 +1302,35 @@ public class AcademicGradingService {
     }
 
     public void rejectGradeChange(int requestId) {
-        rejectGradeChange(requestId, "registrar");
+        rejectGradeChange(requestId, "registrar", "Rejected by registrar.");
     }
 
-    public void rejectGradeChange(int requestId, String rejectedBy) {
+    public void rejectGradeChange(int requestId, String rejectedBy, String reviewNote) {
         gradeChangeRequestRepository.findById(requestId).ifPresent(r -> {
             r.setStatus("REJECTED");
+            r.setReviewedBy(rejectedBy);
+            r.setReviewNote(reviewNote);
+            r.setRejectedAt(java.time.LocalDateTime.now());
             gradeChangeRequestRepository.saveAndFlush(r);
             Grade grade = gradeRepository.findById(r.getGradeId().intValue()).orElse(null);
             if (grade != null) {
+                gradeRecordEventService.recordEvent(
+                    grade,
+                    r.getRequestId() != null ? r.getRequestId().longValue() : null,
+                    "GRADE_CHANGE_REJECTED",
+                    defaultLifecycleStatus(grade),
+                    rejectedBy,
+                    "Registrar",
+                    reviewNote,
+                    GradeRecordEventService.snapshotOf(grade),
+                    GradeRecordEventService.snapshotOf(grade));
                 documentTrailService.recordStudentEvent(
                     grade.getStudentId(),
                     "STUDENT",
                     "GRADE_CHANGE",
                     "GRADE_CHANGE_REJECTED",
                     requestTypeLabel(r.getRequestType()) + " rejected",
-                    "Request #" + requestId + " rejected by " + rejectedBy + ".",
+                    "Request #" + requestId + " rejected by " + rejectedBy + ". " + reviewNote,
                     rejectedBy,
                     r.getRequestId() != null ? r.getRequestId().longValue() : null,
                     "grade_change_requests",
@@ -1203,6 +1383,16 @@ public class AcademicGradingService {
         req.setStatus("PENDING");
         req.setRequestDate(java.time.LocalDateTime.now());
         gradeChangeRequestRepository.saveAndFlush(req);
+        gradeRecordEventService.recordEvent(
+            g,
+            req.getRequestId() != null ? req.getRequestId().longValue() : null,
+            "GRADE_CHANGE_REQUESTED",
+            defaultLifecycleStatus(g),
+            facultyName,
+            "Faculty",
+            reason,
+            GradeRecordEventService.snapshotOf(g),
+            GradeRecordEventService.snapshotOf(g));
         documentTrailService.recordStudentEvent(
             g.getStudentId(),
             "STUDENT",
@@ -1218,25 +1408,20 @@ public class AcademicGradingService {
 
     private String resolveFacultyDisplayName(int userId) {
         try {
-            com.iuims.registrar.core.SysUser user = sysUserRepository.findById(userId).orElse(null);
-            if (user == null) {
-                return "Unknown";
-            }
-            String username = user.getUsername();
-            if (username != null && !username.isBlank()) {
-                String alias = facultyLoginAlias(username);
-                String lookup = alias != null ? alias : username;
-                try {
-                    String fromFaculty = db.queryForObject(
-                        "SELECT CONCAT(first_name, ' ', last_name) FROM faculty WHERE employee_number = ? LIMIT 1",
-                        String.class, lookup);
-                    if (fromFaculty != null && !fromFaculty.isBlank()) {
-                        return fromFaculty.trim();
-                    }
-                } catch (Exception ignored) {}
-            }
-            if (user.getRealName() != null && !user.getRealName().isBlank()) {
-                return user.getRealName().trim();
+            try {
+                String fromFaculty = db.queryForObject(
+                    "SELECT CONCAT(COALESCE(first_name,''), ' ', COALESCE(last_name,'')) FROM faculty WHERE faculty_id = ? LIMIT 1",
+                    String.class, userId);
+                if (fromFaculty != null && !fromFaculty.isBlank()) {
+                    return fromFaculty.trim();
+                }
+            } catch (Exception ignored) {}
+
+            String userName = db.queryForObject(
+                "SELECT COALESCE(NULLIF(real_name, ''), username) FROM sys_users WHERE user_id = ?",
+                String.class, userId);
+            if (userName != null && !userName.isBlank()) {
+                return userName.trim();
             }
         } catch (Exception ignored) {}
         return "Unknown";
@@ -1287,16 +1472,39 @@ public class AcademicGradingService {
         return !vpaaExtensionRepository.findByScheduleIdAndStatus(scheduleId, "PENDING").isEmpty();
     }
 
+    public Map<String, Object> getGradeGovernanceSummary(Integer termId) {
+        return gradeRecordEventService.buildSummary(termId);
+    }
+
+    public List<Map<String, Object>> getGradeRegistryRows(Integer termId, String query, String lifecycleStatus, int limit) {
+        return gradeRecordEventService.listGradeRegistryRows(termId, query, lifecycleStatus, limit);
+    }
+
+    public List<Map<String, Object>> getGradeRecordEvents(Integer termId,
+                                                          String query,
+                                                          String actionType,
+                                                          String lifecycleStatus,
+                                                          int limit) {
+        return gradeRecordEventService.listGradeRecordEvents(termId, query, actionType, lifecycleStatus, limit);
+    }
+
     // ==========================================
     // 5. USER & ADMIN UTILITIES
     // ==========================================
     public Map<String, Object> findStudentByIdOrName(String q) {
         List<com.iuims.registrar.core.Student> students = studentRepository.searchStudents(q);
+        if (students.isEmpty()) {
+            String resolved = studentProfileService.resolveCurrentStudentNumber(q);
+            if (resolved != null && !resolved.isBlank() && !resolved.equalsIgnoreCase(q != null ? q.trim() : "")) {
+                students = studentRepository.searchStudents(resolved);
+            }
+        }
         if (students.isEmpty()) return null;
         com.iuims.registrar.core.Student s = students.get(0);
         
         Map<String, Object> m = new java.util.HashMap<>();
         m.put("student_number", s.getStudentNumber());
+        m.put("archive_key", s.getArchiveKey());
         m.put("user_id", s.getUserId());
         m.put("first_name", s.getFirstName());
         m.put("last_name", s.getLastName());
@@ -1319,6 +1527,7 @@ public class AcademicGradingService {
         return studentRepository.searchStudents(q).stream().limit(10).map(s -> {
             Map<String, Object> m = new java.util.HashMap<>();
             m.put("username", s.getStudentNumber());
+            m.put("archive_key", s.getArchiveKey());
             m.put("real_name", s.getFirstName() + " " + s.getLastName());
             return m;
         }).collect(java.util.stream.Collectors.toList());
@@ -1358,6 +1567,7 @@ public class AcademicGradingService {
         m.put("user_id", u.getUserId());
         m.put("username", u.getUsername());
         m.put("real_name", u.getRealName());
+        m.put("email", u.getEmail());
         m.put("role", u.getRole());
         m.put("password", u.getPassword());
         m.put("is_active", u.getIsActive() != null && u.getIsActive() ? 1 : 0);
@@ -1715,36 +1925,60 @@ public class AcademicGradingService {
                 "JOIN departments d ON c.department_id = d.department_id " +
                 "WHERE c.active_status = 1 ORDER BY d.department_name, c.course_code");
 
-            for (Map<String, Object> course : courses) {
-                int cid = ((Number) course.get("course_id")).intValue();
-                List<Map<String, Object>> sections = db.queryForList(
-                    "SELECT cs.section_id, cs.section_code, cs.max_capacity, cs.section_status," +
-                    " cs.faculty_id," +
-                    " CONCAT(COALESCE(f.first_name,''),' ',COALESCE(f.last_name,'')) AS faculty_name," +
-                    " (SELECT COUNT(*) FROM student_enlistments se WHERE se.section_id = cs.section_id" +
-                    enlistmentSchemaService.enlistmentStatusFilter(EnlistmentSchemaService.Scope.COMMITTED_ONLY, "se") +
-                    ") AS enrolled_count " +
+            Map<Integer, List<Map<String, Object>>> sectionsByCourse = new LinkedHashMap<>();
+            List<Map<String, Object>> sections = db.queryForList(
+                "SELECT cs.course_id, cs.section_id, cs.section_code, cs.max_capacity, cs.section_status, " +
+                    "cs.faculty_id, " +
+                    "CONCAT(COALESCE(f.first_name,''),' ',COALESCE(f.last_name,'')) AS faculty_name, " +
+                    "COALESCE(se_counts.enrolled_count, 0) AS enrolled_count " +
                     "FROM class_sections cs " +
                     "LEFT JOIN faculty f ON cs.faculty_id = f.faculty_id " +
-                    "WHERE cs.course_id = ? AND cs.term_id = ? ORDER BY cs.section_code", cid, termId);
+                    "LEFT JOIN (" +
+                    "  SELECT se.section_id, COUNT(*) AS enrolled_count " +
+                    "  FROM student_enlistments se " +
+                    "  WHERE 1 = 1 " +
+                    enlistmentSchemaService.enlistmentStatusFilter(EnlistmentSchemaService.Scope.COMMITTED_ONLY, "se") +
+                    "  GROUP BY se.section_id" +
+                    ") se_counts ON se_counts.section_id = cs.section_id " +
+                    "WHERE cs.term_id = ? " +
+                    "ORDER BY cs.course_id, cs.section_code",
+                termId);
 
-                for (Map<String, Object> sec : sections) {
-                    int sid = ((Number) sec.get("section_id")).intValue();
-                    List<Map<String, Object>> scheds = db.queryForList(
-                        "SELECT sch.schedule_id, sch.day_of_week, " +
+            Map<Integer, Map<String, Object>> sectionIndex = new LinkedHashMap<>();
+            for (Map<String, Object> sec : sections) {
+                int courseId = ((Number) sec.get("course_id")).intValue();
+                int sectionId = ((Number) sec.get("section_id")).intValue();
+                sec.put("schedules", new ArrayList<Map<String, Object>>());
+                sectionsByCourse.computeIfAbsent(courseId, ignored -> new ArrayList<>()).add(sec);
+                sectionIndex.put(sectionId, sec);
+            }
+
+            if (!sectionIndex.isEmpty()) {
+                String[] dayNames = {"", "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN"};
+                List<Map<String, Object>> scheduleRows = db.queryForList(
+                    "SELECT sch.section_id, sch.schedule_id, sch.day_of_week, " +
                         "TIME_FORMAT(sch.start_time,'%h:%i %p') AS start_fmt, " +
                         "TIME_FORMAT(sch.end_time,'%h:%i %p') AS end_fmt, " +
                         "IFNULL(r.room_code,'TBA') AS room_code " +
-                        "FROM class_schedules sch LEFT JOIN rooms r ON sch.room_id = r.room_id " +
-                        "WHERE sch.section_id = ? ORDER BY sch.day_of_week", sid);
-                    String[] dayNames = {"","MON","TUE","WED","THU","FRI","SAT","SUN"};
-                    for (Map<String, Object> s : scheds) {
-                        int d = s.get("day_of_week") != null ? ((Number) s.get("day_of_week")).intValue() : 0;
-                        s.put("day_name", d >= 1 && d <= 7 ? dayNames[d] : "TBA");
-                    }
-                    sec.put("schedules", scheds);
+                        "FROM class_schedules sch " +
+                        "JOIN class_sections cs ON cs.section_id = sch.section_id " +
+                        "LEFT JOIN rooms r ON sch.room_id = r.room_id " +
+                        "WHERE cs.term_id = ? " +
+                        "ORDER BY sch.section_id, sch.day_of_week, sch.start_time, sch.schedule_id",
+                    termId);
+                for (Map<String, Object> sched : scheduleRows) {
+                    int sectionId = ((Number) sched.get("section_id")).intValue();
+                    int day = sched.get("day_of_week") != null ? ((Number) sched.get("day_of_week")).intValue() : 0;
+                    sched.put("day_name", day >= 1 && day <= 7 ? dayNames[day] : "TBA");
+                    @SuppressWarnings("unchecked")
+                    List<Map<String, Object>> scheduleList = (List<Map<String, Object>>) sectionIndex.get(sectionId).get("schedules");
+                    scheduleList.add(sched);
                 }
-                course.put("sections", sections);
+            }
+
+            for (Map<String, Object> course : courses) {
+                int cid = ((Number) course.get("course_id")).intValue();
+                course.put("sections", sectionsByCourse.getOrDefault(cid, List.of()));
             }
             return courses;
         } catch (Exception e) { e.printStackTrace(); return new ArrayList<>(); }
@@ -1759,7 +1993,10 @@ public class AcademicGradingService {
             }
             if (BlockOfferingService.parseBlockCode(sectionCode) != null) {
                 return "ERROR: Block section codes (e.g. BSIT-1-2-A) must be created from Block Sections above, " +
-                    "not per-course. Use IRREG-A for irregular open sections.";
+                    "not per-course. Use this form only for summer/tutorial special sections.";
+            }
+            if (sectionCode != null && sectionCode.trim().toUpperCase().startsWith("IRREG")) {
+                return "ERROR: Legacy irregular open sections are retired. Use a block section, or a summer/tutorial section if applicable.";
             }
             ClassSection section = new ClassSection();
             section.setCourseId(courseId);
