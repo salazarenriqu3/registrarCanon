@@ -16,6 +16,9 @@ Last updated: 2026-07-02
 > Fresh post-fix rerun with a brand-new applicant: **`2026-07-02_FRESH_POSTFIX_THREE_SYSTEM_RERUN.md`**.
 > Shared enrollment-type mirror closure note: **`2026-07-02_ENROLLMENT_STATUS_TYPE_MIRROR_FIX.md`**.
 > That note now includes both the original defect snapshot and the same-day post-fix recheck against the latest D Admission + Enrollment canon copies.
+> Fresh self-test launch pack for the registrar-only side: **`2026-07-04_REGISTRAR_SELF_TEST_PACK/README.md`**.
+> Compact one-page self-test checklist: **`2026-07-04_REGISTRAR_SELF_TEST_PACK/CHECKLIST.md`**.
+> Registrar error-page hardening note: **`2026-07-04_ERROR_GOVERNANCE_NOTE.md`**.
 
 ## 2026-07-01 Three-System Test Handoff Pack
 
