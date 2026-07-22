@@ -13,9 +13,58 @@
         .sched-tag .btn-del { background: none; border: none; color: var(--danger-color); padding: 0 0 0 0.5rem; font-size: 0.8rem; cursor: pointer; }
         .section-card { border: 1px solid var(--border-color); border-radius: var(--radius-md); background: white; padding: 1rem; margin-bottom: 0.75rem; box-shadow: var(--shadow-sm); }
         .block-card.hidden-block { display: none !important; }
+        .block-school-group { border: 1px solid var(--border-color); border-radius: var(--radius-md); background: white; margin-bottom: .75rem; overflow: hidden; }
+        .block-school-group[hidden], .block-program-group[hidden] { display: none !important; }
+        .block-school-summary, .block-program-summary { cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: .75rem; list-style: none; }
+        .block-school-summary::-webkit-details-marker, .block-program-summary::-webkit-details-marker { display: none; }
+        .block-school-summary { padding: .85rem 1rem; background: var(--bg-tertiary); color: var(--text-primary); font-weight: 800; }
+        .block-program-group { border-top: 1px solid var(--border-color); }
+        .block-program-summary { padding: .75rem 1rem; color: var(--text-primary); font-weight: 700; }
+        .block-program-content { padding: .75rem 1rem .25rem; background: var(--bg-secondary); }
+        .block-group-count { color: var(--text-muted); font-size: .8rem; font-weight: 600; }
         .workflow-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; margin-bottom: 1.25rem; }
         .workflow-step { background: white; border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.85rem 1rem; font-size: 0.85rem; }
         .workflow-step strong { display: block; margin-bottom: 0.25rem; color: var(--text-primary); }
+        .sched-page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .sched-term-shell {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+            background: white;
+            padding: 0.5rem 1rem;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-color);
+        }
+        .sched-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 0.65rem 0.85rem;
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+        }
+        .sched-filter-row {
+            padding: 0.75rem 1.5rem;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.75rem;
+            background: rgba(248,250,252,0.6);
+        }
+        .sched-panel-body-inner {
+            padding: 1rem 1.5rem;
+        }
         .highlight-course { animation: pulseHighlight 1.5s ease; }
         @keyframes pulseHighlight {
             0%, 100% { background: transparent; }
@@ -93,6 +142,60 @@
             justify-content: flex-end;
             gap: 1rem;
         }
+        @media (max-width: 920px) {
+            .sched-page-header {
+                align-items: flex-start;
+            }
+            .sched-term-shell {
+                width: 100%;
+                justify-content: space-between;
+            }
+            .sched-toolbar {
+                width: 100%;
+            }
+            .workflow-steps {
+                grid-template-columns: 1fr;
+            }
+            .sched-filter-row {
+                align-items: stretch;
+            }
+            .sched-filter-row > * {
+                width: 100%;
+            }
+            .sched-panel-header {
+                align-items: flex-start;
+            }
+            .sched-panel-header > div:last-child {
+                width: 100%;
+                justify-content: flex-start !important;
+            }
+        }
+        @media (max-width: 720px) {
+            .sched-page-header {
+                gap: 0.75rem;
+            }
+            .sched-term-shell {
+                padding: 0.45rem 0.75rem;
+                flex-wrap: wrap;
+            }
+            .sched-toolbar {
+                padding: 0.55rem 0.65rem;
+                overflow-x: auto;
+            }
+            .sched-toolbar .btn,
+            .sched-toolbar a {
+                flex: 0 0 auto;
+            }
+            .sched-panel-header {
+                padding: 1rem 1rem;
+            }
+            .sched-panel-body-inner {
+                padding: 0.85rem 1rem;
+            }
+            .sched-filter-row {
+                padding: 0.75rem 1rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -109,7 +212,7 @@
                 <span th:text="${msg}"></span>
             </div>
 
-            <div th:if="${scheduleConflicts != null and !scheduleConflicts.isEmpty()}" class="alert alert-danger" style="margin-bottom: 1.5rem; align-items: flex-start;">
+            <div id="diagnosticsPanel" th:if="${scheduleConflicts != null and !scheduleConflicts.isEmpty()}" class="alert alert-danger" style="margin-bottom: 1.5rem; align-items: flex-start;">
                 <i class="ti ti-alert-triangle" aria-hidden="true"></i>
                 <div>
                     <strong>Existing schedule conflicts need attention.</strong>
@@ -117,19 +220,26 @@
                         Showing a 50-item preview. Additional conflicts exist; new conflicting assignments are still blocked.
                     </div>
                     <div style="margin-top: 0.5rem; color: var(--text-primary);">
-                        Use the repair action to clear conflicted room assignments for rescheduling, remove section-internal overlap rows, and unassign faculty from overlapping sections in this term.
+                        Use the repair action to clear conflicted room assignments for rescheduling, remove section-internal overlap rows, and unassign faculty from overlapping sections in this term. Block-cohort overlaps are listed for manual cleanup.
                     </div>
                     <div th:each="conflict : ${scheduleConflicts}" style="margin-top: 0.35rem;">
-                        <span th:text="${conflict.conflict_type == 'ROOM' ? 'Room' : 'Faculty'}"></span>
+                        <span th:text="${conflict.conflict_type == 'ROOM' ? 'Room' : (conflict.conflict_type == 'FACULTY' ? 'Faculty' : 'Block cohort')}"></span>
                         <strong th:text="${conflict.resource_name}"></strong>:
-                        <span th:text="${conflict.section_a}"></span> overlaps
-                        <span th:text="${conflict.section_b}"></span>
+                        <span th:text="${conflict.conflict_type == 'BLOCK_COHORT' and conflict.course_a != null ? conflict.course_a + ' (' + conflict.section_a + ')' : conflict.section_a}"></span>
+                        overlaps
+                        <span th:text="${conflict.conflict_type == 'BLOCK_COHORT' and conflict.course_b != null ? conflict.course_b + ' (' + conflict.section_b + ')' : conflict.section_b}"></span>
                         on day <span th:text="${conflict.day_of_week}"></span>
                         (<span th:text="${conflict.start_time}"></span>-<span th:text="${conflict.end_time}"></span>).
                     </div>
-                    <form th:action="@{/admin/class-scheduling/repair-conflicts}" method="post" style="margin-top: 0.85rem;">
+                    <form th:action="@{/admin/class-scheduling/repair-conflicts}" method="post" style="margin-top: 0.85rem;" class="js-scheduling-context-form" data-default-view="diagnostics" data-anchor="diagnosticsPanel">
                         <input type="hidden" name="termId" th:value="${termId}">
-                        <button type="submit" class="btn btn-outline" onclick="return confirm('Repair current-term schedule conflicts? This will clear conflicted room assignments, delete overlapping extra slots within a section, and remove faculty assignments from overlapping sections so the term can be rescheduled cleanly.');">
+                        <input type="hidden" name="view" value="diagnostics">
+                        <input type="hidden" name="openBlockId" value="">
+                        <input type="hidden" name="blockSearch" value="">
+                        <input type="hidden" name="blockProgram" value="">
+                        <input type="hidden" name="courseSearch" value="">
+                        <input type="hidden" name="anchor" value="diagnosticsPanel">
+                        <button type="submit" class="btn btn-outline" data-confirm="Repair current-term schedule conflicts? This will clear conflicted room assignments, delete overlapping extra slots within a section, and remove faculty assignments from overlapping sections so the term can be rescheduled cleanly." data-confirm-title="Repair schedule conflicts?" data-confirm-tone="danger">
                             <i class="ti ti-tool" aria-hidden="true"></i> Repair Current-Term Conflicts
                         </button>
                     </form>
@@ -169,12 +279,12 @@
                 </div>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="sched-page-header">
                 <div>
                     <h1 class="page-title">Class Scheduling</h1>
                     <p class="page-subtitle">Manage class sections, assign faculty, and set schedules.</p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; align-items: center; background: white; padding: 0.5rem 1rem; border-radius: var(--radius-md); border: 1px solid var(--border-color);">
+                <div class="sched-term-shell">
                     <form th:action="@{/admin/class-scheduling}" method="get" style="display: flex; gap: 0.5rem; align-items: center; margin: 0;">
                         <label style="font-size: 0.85rem; font-weight: 700; color: var(--text-muted); margin: 0;">Term:</label>
                         <select name="termId" class="form-control" onchange="this.form.submit()" style="min-width: 200px; padding: 0.3rem 0.6rem;">
@@ -191,7 +301,7 @@
                 </div>
                 <div class="workflow-step">
                     <strong>2. Faculty &amp; schedules</strong>
-                    Assign faculty and add day/time/room slots. Same-term room, faculty, and section overlaps are blocked; new schedule slots require a real room.
+                    Assign faculty and add day/time/room slots. Same-term room, faculty, section, and block-cohort overlaps are blocked; new schedule slots require a real room.
                 </div>
                 <div class="workflow-step">
                     <strong>3. Per-course sections</strong>
@@ -199,19 +309,22 @@
                 </div>
             </div>
 
-            <div class="panel-switcher">
+            <div class="panel-switcher sched-toolbar">
                 <span class="panel-switcher-label">Panels:</span>
                 <button type="button" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="scrollToPanel('blocks')">
                     <i class="ti ti-layout-grid"></i> Block Sections
                 </button>
-                <a th:href="@{/admin/class-scheduling(termId=${termId}, view='blocks')}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
-                    <i class="ti ti-list-details"></i> Load Block Details
+                <a th:href="@{/admin/class-scheduling(termId=${termId}, view='overview', blockMode='all')}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                    <i class="ti ti-list-details"></i> Load All Blocks
                 </a>
                 <button type="button" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="scrollToPanel('courses')">
                     <i class="ti ti-books"></i> Course Sections
                 </button>
                 <a th:href="@{/admin/class-scheduling(termId=${termId}, view='courses')}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
                     <i class="ti ti-table"></i> Load Course Details
+                </a>
+                <a th:href="@{/admin/class-scheduling(termId=${termId}, view='diagnostics')}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                    <i class="ti ti-bug"></i> Load Diagnostics
                 </a>
                 <button type="button" id="collapseBlocksBtn" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" onclick="toggleSchedulingPanel('blocks')">
                     <i class="ti ti-chevrons-up"></i> <span id="collapseBlocksBtnLabel">Collapse Blocks</span>
@@ -232,6 +345,7 @@
                         </h2>
                         <p id="blocksPanelDesc" style="margin: 0.35rem 0 0; color: var(--text-muted); font-size: 0.85rem;">
                             Create block templates and assign faculty / schedule slots per course in the block.
+                            Diagnostics are now loaded on demand to keep this page responsive.
                         </p>
                     </div>
                     <div style="display: flex; gap: 0.5rem; align-items: center;" onclick="event.stopPropagation()">
@@ -243,21 +357,48 @@
                         </button>
                     </div>
                 </div>
-                <div id="blockSectionsBody" class="sched-panel-body">
-                <div style="padding: 0.75rem 1.5rem; border-bottom: 1px solid var(--border-color); display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; background: rgba(248,250,252,0.6);">
-                    <i class="ti ti-search" style="color: var(--text-muted);"></i>
-                    <input type="text" id="blockSearch" class="form-control" style="max-width: 280px;" placeholder="Search block code or program..." oninput="filterBlocks()">
-                    <select id="blockProgramSelect" class="form-control" style="max-width: 220px;" onchange="filterBlocks()">
+                <div id="blockSectionsBody" class="sched-panel-body" th:attr="data-open-block-id=${openBlockId}">
+                <form th:action="@{/admin/class-scheduling}" method="get" class="sched-filter-row">
+                    <input type="hidden" name="termId" th:value="${termId}">
+                    <input type="hidden" name="view" th:value="${selectedSchedulingView}">
+                    <input type="hidden" name="blockMode" value="all">
+                    <input id="blockSearch" name="blockSearch" class="form-control" style="max-width:280px;" th:value="${blockSearchValue}" placeholder="Filter block headers">
+                    <select id="blockProgramSelect" name="blockProgram" class="form-control" style="max-width:220px;" onchange="this.form.submit()">
                         <option value="">All programs</option>
-                        <option th:each="p : ${programs}" th:value="${p.program_code}" th:text="${p.program_code}"></option>
+                        <option th:each="p : ${programs}" th:value="${p.program_code}" th:text="${p.program_code}" th:selected="${blockProgramValue != null and blockProgramValue == p.program_code}"></option>
                     </select>
-                    <span id="blockVisibleCount" style="color: var(--text-muted); font-size: 0.85rem; margin-left: auto;"></span>
-                </div>
-                <div style="padding: 1rem 1.5rem;">
-                    <div th:if="${#lists.isEmpty(blocks)}" style="color: var(--text-muted); font-size: 0.9rem; font-style: italic; padding: 0.5rem 0;">
+                    <button type="submit" class="btn btn-primary"><i class="ti ti-list-details"></i> Load All Blocks</button>
+                    <a th:href="@{/admin/class-scheduling(termId=${termId},view=${selectedSchedulingView})}" class="btn btn-outline">Reset</a>
+                </form>
+                <div class="sched-panel-body-inner">
+                    <div th:if="${blockHeadersLoaded and #lists.isEmpty(blocks)}" style="color: var(--text-muted); font-size: 0.9rem; font-style: italic; padding: 0.5rem 0;">
+                        No matching block headers were found for this term and scope.
+                    </div>
+                    <div th:if="${!blockHeadersLoaded and #lists.isEmpty(blockSchoolGroups)}" style="color: var(--text-muted); font-size: 0.9rem; font-style: italic; padding: 0.5rem 0;">
                         No block offerings for this term yet. Click <strong>Create Block</strong> to add one (e.g. BSIT-1-2-A).
                     </div>
-                    <div th:each="b : ${blocks}" class="section-card block-card" style="margin-bottom: 0.75rem;"
+                    <details th:each="school : ${blockSchoolGroups}" class="block-school-group"
+                             th:attr="data-school=${school.schoolName}">
+                        <summary class="block-school-summary">
+                            <span><i class="ti ti-building" aria-hidden="true"></i> <span th:text="${school.schoolName}">School</span></span>
+                            <span class="block-group-count" th:text="${#lists.size(school.programs)} + ' program(s)'">0 program(s)</span>
+                        </summary>
+                        <div>
+                            <details th:each="program : ${school.programs}" class="block-program-group"
+                                      th:attr="data-program=${program.programCode},data-block-count=${program.blockCount}">
+                                <summary class="block-program-summary">
+                                    <span><i class="ti ti-school" aria-hidden="true"></i> <span th:text="${program.programCode + ' - ' + program.programName}">Program</span></span>
+                                    <span class="block-group-count" th:text="${program.blockCount} + ' block(s)'">0 block(s)</span>
+                                </summary>
+                                <div class="block-program-content">
+                    <div th:if="${!blockHeadersLoaded}" style="display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; margin-bottom:.75rem; color:var(--text-muted); font-size:.84rem;">
+                        <span th:text="${program.blockCount} + ' lightweight block header(s) available.'">Block headers available.</span>
+                        <a class="btn btn-outline" style="padding:.3rem .65rem; font-size:.8rem;"
+                           th:href="@{/admin/class-scheduling(termId=${termId},view='overview',blockMode='all',blockProgram=${program.programCode})}">
+                            <i class="ti ti-list-details"></i> Load Program Blocks
+                        </a>
+                    </div>
+                    <div th:each="b : ${program.blocks}" class="section-card block-card" style="margin-bottom: 0.75rem;" th:id="'block-card-' + ${b.block_id}"
                          th:attr="data-block-id=${b.block_id}, data-program=${b.program_code},
                                   data-search=${(b.block_code != null ? b.block_code : '') + ' ' + (b.program_code != null ? b.program_code : '') + ' ' + (b.program_name != null ? b.program_name : '')}">
                         <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
@@ -272,26 +413,84 @@
                                     · <span th:text="${b.course_slots} + ' course slot(s)'"></span>
                                     · <span th:text="${b.scheduled_slots} + ' scheduled'"></span>
                                 </div>
+                                <div style="margin-top: 0.65rem; display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: center;">
+                                    <span class="status-badge"
+                                          th:classappend="${b.irregular_access_effective_open} ? 'enrolled' : 'inactive'">
+                                        <div class="status-dot"></div>
+                                        <span th:text="${'Irregular: ' + b.irregular_access_state_label}">Irregular: Closed</span>
+                                    </span>
+                                    <form th:action="@{/admin/class-scheduling/set-irregular-block-access}" method="post"
+                                          style="display: flex; gap: 0.35rem; align-items: center; margin: 0;"
+                                          class="js-scheduling-context-form" data-default-view="blocks"
+                                          th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}">
+                                        <input type="hidden" name="blockId" th:value="${b.block_id}">
+                                        <input type="hidden" name="termId" th:value="${termId}">
+                                        <input type="hidden" name="view" value="blocks">
+                                        <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                        <input type="hidden" name="blockSearch" value="">
+                                        <input type="hidden" name="blockProgram" value="">
+                                        <input type="hidden" name="courseSearch" value="">
+                                        <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
+                                        <select name="accessMode" class="form-control" style="min-width: 150px; padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                                            <option value="AUTO" th:selected="${b.irregular_access_override_mode == 'AUTO'}">Block: Inherit</option>
+                                            <option value="OPEN" th:selected="${b.irregular_access_override_mode == 'OPEN'}">Block: Open</option>
+                                            <option value="CLOSED" th:selected="${b.irregular_access_override_mode == 'CLOSED'}">Block: Closed</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.2rem 0.45rem;" title="Save irregular access">
+                                            <i class="ti ti-device-floppy"></i>
+                                        </button>
+                                    </form>
+                                    <form th:action="@{/admin/class-scheduling/set-irregular-program-scope}" method="post"
+                                          style="display: flex; gap: 0.35rem; align-items: center; margin: 0;"
+                                          class="js-scheduling-context-form" data-default-view="blocks"
+                                          th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}">
+                                        <input type="hidden" name="termId" th:value="${termId}">
+                                        <input type="hidden" name="programCode" th:value="${b.program_code}">
+                                        <input type="hidden" name="yearLevel" th:value="${b.year_level}">
+                                        <input type="hidden" name="semesterNumber" th:value="${b.semester_number}">
+                                        <input type="hidden" name="view" value="blocks">
+                                        <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                        <input type="hidden" name="blockSearch" value="">
+                                        <input type="hidden" name="blockProgram" value="">
+                                        <input type="hidden" name="courseSearch" value="">
+                                        <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
+                                        <select name="open" class="form-control" style="min-width: 220px; padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                                            <option value="false" th:selected="${b.program_year_semester_access_mode == 'CLOSED'}">Program/Yr/Sem: Closed</option>
+                                            <option value="true" th:selected="${b.program_year_semester_access_mode == 'OPEN'}">Program/Yr/Sem: Open</option>
+                                        </select>
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.2rem 0.45rem;" title="Save scope access">
+                                            <i class="ti ti-device-floppy"></i>
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <a th:if="${!loadBlockDetails}" th:href="@{/admin/class-scheduling(termId=${termId}, view='blocks')}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
+                                <a th:if="${!(loadBlockDetails and openBlockId == b.block_id)}" th:href="@{/admin/class-scheduling(termId=${termId},view='blocks',blockMode='all',openBlockId=${b.block_id},blockSearch=${blockSearchValue},blockProgram=${blockProgramValue},anchor=${'block-card-' + b.block_id})}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
                                     <i class="ti ti-list-details" aria-hidden="true"></i> Load Courses
                                 </a>
-                                <button th:if="${loadBlockDetails}" type="button" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;"
+                                <button th:if="${loadBlockDetails and openBlockId == b.block_id}" type="button" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;"
                                         th:attr="onclick=|toggleBlock(${b.block_id})|">
                                     <i class="ti ti-list-details" aria-hidden="true"></i> Courses
                                 </button>
                                 <form th:action="@{/admin/class-scheduling/rematerialize-block}" method="post" style="margin: 0;"
-                                      onsubmit="return confirm('Add any missing curriculum courses to this block?')">
+                                      class="js-scheduling-context-form" data-default-view="blocks"
+                                      th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}"
+                                      data-confirm="Add any missing curriculum courses to this block?" data-confirm-title="Add missing block courses?" data-confirm-tone="warning">
                                     <input type="hidden" name="blockId" th:value="${b.block_id}">
                                     <input type="hidden" name="termId" th:value="${termId}">
+                                    <input type="hidden" name="view" value="blocks">
+                                    <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                    <input type="hidden" name="blockSearch" value="">
+                                    <input type="hidden" name="blockProgram" value="">
+                                    <input type="hidden" name="courseSearch" value="">
+                                    <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
                                     <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;">
                                         <i class="ti ti-refresh" aria-hidden="true"></i> Refresh
                                     </button>
                                 </form>
                             </div>
                         </div>
-                        <div th:if="${loadBlockDetails}" th:id="'block-panel-' + ${b.block_id}" style="display: none; margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 1rem;">
+                        <div th:if="${loadBlockDetails and openBlockId == b.block_id}" th:id="'block-panel-' + ${b.block_id}" style="display: none; margin-top: 1rem; border-top: 1px dashed var(--border-color); padding-top: 1rem;">
                             <input type="text" class="form-control block-course-search" style="max-width: 280px; margin-bottom: 0.75rem; font-size: 0.85rem;"
                                    th:attr="data-block-id=${b.block_id}" placeholder="Filter courses in this block..." oninput="filterBlockCourses(this)">
                             <div style="overflow-x: auto;">
@@ -303,6 +502,7 @@
                                             <th style="text-align: center;">Units</th>
                                             <th>Faculty</th>
                                             <th>Schedule slots</th>
+                                            <th>Irregular access</th>
                                             <th style="text-align: right;">Actions</th>
                                         </tr>
                                     </thead>
@@ -313,9 +513,17 @@
                                             <td th:text="${bc.course_title}"></td>
                                             <td style="text-align: center;" th:text="${bc.credit_units}"></td>
                                             <td>
-                                                <form th:action="@{/admin/class-scheduling/assign-faculty}" method="post" style="display: flex; gap: 0.35rem; margin: 0; min-width: 180px;">
+                                                <form th:action="@{/admin/class-scheduling/assign-faculty}" method="post" style="display: flex; gap: 0.35rem; margin: 0; min-width: 180px;"
+                                                      class="js-scheduling-context-form" data-default-view="blocks"
+                                                      th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}">
                                                     <input type="hidden" name="sectionId" th:value="${bc.section_id}">
                                                     <input type="hidden" name="termId" th:value="${termId}">
+                                                    <input type="hidden" name="view" value="blocks">
+                                                    <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                                    <input type="hidden" name="blockSearch" value="">
+                                                    <input type="hidden" name="blockProgram" value="">
+                                                    <input type="hidden" name="courseSearch" value="">
+                                                    <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
                                                     <select name="facultyId" class="form-control" style="padding: 0.25rem 0.4rem; font-size: 0.8rem;">
                                                         <option value="0">— Faculty —</option>
                                                         <option th:each="f : ${faculty}" th:value="${f.faculty_id}" th:text="${f.real_name}"
@@ -330,12 +538,50 @@
                                                     <span th:each="sch : ${bc['schedules']}" class="sched-tag" style="font-size: 0.75rem;">
                                                         <i class="ti ti-calendar-time" style="margin-right: 0.25rem; color: var(--primary-color);"></i>
                                                         <span th:text="${sch.day_name + ' ' + sch.start_fmt + '–' + sch.end_fmt + ' ' + sch.room_code}"></span>
-                                                        <form th:action="@{/admin/class-scheduling/remove-schedule}" method="post" style="margin: 0; display: inline;">
+                                                        <form th:action="@{/admin/class-scheduling/remove-schedule}" method="post" style="margin: 0; display: inline;"
+                                                              class="js-scheduling-context-form" data-default-view="blocks"
+                                                              th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}">
                                                             <input type="hidden" name="scheduleId" th:value="${sch.schedule_id}">
                                                             <input type="hidden" name="termId" th:value="${termId}">
-                                                            <button type="submit" class="btn-del" title="Remove slot" onclick="return confirm('Remove this schedule slot?')"><i class="ti ti-x"></i></button>
+                                                            <input type="hidden" name="view" value="blocks">
+                                                            <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                                            <input type="hidden" name="blockSearch" value="">
+                                                            <input type="hidden" name="blockProgram" value="">
+                                                            <input type="hidden" name="courseSearch" value="">
+                                                            <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
+                                                            <button type="submit" class="btn-del" title="Remove slot" data-confirm="Remove this schedule slot?" data-confirm-title="Remove schedule slot?" data-confirm-tone="danger"><i class="ti ti-x"></i></button>
                                                         </form>
                                                     </span>
+                                                </div>
+                                            </td>
+                                            <td style="min-width: 220px;">
+                                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                                    <span class="status-badge"
+                                                          th:classappend="${bc.irregular_access_effective_open} ? 'enrolled' : 'inactive'">
+                                                        <div class="status-dot"></div>
+                                                        <span th:text="${bc.irregular_access_state_label}">Closed</span>
+                                                    </span>
+                                                    <form th:action="@{/admin/class-scheduling/set-irregular-class-access}" method="post"
+                                                          style="display: flex; gap: 0.35rem; align-items: center; margin: 0;"
+                                                          class="js-scheduling-context-form" data-default-view="blocks"
+                                                          th:attr="data-open-block-id=${b.block_id}, data-anchor=${'block-card-' + b.block_id}">
+                                                        <input type="hidden" name="sectionId" th:value="${bc.section_id}">
+                                                        <input type="hidden" name="termId" th:value="${termId}">
+                                                        <input type="hidden" name="view" value="blocks">
+                                                        <input type="hidden" name="openBlockId" th:value="${b.block_id}">
+                                                        <input type="hidden" name="blockSearch" value="">
+                                                        <input type="hidden" name="blockProgram" value="">
+                                                        <input type="hidden" name="courseSearch" value="">
+                                                        <input type="hidden" name="anchor" th:value="${'block-card-' + b.block_id}">
+                                                        <select name="accessMode" class="form-control" style="padding: 0.25rem 0.4rem; font-size: 0.8rem;">
+                                                            <option value="AUTO" th:selected="${bc.irregular_access_override_mode == 'AUTO'}">Inherit</option>
+                                                            <option value="OPEN" th:selected="${bc.irregular_access_override_mode == 'OPEN'}">Open</option>
+                                                            <option value="CLOSED" th:selected="${bc.irregular_access_override_mode == 'CLOSED'}">Closed</option>
+                                                        </select>
+                                                        <button type="submit" class="btn btn-outline" style="padding: 0.2rem 0.45rem;" title="Save irregular access">
+                                                            <i class="ti ti-device-floppy"></i>
+                                                        </button>
+                                                    </form>
                                                 </div>
                                             </td>
                                             <td style="text-align: right; white-space: nowrap;">
@@ -352,9 +598,13 @@
                                         </tr>
                                     </tbody>
                                 </table>
-                            </div>
-                        </div>
                     </div>
+                </div>
+            </div>
+                                </div>
+                            </details>
+                        </div>
+                    </details>
                 </div>
                 </div>
             </div>
@@ -384,9 +634,9 @@
             <th:block th:if="${loadCourseSections}">
 
             <!-- Filter + Search bar -->
-            <div class="card" style="margin-bottom: 1.5rem; display: flex; flex-direction: row; align-items: center; gap: 1rem; padding: 1rem;">
+            <div class="card sched-filter-row" style="margin-bottom: 1.5rem;">
                 <i class="ti ti-filter" style="color: var(--text-muted); font-size: 1.25rem;"></i>
-                <input type="text" id="courseSearch" class="form-control" style="max-width: 300px;" placeholder="Search course, section, faculty, schedule..." oninput="filterCourses()">
+                <input type="text" id="courseSearch" class="form-control" style="max-width: 300px;" placeholder="Search course, section, faculty, schedule..." oninput="filterCourses()" th:value="${courseSearchValue}">
                 <select id="deptSelect" class="form-control" style="max-width: 240px;" onchange="filterCourses()">
                     <option value="">All Departments</option>
                 </select>
@@ -439,9 +689,9 @@
                                                 <i class="ti ti-books" style="color: var(--primary-color); margin-right: 0.5rem;"></i>
                                                 <span th:text="${c.course_code + ' - ' + c.course_title}"></span>
                                             </span>
-                                            <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;"
-                                                    th:attr="data-course-id=${c.course_id}, data-label=${c.course_code + ' - ' + c.course_title}, data-term-id=${termId}"
-                                                    onclick="openSectionModalFromButton(this)">
+                                                    <button class="btn btn-primary" style="padding: 0.4rem 1rem; font-size: 0.85rem;"
+                                                            th:attr="data-course-id=${c.course_id}, data-label=${c.course_code + ' - ' + c.course_title}, data-term-id=${termId}, data-anchor=${'cr-' + c.course_id}"
+                                                            onclick="openSectionModalFromButton(this)">
                                                     <i class="ti ti-plus" aria-hidden="true"></i> Open Special Section
                                             </button>
                                         </div>
@@ -467,9 +717,17 @@
                                                         </div>
                                                     </div>
                                                     <!-- Faculty assign -->
-                                                    <form th:action="@{/admin/class-scheduling/assign-faculty}" method="post" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;">
+                                                    <form th:action="@{/admin/class-scheduling/assign-faculty}" method="post" style="display: flex; align-items: center; gap: 0.5rem; margin: 0;"
+                                                          class="js-scheduling-context-form" data-default-view="courses"
+                                                          th:attr="data-anchor=${'cr-' + c.course_id}">
                                                         <input type="hidden" name="sectionId" th:value="${sec.section_id}">
                                                         <input type="hidden" name="termId"    th:value="${termId}">
+                                                        <input type="hidden" name="view" value="courses">
+                                                        <input type="hidden" name="openBlockId" value="">
+                                                        <input type="hidden" name="blockSearch" value="">
+                                                        <input type="hidden" name="blockProgram" value="">
+                                                        <input type="hidden" name="courseSearch" value="">
+                                                        <input type="hidden" name="anchor" th:value="${'cr-' + c.course_id}">
                                                         <select name="facultyId" class="form-control" style="min-width: 200px; padding: 0.3rem 0.6rem; font-size: 0.85rem;">
                                                             <option value="0">- Assign Faculty -</option>
                                                             <option th:each="f : ${faculty}" th:value="${f.faculty_id}" th:text="${f.real_name}" th:selected="${f.faculty_id == sec.faculty_id}"></option>
@@ -488,10 +746,18 @@
                                                         <span th:each="sch : ${sec['schedules']}" class="sched-tag">
                                                             <i class="ti ti-calendar-time" style="margin-right: 0.4rem; color: var(--primary-color);"></i>
                                                             <span th:text="${sch.day_name + '  ' + sch.start_fmt + ' - ' + sch.end_fmt + '  ' + sch.room_code}"></span>
-                                                            <form th:action="@{/admin/class-scheduling/remove-schedule}" method="post" style="margin: 0; display: inline;">
+                                                            <form th:action="@{/admin/class-scheduling/remove-schedule}" method="post" style="margin: 0; display: inline;"
+                                                                  class="js-scheduling-context-form" data-default-view="courses"
+                                                                  th:attr="data-anchor=${'cr-' + c.course_id}">
                                                                 <input type="hidden" name="scheduleId" th:value="${sch.schedule_id}">
                                                                 <input type="hidden" name="termId" th:value="${termId}">
-                                                                <button type="submit" class="btn-del" title="Remove slot" onclick="return confirm('Remove this schedule slot?')"><i class="ti ti-x"></i></button>
+                                                                <input type="hidden" name="view" value="courses">
+                                                                <input type="hidden" name="openBlockId" value="">
+                                                                <input type="hidden" name="blockSearch" value="">
+                                                                <input type="hidden" name="blockProgram" value="">
+                                                                <input type="hidden" name="courseSearch" value="">
+                                                                <input type="hidden" name="anchor" th:value="${'cr-' + c.course_id}">
+                                                                <button type="submit" class="btn-del" title="Remove slot" data-confirm="Remove this schedule slot?" data-confirm-title="Remove schedule slot?" data-confirm-tone="danger"><i class="ti ti-x"></i></button>
                                                             </form>
                                                         </span>
                                                     </div>
@@ -500,13 +766,21 @@
                                                 <!-- Add Schedule + Close Section row -->
                                                 <div style="display: flex; gap: 0.75rem; margin-top: 1.5rem;">
                                                     <button class="btn btn-outline" style="padding: 0.3rem 0.8rem; font-size: 0.85rem;"
-                                                            th:attr="data-section-id=${sec.section_id}, data-term-id=${termId}, data-label=${c.course_code + ' Sec ' + sec.section_code}"
+                                                            th:attr="data-section-id=${sec.section_id}, data-term-id=${termId}, data-label=${c.course_code + ' Sec ' + sec.section_code}, data-anchor=${'cr-' + c.course_id}"
                                                             onclick="addSchedModalFromButton(this)">
                                                         <i class="ti ti-clock-plus" aria-hidden="true"></i> Add Schedule Slot
                                                     </button>
-                                                    <form th:action="@{/admin/class-scheduling/close-section}" method="post" onsubmit="return confirm('Close this section? This cannot be undone if students are enrolled.')" style="margin: 0;">
+                                                    <form th:action="@{/admin/class-scheduling/close-section}" method="post" data-confirm="Close this section? This cannot be undone if students are enrolled." data-confirm-title="Close section?" data-confirm-tone="warning" style="margin: 0;"
+                                                          class="js-scheduling-context-form" data-default-view="courses"
+                                                          th:attr="data-anchor=${'cr-' + c.course_id}">
                                                         <input type="hidden" name="sectionId" th:value="${sec.section_id}">
                                                         <input type="hidden" name="termId" th:value="${termId}">
+                                                        <input type="hidden" name="view" value="courses">
+                                                        <input type="hidden" name="openBlockId" value="">
+                                                        <input type="hidden" name="blockSearch" value="">
+                                                        <input type="hidden" name="blockProgram" value="">
+                                                        <input type="hidden" name="courseSearch" value="">
+                                                        <input type="hidden" name="anchor" th:value="${'cr-' + c.course_id}">
                                                         <button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.8rem; font-size: 0.85rem; color: var(--danger-color); border-color: rgba(220, 38, 38, 0.2);">
                                                             <i class="ti ti-x" aria-hidden="true"></i> Close Section
                                                         </button>
@@ -532,7 +806,7 @@
 <!-- MODAL: Open Special Section -->
 <div id="openSectionModal" class="modal">
     <div class="modal-dialog">
-        <form th:action="@{/admin/class-scheduling/open-section}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;">
+        <form th:action="@{/admin/class-scheduling/open-section}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;" class="js-scheduling-context-form" data-default-view="courses">
             <div class="modal-header">
                 <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ti ti-square-plus" style="color: var(--primary-color);"></i> Open Special Section
@@ -544,6 +818,12 @@
             <div class="modal-body">
                 <input type="hidden" name="courseId" id="os_courseId">
                 <input type="hidden" name="termId"   id="os_termId">
+                <input type="hidden" name="view" id="os_view" value="courses">
+                <input type="hidden" name="openBlockId" id="os_openBlockId" value="">
+                <input type="hidden" name="blockSearch" value="">
+                <input type="hidden" name="blockProgram" value="">
+                <input type="hidden" name="courseSearch" value="">
+                <input type="hidden" name="anchor" id="os_anchor" value="">
                 <div style="margin-bottom: 1.5rem;">
                     <label class="form-label">Course</label>
                     <input type="text" id="os_courseLabel" class="form-control" readonly style="background: var(--bg-tertiary);">
@@ -581,7 +861,7 @@
 <!-- MODAL: Create Block -->
 <div id="createBlockModal" class="modal">
     <div class="modal-dialog">
-        <form th:action="@{/admin/class-scheduling/create-block}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;">
+        <form th:action="@{/admin/class-scheduling/create-block}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;" class="js-scheduling-context-form" data-default-view="blocks" data-anchor="blocksPanel">
             <div class="modal-header">
                 <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ti ti-layout-grid-add" style="color: var(--primary-color);"></i> Create Block Section
@@ -592,6 +872,12 @@
             </div>
             <div class="modal-body">
                 <input type="hidden" name="termId" th:value="${termId}">
+                <input type="hidden" name="view" value="blocks">
+                <input type="hidden" name="openBlockId" value="">
+                <input type="hidden" name="blockSearch" value="">
+                <input type="hidden" name="blockProgram" value="">
+                <input type="hidden" name="courseSearch" value="">
+                <input type="hidden" name="anchor" value="blocksPanel">
                 <div style="margin-bottom: 1.25rem;">
                     <label class="form-label">Program <span style="color: var(--danger-color);">*</span></label>
                     <select name="programCode" id="createBlockProgram" class="form-control" required onchange="syncCreateBlockCurricula()">
@@ -658,7 +944,7 @@
 <!-- MODAL: Add Schedule Slot -->
 <div id="addSchedModal" class="modal">
     <div class="modal-dialog">
-        <form th:action="@{/admin/class-scheduling/add-schedule}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;">
+        <form th:action="@{/admin/class-scheduling/add-schedule}" method="post" style="margin: 0; display: flex; flex-direction: column; height: 100%;" class="js-scheduling-context-form" data-default-view="blocks">
             <div class="modal-header">
                 <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
                     <i class="ti ti-clock-plus" style="color: var(--primary-color);"></i> Add Schedule Slot
@@ -670,6 +956,12 @@
             <div class="modal-body">
                 <input type="hidden" name="sectionId" id="as_sectionId">
                 <input type="hidden" name="termId"    id="as_termId">
+                <input type="hidden" name="view" id="as_view" value="blocks">
+                <input type="hidden" name="openBlockId" id="as_openBlockId" value="">
+                <input type="hidden" name="blockSearch" value="">
+                <input type="hidden" name="blockProgram" value="">
+                <input type="hidden" name="courseSearch" value="">
+                <input type="hidden" name="anchor" id="as_anchor" value="">
                 <div style="margin-bottom: 1.5rem;">
                     <label class="form-label">Section</label>
                     <input type="text" id="as_sectionLabel" class="form-control" readonly style="background: var(--bg-tertiary);">
@@ -786,7 +1078,7 @@ function getPanelState() {
         const raw = localStorage.getItem(PANEL_STORAGE_KEY);
         if (raw) return JSON.parse(raw);
     } catch (e) { /* ignore */ }
-    return { blocksExpanded: false, coursesExpanded: true };
+    return { blocksExpanded: true, coursesExpanded: true };
 }
 
 function savePanelState(state) {
@@ -794,7 +1086,10 @@ function savePanelState(state) {
 }
 
 function updatePanelSummaries() {
-    const blockCount = document.querySelectorAll('.block-card:not(.hidden-block)').length;
+    const renderedBlockCount = document.querySelectorAll('.block-card').length;
+    const summaryBlockCount = [...document.querySelectorAll('.block-program-group[data-block-count]')]
+        .reduce((total, group) => total + Number(group.dataset.blockCount || 0), 0);
+    const blockCount = renderedBlockCount || summaryBlockCount;
     const courseCount = document.querySelectorAll('tr.course-row').length;
     const blocksSummary = document.getElementById('blocksPanelSummary');
     const coursesSummary = document.getElementById('coursesPanelSummary');
@@ -851,18 +1146,12 @@ function toggleBlock(blockId) {
     panel.style.display = open ? 'block' : 'none';
 }
 
-function filterBlocks() {
-    const q = (document.getElementById('blockSearch').value || '').toLowerCase();
-    const program = document.getElementById('blockProgramSelect').value;
-    let vis = 0;
-    document.querySelectorAll('.block-card').forEach(card => {
-        const hay = (card.getAttribute('data-search') || '').toLowerCase();
-        const prog = card.getAttribute('data-program') || '';
-        const match = hay.includes(q) && (!program || prog === program);
-        card.classList.toggle('hidden-block', !match);
-        if (match) vis++;
-    });
-    document.getElementById('blockVisibleCount').textContent = vis + ' block(s) shown';
+function revealBlockAncestors(card) {
+    if (!card) return;
+    const programGroup = card.closest('.block-program-group');
+    const schoolGroup = card.closest('.block-school-group');
+    if (programGroup) programGroup.open = true;
+    if (schoolGroup) schoolGroup.open = true;
 }
 
 function filterBlockCourses(input) {
@@ -873,6 +1162,75 @@ function filterBlockCourses(input) {
     table.querySelectorAll('.block-course-row').forEach(row => {
         const hay = (row.getAttribute('data-search') || '').toLowerCase();
         row.style.display = hay.includes(q) ? '' : 'none';
+    });
+}
+
+function queryParams() {
+    return new URLSearchParams(window.location.search);
+}
+
+function findOpenBlockId(source) {
+    if (source && source.dataset && source.dataset.openBlockId) {
+        return source.dataset.openBlockId;
+    }
+    const blockCard = source && source.closest ? source.closest('.block-card') : null;
+    if (blockCard && blockCard.dataset.blockId) {
+        return blockCard.dataset.blockId;
+    }
+    return queryParams().get('openBlockId') || '';
+}
+
+function findAnchorId(source) {
+    if (source && source.dataset && source.dataset.anchor) {
+        return source.dataset.anchor;
+    }
+    const blockCard = source && source.closest ? source.closest('.block-card') : null;
+    if (blockCard && blockCard.id) {
+        return blockCard.id;
+    }
+    const coursePanel = source && source.closest ? source.closest('tr[id^="panel-"]') : null;
+    if (coursePanel) {
+        const courseId = coursePanel.id.replace('panel-', '');
+        return 'cr-' + courseId;
+    }
+    return queryParams().get('anchor') || '';
+}
+
+function populateSchedulingContext(form) {
+    const params = queryParams();
+    const blockSearch = document.getElementById('blockSearch');
+    const blockProgram = document.getElementById('blockProgramSelect');
+    const courseSearch = document.getElementById('courseSearch');
+    const viewField = form.querySelector('input[name="view"]');
+    const openBlockField = form.querySelector('input[name="openBlockId"]');
+    const blockSearchField = form.querySelector('input[name="blockSearch"]');
+    const blockProgramField = form.querySelector('input[name="blockProgram"]');
+    const courseSearchField = form.querySelector('input[name="courseSearch"]');
+    const anchorField = form.querySelector('input[name="anchor"]');
+
+    if (viewField) {
+        viewField.value = viewField.value || form.dataset.defaultView || params.get('view') || 'overview';
+    }
+    if (openBlockField) {
+        openBlockField.value = openBlockField.value || findOpenBlockId(form);
+    }
+    if (blockSearchField) {
+        blockSearchField.value = blockSearch ? blockSearch.value : '';
+    }
+    if (blockProgramField) {
+        blockProgramField.value = blockProgram ? blockProgram.value : '';
+    }
+    if (courseSearchField) {
+        courseSearchField.value = courseSearch ? courseSearch.value : '';
+    }
+    if (anchorField) {
+        anchorField.value = anchorField.value || findAnchorId(form);
+    }
+}
+
+function bindSchedulingContextForms() {
+    document.querySelectorAll('form.js-scheduling-context-form').forEach(form => {
+        form.addEventListener('submit', () => populateSchedulingContext(form));
     });
 }
 
@@ -914,23 +1272,37 @@ function syncCreateBlockCurricula() {
     if (!selectedStillValid) curriculum.value = '';
 }
 
-function openSectionModal(cid, label, tid) {
+function openSectionModal(cid, label, tid, context = {}) {
     document.getElementById('os_courseId').value = cid;
     document.getElementById('os_termId').value   = tid;
+    document.getElementById('os_view').value = context.view || 'courses';
+    document.getElementById('os_openBlockId').value = context.openBlockId || '';
+    document.getElementById('os_anchor').value = context.anchor || '';
     document.getElementById('os_courseLabel').value = label;
     document.getElementById('openSectionModal').classList.add('show');
 }
 function openSectionModalFromButton(button) {
-    openSectionModal(button.dataset.courseId, button.dataset.label, button.dataset.termId);
+    openSectionModal(button.dataset.courseId, button.dataset.label, button.dataset.termId, {
+        view: 'courses',
+        openBlockId: findOpenBlockId(button),
+        anchor: findAnchorId(button)
+    });
 }
-function addSchedModal(sid, tid, label) {
+function addSchedModal(sid, tid, label, context = {}) {
     document.getElementById('as_sectionId').value    = sid;
     document.getElementById('as_termId').value       = tid;
+    document.getElementById('as_view').value         = context.view || 'blocks';
+    document.getElementById('as_openBlockId').value  = context.openBlockId || '';
+    document.getElementById('as_anchor').value       = context.anchor || '';
     document.getElementById('as_sectionLabel').value = label;
     document.getElementById('addSchedModal').classList.add('show');
 }
 function addSchedModalFromButton(button) {
-    addSchedModal(button.dataset.sectionId, button.dataset.termId, button.dataset.label);
+    addSchedModal(button.dataset.sectionId, button.dataset.termId, button.dataset.label, {
+        view: button.dataset.view || (button.closest('.block-card') ? 'blocks' : 'courses'),
+        openBlockId: findOpenBlockId(button),
+        anchor: findAnchorId(button)
+    });
 }
 
 // Toggle course row
@@ -942,6 +1314,16 @@ function toggleSection(row) {
     panel.style.display = open ? 'table-row' : 'none';
     icon.classList.toggle('ti-chevron-down', !open);
     icon.classList.toggle('ti-chevron-up',    open);
+}
+
+function openCourseById(courseId) {
+    const row = document.getElementById('cr-' + courseId);
+    if (!row) return null;
+    const panel = document.getElementById('panel-' + courseId);
+    if (panel && (panel.style.display === 'none' || !panel.style.display)) {
+        toggleSection(row);
+    }
+    return row;
 }
 function expandAll()  { 
     document.querySelectorAll('tr[id^="panel-"]').forEach(p => p.style.display = 'table-row'); 
@@ -986,13 +1368,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const depts = [...new Set([...document.querySelectorAll('tr.course-row')].map(r => r.getAttribute('data-dept')))].sort();
         depts.forEach(d => { const o = document.createElement('option'); o.value = d; o.textContent = d; sel.appendChild(o); });
     }
+    bindSchedulingContextForms();
     filterCourses();
-    filterBlocks();
     applyPanelState();
 
-    // Auto-expand course rows if msg present (so staff can see the change)
     const url = new URLSearchParams(window.location.search);
-    if (url.get('msg')) expandAll();
+    const openBlockId = url.get('openBlockId') || document.getElementById('blockSectionsBody')?.dataset.openBlockId;
+    if (openBlockId) {
+        setPanelCollapsed('blocks', false);
+        revealBlockAncestors(document.getElementById('block-card-' + openBlockId));
+        const blockPanel = document.getElementById('block-panel-' + openBlockId);
+        if (blockPanel) {
+            blockPanel.style.display = 'block';
+        }
+    }
+
+    const anchor = url.get('anchor');
+    if (anchor && anchor.startsWith('cr-')) {
+        const courseId = anchor.replace('cr-', '');
+        setPanelCollapsed('courses', false);
+        openCourseById(courseId);
+    }
+
+    if (anchor || openBlockId) {
+        window.setTimeout(() => {
+            const target = document.getElementById(anchor || ('block-card-' + openBlockId));
+            if (target) {
+                target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 80);
+    }
 });
 </script>
 </body>

@@ -13,25 +13,24 @@
                 <i class="ti ti-chevron-right" aria-hidden="true"></i>
                 <span>Admin</span>
                 <i class="ti ti-chevron-right" aria-hidden="true"></i>
-                <span>Finance Policy</span>
+                <span>Finance / Accounting Mirror</span>
             </div>
 
             <div class="page-header">
                 <div>
-                    <h1 class="page-title">Finance &amp; Accounting Policy Read-Only Mirror</h1>
+                    <h1 class="page-title">Finance / Accounting Mirror</h1>
                     <p class="page-subtitle">
-                        Registrar can inspect payment gates, enrollment rules, and installment schedules here,
-                        but Enrollment3 Accounting/Cashier owns the live authoring workflow.
-                        Fee <em>amounts</em> per program stay on
-                        <a th:href="@{/admin/term-fees}">Program Fees</a>;
-                        scholarship discounts on <a th:href="@{/admin/scholarships}">Scholarships</a>.
+                        Registrar can inspect payment gates, withdrawal-charge settings, and installment schedules here.
+                        Enrollment3 Accounting/Cashier owns fee, payment-gate, and installment-plan authoring.
+                        Program fee readiness stays on <a th:href="@{/admin/term-fees}">Program Fee Readiness</a>;
+                        scholarship discounts stay on <a th:href="@{/admin/scholarships}">Scholarships</a>.
                     </p>
                 </div>
             </div>
 
             <div th:if="${financeOwnershipReadOnly}" class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
                 <div class="status-dot"></div>
-                <span th:text="${financeOwnershipNotice}">Finance Policy is read-only in Registrar.</span>
+                <span th:text="${financeOwnershipNotice}">Finance / Accounting Mirror is read-only in Registrar.</span>
             </div>
 
             <div th:if="${successMessage}" class="status-badge enrolled" style="margin-bottom: 1rem; display: inline-flex;">
@@ -43,149 +42,114 @@
                 <span th:text="${errorMessage}"></span>
             </div>
 
-            <!-- 1. Payment gates -->
             <div class="card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-lock-dollar"></i> 1. Payment gates</div>
+                    <div class="card-title"><i class="ti ti-lock-dollar"></i> 1. Payment gates mirror</div>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Used by Registrar admission, Enrollment cashier finalize, and enlistment block checks.
+                        Source: Enrollment3 Accounting/Cashier. Registrar reads these values for visibility only.
                     </p>
-                    <form th:action="@{/admin/finance-policy/save-gates}" method="post">
-                        <input type="hidden" name="installmentTermId" th:value="${installmentTermId}">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.25rem;">
-                            <div>
-                                <label class="form-label">Accounting block threshold (₱)</label>
-                                <input type="number" min="0" step="0.01" class="form-control" name="ACCOUNTING_BLOCK_THRESHOLD"
-                                       th:value="${accountingBlockThreshold}">
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
-                                    Forwarded debt at or above this blocks new enlistment.
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label">Admission / reservation minimum (₱)</label>
-                                <input type="number" min="0" step="0.01" class="form-control" name="ADMISSION_MIN_PAYMENT"
-                                       th:value="${admissionMinPayment}">
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
-                                    Applicant must pay this before Registrar can assign a student number.
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label">Downpayment — fixed amount (₱)</label>
-                                <input type="number" min="0" step="0.01" class="form-control" name="DOWNPAYMENT_THRESHOLD"
-                                       th:value="${downpaymentAmount}">
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
-                                    Used when percent below is 0.
-                                </div>
-                            </div>
-                            <div>
-                                <label class="form-label">Downpayment — percent of assessment</label>
-                                <input type="number" min="0" max="100" step="0.01" class="form-control" name="DOWNPAYMENT_PERCENT"
-                                       th:value="${downpaymentPercent}">
-                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.4rem;">
-                                    Set to 0 to use fixed amount. Cashier uses this for finalize gate.
-                                </div>
-                            </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.45rem;">Accounting block threshold</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">&#8369;<span th:text="${accountingBlockThreshold != null ? #numbers.formatDecimal(accountingBlockThreshold, 1, 'COMMA', 2, 'POINT') : '0.00'}">0.00</span></div>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Forwarded debt at or above this blocks new enlistment.</div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 1.25rem;">Save payment gates</button>
-                    </form>
-                    </fieldset>
+                        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.45rem;">Admission / reservation minimum</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">&#8369;<span th:text="${admissionMinPayment != null ? #numbers.formatDecimal(admissionMinPayment, 1, 'COMMA', 2, 'POINT') : '0.00'}">0.00</span></div>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Applicant must pay this before Registrar can assign a student number.</div>
+                        </div>
+                        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.45rem;">Downpayment fixed amount</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;">&#8369;<span th:text="${downpaymentAmount != null ? #numbers.formatDecimal(downpaymentAmount, 1, 'COMMA', 2, 'POINT') : '0.00'}">0.00</span></div>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Used when the percent rule below is 0.</div>
+                        </div>
+                        <div style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 1rem;">
+                            <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.45rem;">Downpayment percent</div>
+                            <div style="font-size: 1.25rem; font-weight: 700;"><span th:text="${downpaymentPercent != null ? #numbers.formatDecimal(downpaymentPercent, 1, 'COMMA', 2, 'POINT') : '0.00'}">0.00</span>%</div>
+                            <div style="font-size: 0.82rem; color: var(--text-muted); margin-top: 0.45rem;">Cashier uses this for the finalization gate when it is above 0.</div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
-            <!-- 2. Enrollment rules -->
-            <div class="card" style="margin-bottom: 1.5rem;">
+            <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #0EA5E9;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-adjustments"></i> 2. Enrollment rules</div>
+                    <div class="card-title"><i class="ti ti-adjustments"></i> 2. Registrar-owned withdrawal charges</div>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Withdrawal and enrollment-change charges, session timeout, and RLE hours multiplier.
+                        Registrar may still maintain the flat subject-drop fee, shift-cleanup fee, and full-withdrawal timing thresholds here.
                     </p>
                     <form th:action="@{/admin/finance-policy/save-rules}" method="post">
                         <input type="hidden" name="installmentTermId" th:value="${installmentTermId}">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
-                            <div th:each="entry : ${enrollmentRules}">
-                                <label class="form-label" th:text="${entry.key}"></label>
-                                <input type="text" class="form-control" th:name="'rule_' + ${entry.key}" th:value="${entry.value}">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                            <div th:each="row : ${enrollmentRuleRows}" style="background: var(--bg-tertiary); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 0.9rem;">
+                                <label class="form-label" th:text="${row.label}"></label>
+                                <input class="form-control"
+                                       th:name="${row.key}"
+                                       th:type="${row.inputType}"
+                                       th:value="${row.value}"
+                                       th:attr="step=${row.step}, min=${row.min}, max=${row.max != null ? row.max : null}">
+                                <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.45rem;" th:text="${row.help}"></div>
                             </div>
                         </div>
-                        <button type="submit" class="btn btn-primary" style="margin-top: 1.25rem;">Save enrollment rules</button>
-                    </form>
-                    </fieldset>
-                </div>
-            </div>
-
-            <!-- 3. Legacy year-level unit load policy -->
-            <div class="card" style="margin-bottom: 1.5rem;">
-                <div class="card-header">
-                    <div class="card-title"><i class="ti ti-school"></i> 3. Legacy year-level unit load table</div>
-                </div>
-                <div style="padding: 1.5rem;">
-                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Live registrar load limits now come from each student's assigned curriculum, year level, and semester.
-                        This table is retained for historical reference only and no longer overrides enrollment, scholarship, or offering checks.
-                    </p>
-                    <form th:action="@{/admin/finance-policy/save-year-level-loads}" method="post">
-                        <input type="hidden" name="installmentTermId" th:value="${installmentTermId}">
-                        <div style="overflow-x: auto;">
-                            <table class="table-eac" style="margin-bottom: 1rem;">
-                                <thead>
-                                <tr>
-                                    <th>Year level</th>
-                                    <th>Minimum units</th>
-                                    <th>Maximum units</th>
-                                    <th>Policy meaning</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <tr th:each="policy : ${yearLevelLoadPolicies}">
-                                    <td style="font-weight: 600;" th:text="${'Year ' + policy.yearLevel}"></td>
-                                    <td>
-                                        <input type="number" min="0" max="60" step="0.5" class="form-control"
-                                               th:name="${'minimumUnits_' + policy.yearLevel}"
-                                               th:value="${policy.minimumUnits}" disabled>
-                                    </td>
-                                    <td>
-                                        <input type="number" min="0" max="60" step="0.5" class="form-control"
-                                               th:name="${'maximumUnits_' + policy.yearLevel}"
-                                               th:value="${policy.maximumUnits}" disabled>
-                                    </td>
-                                    <td style="color: var(--text-muted);">
-                                        Inactive. Live limits are computed from the assigned curriculum term load.
-                                    </td>
-                                </tr>
-                                </tbody>
-                            </table>
+                        <div style="display: flex; justify-content: flex-end; margin-top: 1.25rem;">
+                            <button type="submit" class="btn btn-primary">Save withdrawal charges</button>
                         </div>
-                        <button type="submit" class="btn btn-primary" disabled>Legacy table inactive</button>
                     </form>
                 </div>
             </div>
 
-            <!-- 4. Installment plan -->
             <div class="card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-calendar-dollar"></i> 4. Installment schedule</div>
+                    <div class="card-title"><i class="ti ti-school"></i> 3. Legacy year-level unit load reference</div>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <fieldset th:disabled="${financeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Cashier splits <em>(total assessment − downpayment)</em> evenly across these rows.
-                        This is separate from the <strong>Installment charge</strong> flat fee on Program Fees
-                        (<code>OTHER_INSTALLMENT</code>).
-                        Per-student overrides (e.g. payment hardship) are edited on
-                        <a th:href="@{/admin/student-manager}">Student Profile</a> -> Installment Plan Override.
+                        Historical reference only. Live registrar load limits now come from each student's assigned curriculum, year level, and semester.
+                    </p>
+                    <div style="overflow-x: auto;">
+                        <table class="table-eac">
+                            <thead>
+                            <tr>
+                                <th>Year level</th>
+                                <th>Minimum units</th>
+                                <th>Maximum units</th>
+                                <th>Policy meaning</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <tr th:each="policy : ${yearLevelLoadPolicies}">
+                                <td style="font-weight: 600;" th:text="${'Year ' + policy.yearLevel}"></td>
+                                <td th:text="${policy.minimumUnits}"></td>
+                                <td th:text="${policy.maximumUnits}"></td>
+                                <td style="color: var(--text-muted);">Inactive. Live limits are computed from the assigned curriculum term load.</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="margin-bottom: 1.5rem;">
+                <div class="card-header">
+                    <div class="card-title"><i class="ti ti-calendar-dollar"></i> 4. Installment schedule mirror</div>
+                </div>
+                <div style="padding: 1.5rem;">
+                    <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
+                        Cashier splits <em>(total assessment - downpayment)</em> across these rows. This is separate from the
+                        <strong>Installment charge</strong> flat fee on Program Fee Readiness (<code>OTHER_INSTALLMENT</code>).
+                        Registrar no longer edits term plans or student overrides here.
                     </p>
 
                     <form th:action="@{/admin/finance-policy}" method="get" style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: end; margin-bottom: 1.25rem;">
                         <div>
-                            <label class="form-label">Edit plan for</label>
+                            <label class="form-label">View plan for</label>
                             <select name="installmentTermId" class="form-control" onchange="this.form.submit()">
-                                <option value="">Default (all terms without own plan)</option>
+                                <option value="">Default (all terms without their own plan)</option>
                                 <option th:each="t : ${terms}" th:value="${t.term_id}"
                                         th:text="${t.term_name + ' (' + t.term_code + ')'}"
                                         th:selected="${installmentTermId != null and installmentTermId == t.term_id}"></option>
@@ -195,91 +159,37 @@
 
                     <div th:if="${installmentTermId != null and usingDefaultInstallmentPlan}" class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
                         <div class="status-dot"></div>
-                        This term has no custom plan — showing the global default below.
+                        This term has no custom plan; showing the shared default below.
                     </div>
 
-                    <div th:if="${installmentTermId != null}" style="margin-bottom: 1.25rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                        <form th:action="@{/admin/finance-policy/copy-installments}" method="post">
-                            <input type="hidden" name="copyMode" value="default">
-                            <input type="hidden" name="targetTermId" th:value="${installmentTermId}">
-                            <button type="submit" class="btn btn-outline">Copy default → this term</button>
-                        </form>
-                        <form th:if="${previousTermId != null}" th:action="@{/admin/finance-policy/copy-installments}" method="post">
-                            <input type="hidden" name="copyMode" value="previous">
-                            <input type="hidden" name="targetTermId" th:value="${installmentTermId}">
-                            <input type="hidden" name="sourceTermId" th:value="${previousTermId}">
-                            <button type="submit" class="btn btn-outline">Copy previous term → this term</button>
-                        </form>
+                    <div class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
+                        <div class="status-dot"></div>
+                        Source: Enrollment3 Accounting/Cashier. Changes are outside Registrar.
                     </div>
 
-                    <form th:action="@{/admin/finance-policy/save-installments}" method="post" id="installmentForm">
-                        <input type="hidden" name="installmentTermId" th:value="${installmentTermId}">
-                        <table class="table-eac" style="margin-bottom: 1rem;">
-                            <thead>
-                            <tr>
-                                <th>#</th>
-                                <th>Due (+months)</th>
-                                <th>Label</th>
-                                <th></th>
-                            </tr>
-                            </thead>
-                            <tbody id="installmentRows">
-                            <tr th:each="row, stat : ${installmentPlan}">
-                                <td><input type="number" min="1" class="form-control" name="instNumber" th:value="${row.installment_number}" style="width: 70px;"></td>
-                                <td><input type="number" min="0" class="form-control" name="instDueMonths" th:value="${row.due_months_offset}" style="width: 90px;"></td>
-                                <td><input type="text" class="form-control" name="instLabel" th:value="${row.installment_label}"></td>
-                                <td><button type="button" class="btn btn-ghost btn-remove-row">Remove</button></td>
-                            </tr>
-                            </tbody>
-                        </table>
-                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                            <button type="button" class="btn btn-outline" id="addInstallmentRow">Add row</button>
-                            <button type="submit" class="btn btn-primary">Save installment plan</button>
-                        </div>
-                    </form>
-                    </fieldset>
+                    <table class="table-eac">
+                        <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Due (+months)</th>
+                            <th>Label</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:if="${installmentPlan == null or installmentPlan.empty}">
+                            <td colspan="3" style="text-align: center; color: var(--text-muted); padding: 1.5rem;">No installment rows are available for this view.</td>
+                        </tr>
+                        <tr th:each="row : ${installmentPlan}">
+                            <td th:text="${row.installment_number}"></td>
+                            <td th:text="${row.due_months_offset}"></td>
+                            <td th:text="${row.installment_label}"></td>
+                        </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </main>
     </div>
 </div>
-<script>
-    (function () {
-        const tbody = document.getElementById('installmentRows');
-        const addBtn = document.getElementById('addInstallmentRow');
-        if (!tbody || !addBtn) return;
-
-        function nextNumber() {
-            const inputs = tbody.querySelectorAll('input[name="instNumber"]');
-            let max = 0;
-            inputs.forEach(i => { const v = parseInt(i.value, 10); if (!isNaN(v)) max = Math.max(max, v); });
-            return max + 1;
-        }
-
-        addBtn.addEventListener('click', function () {
-            const n = nextNumber();
-            const tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td><input type="number" min="1" class="form-control" name="instNumber" value="' + n + '" style="width:70px"></td>' +
-                '<td><input type="number" min="0" class="form-control" name="instDueMonths" value="' + n + '" style="width:90px"></td>' +
-                '<td><input type="text" class="form-control" name="instLabel" value="' + n + ordinal(n) + ' Installment"></td>' +
-                '<td><button type="button" class="btn btn-ghost btn-remove-row">Remove</button></td>';
-            tbody.appendChild(tr);
-        });
-
-        tbody.addEventListener('click', function (e) {
-            if (e.target.classList.contains('btn-remove-row')) {
-                e.target.closest('tr').remove();
-            }
-        });
-
-        function ordinal(n) {
-            if (n === 1) return 'st';
-            if (n === 2) return 'nd';
-            if (n === 3) return 'rd';
-            return 'th';
-        }
-    })();
-</script>
 </body>
 </html>

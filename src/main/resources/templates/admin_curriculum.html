@@ -251,14 +251,53 @@
             padding: 1rem;
             margin: 1rem 0;
         }
-        .editor-grid {
+        .draft-meta-panel {
+            border: 1px solid rgba(37, 99, 235, .14);
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, rgba(239, 246, 255, .92), rgba(255, 255, 255, .98));
+            padding: 1rem;
+            margin: 1rem 0;
+        }
+        .draft-meta-grid {
             display: grid;
-            grid-template-columns: minmax(130px, 1fr) minmax(130px, 1fr) minmax(220px, 2fr) 90px 90px 90px minmax(160px, 1fr) auto;
-            gap: .5rem;
+            grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1.4fr) minmax(120px, .7fr) minmax(140px, .9fr) auto;
+            gap: .75rem;
+            align-items: end;
+        }
+        .course-attach-form {
+            display: grid;
+            grid-template-columns: minmax(180px, .85fr) minmax(360px, 2fr) minmax(190px, .8fr) auto;
+            gap: .85rem;
             align-items: end;
         }
         .course-picker-wrap {
             position: relative;
+        }
+        .course-browse-row {
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+            margin-top: .45rem;
+        }
+        .course-browse-row .form-label {
+            margin: 0;
+            color: var(--text-muted);
+            flex: 0 0 auto;
+            font-size: .78rem;
+        }
+        .course-browse-row .form-control {
+            min-width: 0;
+        }
+        .course-placement-fields {
+            display: grid;
+            grid-template-columns: 76px minmax(96px, 1fr);
+            gap: .5rem;
+        }
+        .course-placement-fields .form-label {
+            white-space: nowrap;
+        }
+        .course-attach-action {
+            white-space: nowrap;
         }
         .course-picker-note {
             grid-column: 1 / -1;
@@ -328,12 +367,30 @@
             display: inline-flex;
         }
         @media (max-width: 980px) {
-            .editor-grid {
+            .draft-meta-grid,
+            .course-attach-form {
                 grid-template-columns: 1fr 1fr;
+            }
+            .course-attach-action {
+                justify-self: start;
             }
             .course-result {
                 grid-template-columns: 1fr;
                 gap: .25rem;
+            }
+        }
+        @media (max-width: 640px) {
+            .draft-meta-grid,
+            .course-attach-form {
+                grid-template-columns: 1fr;
+            }
+            .course-browse-row {
+                align-items: stretch;
+                flex-direction: column;
+                gap: .25rem;
+            }
+            .course-placement-fields {
+                grid-template-columns: 1fr 1fr;
             }
         }
         .placement-form {
@@ -569,8 +626,25 @@
             justify-content: flex-end;
             gap: 1rem;
         }
+        .modal-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+        .modal-grid .span-2 {
+            grid-column: 1 / -1;
+        }
+        .modal-note {
+            color: var(--text-muted);
+            font-size: .84rem;
+            line-height: 1.45;
+            margin-top: .85rem;
+        }
         @media (max-width: 980px) {
             .workflow-guide { grid-template-columns: 1fr; }
+            .modal-grid { grid-template-columns: 1fr; }
+            .modal-grid .span-2 { grid-column: auto; }
         }
         @media (max-width: 640px) {
             .maintenance-menu { position: static; width: min(340px, 90vw); }
@@ -602,14 +676,14 @@
             <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
                 <div>
                     <h1 class="page-title">Curriculum Management</h1>
-                    <p class="page-subtitle" th:text="'Build, publish, and review program curriculum versions. Rows shown: ' + ${#lists.size(programs)}"></p>
+                    <p class="page-subtitle" th:text="'Build, stage, and review program curriculum versions. Rows shown: ' + ${#lists.size(programs)}"></p>
                 </div>
                 <details th:unless="${courses != null}" style="position:relative;">
-                    <summary class="btn btn-outline" style="list-style:none; cursor:pointer;"><i class="ti ti-settings"></i> Import &amp; Maintenance</summary>
-                    <div class="card maintenance-menu" title="Import and recovery tools; normal curriculum work starts with New Curriculum Draft below.">
-                    <div class="maintenance-warning"><strong>Administrative tools</strong><br>Use these only for imports or data repair. They are not required to create and publish a normal curriculum.</div>
+                    <summary class="btn btn-outline" style="list-style:none; cursor:pointer;"><i class="ti ti-settings"></i> Maintenance</summary>
+                    <div class="card maintenance-menu" title="Import and recovery tools; normal curriculum work starts with the draft builder below.">
+                    <div class="maintenance-warning"><strong>Administrative tools</strong><br>Use these only for recovery or bulk normalization. Normal curriculum work should start from a new draft, DOCX draft import, or clone-as-draft flow.</div>
                     <button class="btn btn-outline" onclick="document.getElementById('uploadModal').classList.add('show')">
-                        <i class="ti ti-upload" aria-hidden="true"></i> Import .docx
+                        <i class="ti ti-upload" aria-hidden="true"></i> Import Curriculum Draft
                     </button>
                     <form th:action="@{/admin/curriculum/seed-all}" method="post" id="seedAllForm">
                         <button type="submit" class="btn btn-primary" onclick="showSpinner('Publishing manifest-approved curriculums…')">
@@ -623,7 +697,10 @@
                     </form>
                     <form th:action="@{/admin/curriculum/normalize-active}" method="post" id="normalizeActiveForm">
                         <button type="submit" class="btn btn-outline"
-                                onclick="return confirm('Move duplicate current-offering labels to Legacy and keep one Current Offering per program? Existing student curriculum assignments will be preserved.') && showSpinner('Normalizing current offerings...')">
+                                data-confirm="Move duplicate current-offering labels to Legacy and keep one Current Offering per program? Existing student curriculum assignments will be preserved."
+                                data-confirm-title="Normalize current offerings?"
+                                data-confirm-tone="warning"
+                                onclick="showSpinner('Normalizing current offerings...')">
                             <i class="ti ti-archive" aria-hidden="true"></i> Repair Current Labels
                         </button>
                     </form>
@@ -653,8 +730,8 @@
 
             <div th:unless="${courses != null}" class="workflow-guide">
                 <div class="workflow-step primary">
-                    <div class="workflow-step-title"><span class="workflow-step-number">1</span> Create a working draft</div>
-                    <p>Select a program and academic year. A new draft is editable but does not affect current-offering scheduling until it is published.</p>
+                    <div class="workflow-step-title"><span class="workflow-step-number">1</span> Create a draft</div>
+                    <p>Start from a blank placeholder or import a DOCX into a draft. Drafts are editable and do not affect the active current offering until you choose a lifecycle action later.</p>
                     <form th:action="@{/admin/curriculum/placeholder}" method="post" class="curriculum-actions">
                         <select name="programCode" class="form-control" style="min-width: 240px;" required>
                             <option value="">Select program</option>
@@ -664,15 +741,16 @@
                         </select>
                         <input name="academicYear" class="form-control" style="width: 130px;" placeholder="2024-2025" aria-label="Academic year">
                         <button type="submit" class="btn btn-primary" onclick="showSpinner('Creating working curriculum draft...')"><i class="ti ti-file-plus"></i> New Curriculum Draft</button>
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('uploadModal').classList.add('show')"><i class="ti ti-upload"></i> Import Curriculum Draft</button>
                     </form>
                 </div>
                 <div class="workflow-step">
                     <div class="workflow-step-title"><span class="workflow-step-number">2</span> Build the course plan</div>
-                    <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Mixed lecture/laboratory courses are separate rows, usually <strong>CODE-LEC</strong> and <strong>CODE-LAB</strong>, so each component can be scheduled and enlisted independently.</p>
+                    <p>Open the draft, attach shared catalog courses, and place each course by year and semester. Course identity and relationships stay in Course Catalog; Curriculum Management only places existing shared courses into the outline.</p>
                 </div>
                 <div class="workflow-step">
-                    <div class="workflow-step-title"><span class="workflow-step-number">3</span> Publish as current</div>
-                    <p>Use <strong>Publish &amp; Set Current</strong> inside the draft. That version becomes the current offering and the previous current offering moves to Legacy.</p>
+                    <div class="workflow-step-title"><span class="workflow-step-number">3</span> Choose lifecycle status</div>
+                    <p>When the draft is ready, choose <strong>Set Current</strong>, <strong>Mark Legacy</strong>, or <strong>Archive</strong>. Setting a curriculum current will move the previous current offering for that program to Legacy.</p>
                 </div>
             </div>
 
@@ -689,7 +767,9 @@
                         <span class="completion-count" th:text="${#lists.size(completionQueue)} + ' blocker(s)'">0 blockers</span>
                         <form th:action="@{/admin/curriculum/retire-empty-blockers}" method="post" style="margin:0;">
                             <button type="submit" class="btn btn-outline" style="padding:.35rem .7rem;"
-                                    onclick="return confirm('Retire empty curriculum blocker programs from active offerings? This hides them from readiness/admissions lists but keeps historical records.')">
+                                    data-confirm="Retire empty curriculum blocker programs from active offerings? This hides them from readiness/admissions lists but keeps historical records."
+                                    data-confirm-title="Retire empty programs?"
+                                    data-confirm-tone="warning">
                                 <i class="ti ti-archive" aria-hidden="true"></i> Retire empty blockers
                             </button>
                         </form>
@@ -768,43 +848,36 @@
                         <a th:href="@{/admin/curriculum/export/{id}(id=${curriculumId})}" class="btn btn-outline" style="padding: 0.4rem 0.8rem;">
                             <i class="ti ti-download" aria-hidden="true"></i> Export
                         </a>
-                        <form th:action="@{/admin/curriculum/clone}" method="post">
-                            <input type="hidden" name="sourceCurriculumId" th:value="${curriculumId}">
-                            <input type="hidden" name="academicYear" th:value="${curriculum != null ? curriculum.academic_year : ''}">
-                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="showSpinner('Cloning curriculum to draft...')">
-                                <i class="ti ti-copy" aria-hidden="true"></i> Clone Draft
-                            </button>
-                        </form>
+                        <button type="button"
+                                class="btn btn-outline open-clone-modal"
+                                style="padding: 0.4rem 0.8rem;"
+                                th:attr="data-source-curriculum-id=${curriculumId},data-source-program-code=${curriculum != null ? curriculum.program_code : ''},data-source-academic-year=${curriculum != null ? curriculum.academic_year : ''},data-source-curriculum-name=${curriculum != null ? curriculum.curriculum_name : ''},data-source-version-number=${curriculum != null ? curriculum.version_number : ''}">
+                            <i class="ti ti-copy" aria-hidden="true"></i> Clone as Draft
+                        </button>
                         <form th:if="${curriculum != null and (curriculum.lifecycle_status == 'DRAFT' or curriculum.approval_status == 'Draft' or curriculum.approval_status == 'Placeholder') and (curriculum.is_active == 0 or curriculum.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
-                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Delete this draft curriculum?')">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" data-confirm="Delete this draft curriculum?" data-confirm-title="Delete draft curriculum?" data-confirm-tone="danger">
                                 <i class="ti ti-trash" aria-hidden="true"></i> Delete
                             </button>
                         </form>
-                        <form th:if="${curriculumEditable and curriculum != null and curriculum.course_count > 0}" th:action="@{/admin/curriculum/finalize}" method="post">
-                            <input type="hidden" name="curriculumId" th:value="${curriculumId}">
-                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Publish this curriculum as the current offering? The previous current offering for this program will move to Legacy.')">
-                                    <i class="ti ti-check" aria-hidden="true"></i> Publish &amp; Set Current
-                            </button>
-                        </form>
-                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.course_count > 0 and curriculum.lifecycle_status != 'CURRENT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                        <form th:if="${curriculum != null and curriculum.curriculum_id != null and curriculum.course_count > 0 and curriculum.lifecycle_status != 'CURRENT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                             <input type="hidden" name="targetStatus" value="CURRENT">
-                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Set this as the current offering for new/default enrollment? The existing current offering will move to Legacy.')">
+                            <button type="submit" class="btn btn-primary" style="padding: 0.4rem 0.8rem;" data-confirm="Set this as the current offering for new/default enrollment? The existing current offering will move to Legacy." data-confirm-title="Set current offering?" data-confirm-tone="warning">
                                 <i class="ti ti-star" aria-hidden="true"></i> Set Current
                             </button>
                         </form>
-                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'LEGACY' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                        <form th:if="${curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'LEGACY' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                             <input type="hidden" name="targetStatus" value="LEGACY">
-                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Mark this curriculum as Legacy? Legacy curricula remain assignable to returning/old-curriculum students.')">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" data-confirm="Mark this curriculum as Legacy? Legacy curricula remain assignable to returning/old-curriculum students." data-confirm-title="Mark as legacy?" data-confirm-tone="warning">
                                 <i class="ti ti-history" aria-hidden="true"></i> Mark Legacy
                             </button>
                         </form>
-                        <form th:if="${!curriculumEditable and curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'CURRENT' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
+                        <form th:if="${curriculum != null and curriculum.curriculum_id != null and curriculum.lifecycle_status != 'CURRENT' and curriculum.lifecycle_status != 'ARCHIVED'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
                             <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                             <input type="hidden" name="targetStatus" value="ARCHIVED">
-                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" onclick="return confirm('Archive this curriculum? Archived curricula are kept for records but should not be assigned to students.')">
+                            <button type="submit" class="btn btn-outline" style="padding: 0.4rem 0.8rem;" data-confirm="Archive this curriculum? Archived curricula are kept for records but should not be assigned to students." data-confirm-title="Archive curriculum?" data-confirm-tone="danger">
                                 <i class="ti ti-archive" aria-hidden="true"></i> Archive
                             </button>
                         </form>
@@ -814,11 +887,37 @@
                     </div>
                 </div>
                 <div th:if="${curriculumEditable}" class="draft-notice">
-                    <strong>Working draft:</strong> edits here are not used for current-offering class scheduling until you select <strong>Publish &amp; Set Current</strong>.
+                    <strong>Working draft:</strong> edits here stay inside the draft builder until you explicitly choose a lifecycle action such as <strong>Set Current</strong>, <strong>Mark Legacy</strong>, or <strong>Archive</strong>.
+                </div>
+                <div th:if="${curriculumEditable}" class="draft-meta-panel">
+                    <form th:action="@{/admin/curriculum/draft/update}" method="post" class="draft-meta-grid">
+                        <input type="hidden" name="curriculumId" th:value="${curriculumId}">
+                        <div>
+                            <label class="form-label">Target Program</label>
+                            <select name="targetProgramCode" class="form-control" required>
+                                <option th:each="p : ${programOptions}"
+                                        th:value="${p.program_code}"
+                                        th:text="${p.program_code + ' - ' + p.program_name}"
+                                        th:selected="${curriculum != null and curriculum.program_code == p.program_code}"></option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label">Curriculum Name</label>
+                            <input name="curriculumName" class="form-control" th:value="${curriculum != null ? curriculum.curriculum_name : ''}" required>
+                        </div>
+                        <div>
+                            <label class="form-label">Version</label>
+                            <input name="versionNumber" type="number" min="1" class="form-control" th:value="${curriculum != null ? curriculum.version_number : 1}">
+                        </div>
+                        <div>
+                            <label class="form-label">Academic Year</label>
+                            <input name="academicYear" class="form-control" placeholder="2026-2027" th:value="${curriculum != null ? curriculum.academic_year : ''}" required>
+                        </div>
+                        <button type="submit" class="btn btn-outline"><i class="ti ti-device-floppy"></i> Save Draft Details</button>
+                    </form>
                 </div>
                 <div th:if="${curriculumEditable}" class="editor-panel">
-                    <form th:action="@{/admin/curriculum/course/add}" method="post" class="editor-grid" id="courseAddForm"
-                          th:attr="data-manual-action=@{/admin/curriculum/course/add},data-existing-action=@{/admin/curriculum/course/add-existing}">
+                    <form th:action="@{/admin/curriculum/course/add-existing}" method="post" class="course-attach-form" id="courseAddForm">
                         <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                         <input type="hidden" name="courseId" id="selectedCourseId">
                         <div>
@@ -829,44 +928,40 @@
                             </select>
                         </div>
                         <div class="course-picker-wrap">
-                            <label class="form-label">Code</label>
-                            <input name="courseCode" id="courseCodeInput" class="form-control" required autocomplete="off" placeholder="Type to search">
+                            <label class="form-label">Catalog Course</label>
+                            <input id="courseCodeInput" class="form-control" required autocomplete="off" placeholder="Search code or title">
+                            <div class="course-browse-row">
+                                <label class="form-label" for="courseCatalogSelect">or browse</label>
+                                <select id="courseCatalogSelect" class="form-control">
+                                    <option value="">Select a catalog course</option>
+                                    <option th:each="course : ${catalogCourseOptions}"
+                                            th:value="${course.course_id}"
+                                            th:attr="data-code=${course.course_code},data-title=${course.course_title},data-units=${course.credit_units},data-department=${course.department_name}"
+                                            th:text="${course.course_code + ' - ' + course.course_title + ' (' + course.credit_units + ' units, ' + course.department_name + ')'}">Course</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="form-label">Title</label>
-                            <input name="courseTitle" id="courseTitleInput" class="form-control" required placeholder="Course title">
+                        <div class="course-placement-fields">
+                            <div>
+                                <label class="form-label">Year</label>
+                                <input name="yearLevel" type="number" min="1" max="6" class="form-control" value="1">
+                            </div>
+                            <div>
+                                <label class="form-label">Semester</label>
+                                <select name="semesterNumber" class="form-control">
+                                    <option value="1">1</option>
+                                    <option value="2">2</option>
+                                    <option value="3">Summer</option>
+                                </select>
+                            </div>
                         </div>
-                        <div>
-                            <label class="form-label">Lecture Units</label>
-                            <input name="lectureUnits" id="courseLectureUnitsInput" type="number" min="0" max="12" class="form-control" value="3">
-                        </div>
-                        <div>
-                            <label class="form-label">Laboratory Units</label>
-                            <input name="laboratoryUnits" id="courseLaboratoryUnitsInput" type="number" min="0" max="12" class="form-control" value="0">
-                        </div>
-                        <div>
-                            <label class="form-label">Year</label>
-                            <input name="yearLevel" type="number" min="1" max="6" class="form-control" value="1">
-                        </div>
-                        <div>
-                            <label class="form-label">Sem</label>
-                            <select name="semesterNumber" class="form-control">
-                                <option value="1">1</option>
-                                <option value="2">2</option>
-                                <option value="3">Summer</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="form-label">Prereq</label>
-                            <input name="prerequisites" class="form-control" placeholder="Optional">
-                        </div>
-                        <button type="submit" class="btn btn-primary"><i class="ti ti-plus"></i> Add</button>
+                        <button type="submit" class="btn btn-primary course-attach-action"><i class="ti ti-plus"></i> Attach Course</button>
                         <div id="selectedCoursePill" class="course-selected-pill">
-                            Existing catalog course selected. It will be attached without changing its catalog setup.
+                            Catalog course selected. It will be attached without changing its shared course setup.
                         </div>
                         <div id="courseSearchResults" class="course-results"></div>
                         <div class="course-picker-note">
-                            Search by code or title to reuse an existing course. If no match exists, leave it unselected and add a new manual course.
+                            Search by code or title to reuse an existing course. If the subject is missing, create it first in <a th:href="@{/admin/courses}">Course Catalog</a>. Structured prerequisite, corequisite, and equivalency links stay there too.
                         </div>
                     </form>
                 </div>
@@ -919,7 +1014,8 @@
                                             <th style="width: 8%; text-align: center;">Lec</th>
                                             <th style="width: 8%; text-align: center;">Lab</th>
                                             <th style="width: 9%; text-align: center;">Total</th>
-                                            <th style="width: 25%;">Prerequisites</th>
+                                            <th style="width: 18%;">Prerequisites</th>
+                                            <th style="width: 18%;">Corequisites</th>
                                             <th th:if="${curriculumEditable}" style="width: 20%;">Actions</th>
                                         </tr>
                                         </thead>
@@ -946,6 +1042,11 @@
                                                       th:style="${c.prerequisites != null && !c.prerequisites.equals('—')} ? 'color: #d97706; font-size: 0.85rem;' : 'color: var(--text-muted); font-size: 0.85rem;'">
                                                 </span>
                                             </td>
+                                            <td>
+                                                <span th:text="${c.corequisites != null ? c.corequisites : '—'}"
+                                                      th:style="${c.corequisites != null && !c.corequisites.equals('—')} ? 'color: #0f766e; font-size: 0.85rem;' : 'color: var(--text-muted); font-size: 0.85rem;'">
+                                                </span>
+                                            </td>
                                             <td th:if="${curriculumEditable}">
                                                 <form th:action="@{/admin/curriculum/course/update-placement}" method="post" class="placement-form">
                                                     <input type="hidden" name="curriculumId" th:value="${curriculumId}">
@@ -961,7 +1062,7 @@
                                                 <form th:action="@{/admin/curriculum/course/remove}" method="post" style="display: inline-flex; margin: .35rem 0 0 0;">
                                                     <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                                                     <input type="hidden" name="curriculumCourseId" th:value="${c.curriculum_course_id}">
-                                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;" onclick="return confirm('Remove this course row?')"><i class="ti ti-trash"></i></button>
+                                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;" data-confirm="Remove this course row?" data-confirm-title="Remove course row?" data-confirm-tone="danger"><i class="ti ti-trash"></i></button>
                                                 </form>
                                             </td>
                                         </tr>
@@ -983,7 +1084,8 @@
                             <th style="width: 8%; text-align: center;">Lec</th>
                             <th style="width: 8%; text-align: center;">Lab</th>
                             <th style="width: 9%; text-align: center;">Total</th>
-                            <th style="width: 25%;">Prerequisites</th>
+                            <th style="width: 18%;">Prerequisites</th>
+                            <th style="width: 18%;">Corequisites</th>
                             <th th:if="${curriculumEditable}" style="width: 20%;">Actions</th>
                         </tr>
                         </thead>
@@ -1010,6 +1112,11 @@
                                       th:style="${c.prerequisites != null && !c.prerequisites.equals('—')} ? 'color: #d97706; font-size: 0.85rem;' : 'color: var(--text-muted); font-size: 0.85rem;'">
                                 </span>
                             </td>
+                            <td>
+                                <span th:text="${c.corequisites != null ? c.corequisites : '—'}"
+                                      th:style="${c.corequisites != null && !c.corequisites.equals('—')} ? 'color: #0f766e; font-size: 0.85rem;' : 'color: var(--text-muted); font-size: 0.85rem;'">
+                                </span>
+                            </td>
                             <td th:if="${curriculumEditable}">
                                 <form th:action="@{/admin/curriculum/course/update-placement}" method="post" class="placement-form">
                                     <input type="hidden" name="curriculumId" th:value="${curriculumId}">
@@ -1025,12 +1132,12 @@
                                 <form th:action="@{/admin/curriculum/course/remove}" method="post" style="display: inline-flex; margin: .35rem 0 0 0;">
                                     <input type="hidden" name="curriculumId" th:value="${curriculumId}">
                                     <input type="hidden" name="curriculumCourseId" th:value="${c.curriculum_course_id}">
-                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;" onclick="return confirm('Remove this course row?')"><i class="ti ti-trash"></i></button>
+                                    <button type="submit" class="btn btn-outline" style="padding: .25rem .45rem;" data-confirm="Remove this course row?" data-confirm-title="Remove course row?" data-confirm-tone="danger"><i class="ti ti-trash"></i></button>
                                 </form>
                             </td>
                         </tr>
                         <tr th:if="${#lists.isEmpty(courses)}">
-                            <td th:colspan="${curriculumEditable ? 9 : 8}" style="text-align: center; color: var(--text-muted); padding: 3rem;">
+                            <td th:colspan="${curriculumEditable ? 10 : 9}" style="text-align: center; color: var(--text-muted); padding: 3rem;">
                                 No courses found for this curriculum.
                             </td>
                         </tr>
@@ -1083,30 +1190,30 @@
                                     <a th:if="${p.curriculum_id != null}" th:href="@{/admin/curriculum/export/{id}(id=${p.curriculum_id})}" class="btn btn-outline" style="padding: 0.35rem 0.65rem;">
                                         <i class="ti ti-download"></i> Export
                                     </a>
-                                    <form th:if="${p.curriculum_id != null}" th:action="@{/admin/curriculum/clone}" method="post">
-                                        <input type="hidden" name="sourceCurriculumId" th:value="${p.curriculum_id}">
-                                        <input type="hidden" name="academicYear" th:value="${p.academic_year}">
-                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="showSpinner('Cloning curriculum to draft...')">
-                                            <i class="ti ti-copy"></i> Clone
-                                        </button>
-                                    </form>
+                                    <button th:if="${p.curriculum_id != null}"
+                                            type="button"
+                                            class="btn btn-outline open-clone-modal"
+                                            style="padding: 0.35rem 0.65rem;"
+                                            th:attr="data-source-curriculum-id=${p.curriculum_id},data-source-program-code=${p.program_code},data-source-academic-year=${p.academic_year},data-source-curriculum-name=${p.curriculum_name},data-source-version-number=${p.version_number}">
+                                        <i class="ti ti-copy"></i> Clone as Draft
+                                    </button>
                                     <form th:if="${p.curriculum_id != null and p.course_count > 0 and p.lifecycle_status != 'CURRENT' and p.lifecycle_status != 'DRAFT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
                                         <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
                                         <input type="hidden" name="targetStatus" value="CURRENT">
-                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Set this as the current offering for new/default enrollment?')">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" data-confirm="Set this as the current offering for new/default enrollment?" data-confirm-title="Set current offering?" data-confirm-tone="warning">
                                             <i class="ti ti-star"></i> Set Current
                                         </button>
                                     </form>
                                     <form th:if="${p.curriculum_id != null and p.lifecycle_status == 'CURRENT'}" th:action="@{/admin/curriculum/lifecycle}" method="post">
                                         <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
                                         <input type="hidden" name="targetStatus" value="LEGACY">
-                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Mark this current offering as Legacy? Another current offering must already exist for this program.')">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" data-confirm="Mark this current offering as Legacy? Another current offering must already exist for this program." data-confirm-title="Mark as legacy?" data-confirm-tone="warning">
                                             <i class="ti ti-history"></i> Mark Legacy
                                         </button>
                                     </form>
                                     <form th:if="${p.curriculum_id != null and (p.lifecycle_status == 'DRAFT' or p.approval_status == 'Draft' or p.approval_status == 'Placeholder') and (p.is_active == 0 or p.course_count == 0)}" th:action="@{/admin/curriculum/delete-draft}" method="post">
                                         <input type="hidden" name="curriculumId" th:value="${p.curriculum_id}">
-                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" onclick="return confirm('Delete this draft curriculum?')">
+                                        <button type="submit" class="btn btn-outline" style="padding: 0.35rem 0.65rem;" data-confirm="Delete this draft curriculum?" data-confirm-title="Delete draft curriculum?" data-confirm-tone="danger">
                                             <i class="ti ti-trash"></i> Delete
                                         </button>
                                     </form>
@@ -1132,7 +1239,7 @@
     <div class="modal-dialog">
         <div class="modal-header">
             <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
-                <i class="ti ti-upload" style="color: var(--primary-color);"></i> Upload Curriculum File
+                <i class="ti ti-upload" style="color: var(--primary-color);"></i> Import Curriculum Draft
             </h4>
             <button class="btn btn-outline" style="border: none; padding: 0.5rem;" onclick="closeModal()">
                 <i class="ti ti-x" aria-hidden="true"></i>
@@ -1165,7 +1272,7 @@
                     <option value="School of Engineering and Technology">School of Engineering and Technology</option>
                     <option value="School of Hospitality and Tourism Management">School of Hospitality and Tourism Management</option>
                     <option value="School of Medical Technology">School of Medical Technology</option>
-                    <option value="School of Nutrition and Diabetics">School of Nutrition and Diabetics</option>
+                    <option value="School of Nutrition and Dietetics">School of Nutrition and Dietetics</option>
                     <option value="School of Pharmacy">School of Pharmacy</option>
                     <option value="School of Physical, Occupational, And Respiratory Therapy">School of Physical, Occupational, And Respiratory Therapy</option>
                     <option value="School of Radiologic Technology">School of Radiologic Technology</option>
@@ -1183,6 +1290,22 @@
                             th:text="${p.program_code + ' — ' + p.program_name}"></option>
                 </select>
             </div>
+
+            <div class="modal-grid">
+                <div class="span-2">
+                    <label class="form-label">Draft Curriculum Name</label>
+                    <input id="curriculumNameInput" class="form-control" placeholder="Optional override for the imported draft name">
+                </div>
+                <div>
+                    <label class="form-label">Academic Year</label>
+                    <input id="academicYearInput" class="form-control" placeholder="2026-2027">
+                </div>
+                <div>
+                    <label class="form-label">Version</label>
+                    <input id="versionNumberInput" type="number" min="1" class="form-control" value="1">
+                </div>
+            </div>
+            <div class="modal-note">Selecting a file parses it immediately and shows the preview below. Saving keeps the result as a draft and opens that draft in the builder.</div>
 
             <!-- Preview table (populated by AJAX) -->
             <div id="previewTable">
@@ -1207,19 +1330,67 @@
             </div>
         </div>
         <div class="modal-footer">
-            <button type="button" id="previewBtn" class="btn btn-outline" disabled onclick="runPreview()">
-                <i class="ti ti-eye" aria-hidden="true"></i> Preview
-            </button>
             <form th:action="@{/admin/curriculum/upload}" method="post" enctype="multipart/form-data" id="uploadForm" style="margin: 0;">
                 <input type="file" name="file" id="hiddenFileInput" style="display: none;" accept=".docx">
                 <input type="hidden" name="schoolName" id="hiddenSchoolName">
                 <input type="hidden" name="programCode" id="hiddenProgramCode">
+                <input type="hidden" name="curriculumName" id="hiddenCurriculumName">
+                <input type="hidden" name="academicYear" id="hiddenAcademicYear">
+                <input type="hidden" name="versionNumber" id="hiddenVersionNumber">
                 <button type="button" id="confirmSeedBtn" class="btn btn-primary" disabled onclick="confirmSeed()">
-                    <i class="ti ti-device-floppy" aria-hidden="true"></i> Confirm & Save
+                    <i class="ti ti-device-floppy" aria-hidden="true"></i> Save Draft
                 </button>
             </form>
             <button type="button" class="btn btn-outline" onclick="closeModal()">Cancel</button>
         </div>
+    </div>
+</div>
+
+<!-- Clone Modal -->
+<div id="cloneModal" class="modal">
+    <div class="modal-dialog">
+        <div class="modal-header">
+            <h4 style="margin: 0; font-weight: 700; color: var(--text-primary); display: flex; align-items: center; gap: 0.5rem;">
+                <i class="ti ti-copy" style="color: var(--primary-color);"></i> Clone as Draft
+            </h4>
+            <button class="btn btn-outline" style="border: none; padding: 0.5rem;" onclick="closeCloneModal()">
+                <i class="ti ti-x" aria-hidden="true"></i>
+            </button>
+        </div>
+        <form th:action="@{/admin/curriculum/clone}" method="post" id="cloneForm">
+            <div class="modal-body">
+                <input type="hidden" name="sourceCurriculumId" id="cloneSourceCurriculumId">
+                <div class="modal-grid" style="margin-top:0;">
+                    <div class="span-2">
+                        <label class="form-label">Target Program</label>
+                        <select name="targetProgramCode" id="cloneTargetProgramCode" class="form-control" required>
+                            <option th:each="p : ${programOptions}"
+                                    th:value="${p.program_code}"
+                                    th:text="${p.program_code + ' - ' + p.program_name}"></option>
+                        </select>
+                    </div>
+                    <div class="span-2">
+                        <label class="form-label">Draft Curriculum Name</label>
+                        <input name="curriculumName" id="cloneCurriculumName" class="form-control" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Academic Year</label>
+                        <input name="academicYear" id="cloneAcademicYear" class="form-control" placeholder="2026-2027" required>
+                    </div>
+                    <div>
+                        <label class="form-label">Version</label>
+                        <input name="versionNumber" id="cloneVersionNumber" type="number" min="1" class="form-control" value="1">
+                    </div>
+                </div>
+                <div class="modal-note">Cloning leaves the source untouched and creates a separate editable draft with the target program, year, and version you choose here.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="submit" class="btn btn-primary" onclick="showSpinner('Cloning curriculum to draft...')">
+                    <i class="ti ti-copy"></i> Create Draft Copy
+                </button>
+                <button type="button" class="btn btn-outline" onclick="closeCloneModal()">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -1234,6 +1405,10 @@
         document.getElementById('uploadModal').classList.remove('show');
     }
 
+    function closeCloneModal() {
+        document.getElementById('cloneModal').classList.remove('show');
+    }
+
     // Drop Zone Logic
     const dropZone = document.getElementById('dropZone');
     dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
@@ -1246,6 +1421,7 @@
     });
 
     let selectedFile = null;
+    let previewToken = 0;
 
     function handleFileSelected(input) {
         if (input.files.length) applyFile(input.files[0]);
@@ -1260,14 +1436,16 @@
         const fileInfo = document.getElementById('fileInfo');
         fileInfo.style.display = 'flex';
         document.getElementById('fileInfoText').textContent = file.name + '  (' + (file.size / 1024).toFixed(1) + ' KB)';
-        document.getElementById('previewBtn').disabled = false;
         document.getElementById('previewTable').style.display = 'none';
         document.getElementById('confirmSeedBtn').disabled = true;
+        runPreview();
     }
 
     async function runPreview() {
         if (!selectedFile) return;
-        const btn = document.getElementById('previewBtn');
+        const currentToken = ++previewToken;
+        const btn = { innerHTML: '', disabled: false };
+        document.getElementById('confirmSeedBtn').disabled = true;
         btn.innerHTML = '<i class="ti ti-loader ti-spin"></i> Parsing…';
         btn.disabled = true;
 
@@ -1284,6 +1462,7 @@
             });
             if (!resp.ok) throw new Error(await resp.text());
             const data = await resp.json();
+            if (currentToken !== previewToken) return;
 
             document.getElementById('previewCount').textContent = data.courseCount;
             const tbody = document.getElementById('previewBody');
@@ -1330,18 +1509,34 @@
         document.getElementById('hiddenFileInput').files = dt.files;
         document.getElementById('hiddenSchoolName').value = document.getElementById('schoolNameSelect').value;
         document.getElementById('hiddenProgramCode').value = programCode;
+        document.getElementById('hiddenCurriculumName').value = document.getElementById('curriculumNameInput').value.trim();
+        document.getElementById('hiddenAcademicYear').value = document.getElementById('academicYearInput').value.trim();
+        document.getElementById('hiddenVersionNumber').value = document.getElementById('versionNumberInput').value;
         showSpinner('Saving curriculum to database…');
         document.getElementById('uploadForm').submit();
     }
 
+    document.querySelectorAll('.open-clone-modal').forEach(button => {
+        button.addEventListener('click', () => {
+            const sourceProgramCode = button.dataset.sourceProgramCode || '';
+            const sourceAcademicYear = button.dataset.sourceAcademicYear || '';
+            document.getElementById('cloneSourceCurriculumId').value = button.dataset.sourceCurriculumId || '';
+            document.getElementById('cloneTargetProgramCode').value = sourceProgramCode;
+            document.getElementById('cloneAcademicYear').value = sourceAcademicYear;
+            document.getElementById('cloneVersionNumber').value = button.dataset.sourceVersionNumber || 1;
+            document.getElementById('cloneCurriculumName').value = sourceProgramCode
+                ? `${sourceProgramCode} Draft Copy ${sourceAcademicYear}`.trim()
+                : 'Draft Copy';
+            document.getElementById('cloneModal').classList.add('show');
+        });
+    });
+
     const courseAddForm = document.getElementById('courseAddForm');
     const courseCodeInput = document.getElementById('courseCodeInput');
-    const courseTitleInput = document.getElementById('courseTitleInput');
-    const courseLectureUnitsInput = document.getElementById('courseLectureUnitsInput');
-    const courseLaboratoryUnitsInput = document.getElementById('courseLaboratoryUnitsInput');
     const selectedCourseId = document.getElementById('selectedCourseId');
     const selectedCoursePill = document.getElementById('selectedCoursePill');
     const courseDepartmentFilter = document.getElementById('courseDepartmentFilter');
+    const courseCatalogSelect = document.getElementById('courseCatalogSelect');
     const courseSearchResults = document.getElementById('courseSearchResults');
     let courseSearchTimer = null;
 
@@ -1357,37 +1552,56 @@
     function clearSelectedCourse() {
         if (!selectedCourseId) return;
         selectedCourseId.value = '';
-        courseTitleInput.readOnly = false;
-        courseLectureUnitsInput.readOnly = false;
-        courseLaboratoryUnitsInput.readOnly = false;
         selectedCoursePill.classList.remove('active');
-        if (courseAddForm && courseAddForm.dataset.manualAction) {
-            courseAddForm.action = courseAddForm.dataset.manualAction;
+    }
+
+    function clearCatalogCourseOptions() {
+        if (!courseCatalogSelect) return;
+        courseCatalogSelect.innerHTML = '<option value="">Select a catalog course</option>';
+    }
+
+    function renderCatalogCourseOptions(courses) {
+        clearCatalogCourseOptions();
+        if (!courseCatalogSelect) return;
+        (courses || []).forEach(course => {
+            const option = document.createElement('option');
+            option.value = course.course_id;
+            option.dataset.code = course.course_code || '';
+            option.dataset.title = course.course_title || '';
+            option.dataset.units = course.credit_units || '';
+            option.dataset.department = course.department_name || 'catalog';
+            option.textContent = `${course.course_code} - ${course.course_title} (${course.credit_units} units, ${course.department_name || 'Unassigned'})`;
+            courseCatalogSelect.appendChild(option);
+        });
+    }
+
+    async function refreshCatalogCourseOptions() {
+        if (!courseCatalogSelect) return;
+        const departmentId = courseDepartmentFilter ? courseDepartmentFilter.value : '';
+        const params = new URLSearchParams();
+        if (departmentId) params.set('departmentId', departmentId);
+        try {
+            const response = await fetch(`${ctx}admin/curriculum/course-options?${params.toString()}`);
+            if (!response.ok) throw new Error('Browse failed');
+            renderCatalogCourseOptions(await response.json());
+        } catch (err) {
+            clearCatalogCourseOptions();
         }
     }
 
     function pickExistingCourse(course) {
         selectedCourseId.value = course.course_id;
         courseCodeInput.value = course.course_code || '';
-        courseTitleInput.value = course.course_title || '';
-        courseLectureUnitsInput.value = course.lec_units ?? course.credit_units ?? 3;
-        courseLaboratoryUnitsInput.value = course.lab_units ?? 0;
-        courseTitleInput.readOnly = true;
-        courseLectureUnitsInput.readOnly = true;
-        courseLaboratoryUnitsInput.readOnly = true;
-        selectedCoursePill.textContent = `${course.course_code} selected from ${course.department_name || 'catalog'}. It will be attached without changing catalog details.`;
+        selectedCoursePill.textContent = `${course.course_code} - ${course.course_title} selected from ${course.department_name || 'catalog'}.`;
         selectedCoursePill.classList.add('active');
         courseSearchResults.classList.remove('active');
         courseSearchResults.innerHTML = '';
-        if (courseAddForm && courseAddForm.dataset.existingAction) {
-            courseAddForm.action = courseAddForm.dataset.existingAction;
-        }
     }
 
     function renderCourseResults(courses) {
         if (!courseSearchResults) return;
         if (!courses || courses.length === 0) {
-            courseSearchResults.innerHTML = '<div class="course-result-empty">No matching catalog course. You can still add this as a new manual course.</div>';
+            courseSearchResults.innerHTML = '<div class="course-result-empty">No matching catalog course. Create the subject in Course Catalog first, then return here to attach it.</div>';
             courseSearchResults.classList.add('active');
             return;
         }
@@ -1422,7 +1636,7 @@
             if (!response.ok) throw new Error('Search failed');
             renderCourseResults(await response.json());
         } catch (err) {
-            courseSearchResults.innerHTML = '<div class="course-result-empty">Course search is unavailable right now. You can still add manually.</div>';
+            courseSearchResults.innerHTML = '<div class="course-result-empty">Course search is unavailable right now. Retry in a moment or open Course Catalog first.</div>';
             courseSearchResults.classList.add('active');
         }
     }
@@ -1441,14 +1655,32 @@
     if (courseDepartmentFilter) {
         courseDepartmentFilter.addEventListener('change', () => {
             clearSelectedCourse();
+            refreshCatalogCourseOptions();
             searchCourses();
         });
     }
+    if (courseCatalogSelect) {
+        courseCatalogSelect.addEventListener('change', () => {
+            const option = courseCatalogSelect.options[courseCatalogSelect.selectedIndex];
+            if (!option || !option.value) {
+                clearSelectedCourse();
+                return;
+            }
+            pickExistingCourse({
+                course_id: option.value,
+                course_code: option.dataset.code,
+                course_title: option.dataset.title,
+                credit_units: option.dataset.units,
+                department_name: option.dataset.department
+            });
+        });
+    }
     if (courseAddForm) {
-        courseAddForm.addEventListener('submit', () => {
-            courseAddForm.action = selectedCourseId && selectedCourseId.value
-                ? courseAddForm.dataset.existingAction
-                : courseAddForm.dataset.manualAction;
+        courseAddForm.addEventListener('submit', event => {
+            if (!selectedCourseId || !selectedCourseId.value) {
+                event.preventDefault();
+                alert('Select an existing Course Catalog subject before attaching it to this draft.');
+            }
         });
     }
     document.addEventListener('click', event => {

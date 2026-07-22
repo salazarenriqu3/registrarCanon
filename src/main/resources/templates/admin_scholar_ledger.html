@@ -26,7 +26,7 @@
 
             <!-- Search Bar -->
             <div class="card" style="margin-bottom: 2rem; padding: 1.5rem;">
-                <form th:action="@{/admin/scholar-ledger}" method="GET" style="display: flex; gap: 1rem; align-items: flex-end;">
+                <form th:action="@{/admin/scholar-ledger}" method="GET" class="ledger-search-form">
                     <div style="flex: 1;">
                         <label style="font-size: 0.8rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.5rem; display: block;">Search Records</label>
                         <input type="text" name="keyword" class="form-control" placeholder="Student Number or Surname..." th:value="${keyword}" required>
@@ -48,7 +48,7 @@
                 
                 <!-- Profile Summary -->
                 <div class="card" style="margin-bottom: 2rem; border-left: 4px solid var(--primary-color);">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; padding: 1.5rem;">
+                    <div class="ledger-summary-grid">
                         <div>
                             <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; display: block; margin-bottom: 0.25rem;">Student Name</label>
                             <span style="font-size: 1.1rem; font-weight: 600; color: var(--text-primary);" th:text="${student.real_name}"></span>
@@ -76,10 +76,10 @@
                     </div>
                 </div>
 
-                <div style="display: grid; grid-template-columns: 1.5fr 1fr; gap: 1.5rem; align-items: start;">
+                <div class="ledger-layout">
                     
                     <!-- Left Column: Transaction History & Payments -->
-                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div class="ledger-column">
                         
                         <!-- Transaction History -->
                         <div class="card" style="border-left: 4px solid var(--text-muted);">
@@ -87,7 +87,7 @@
                                 <h5 class="card-title" style="margin: 0; color: var(--text-primary);"><i class="ti ti-list-details" aria-hidden="true" style="color: var(--text-muted);"></i> Transaction History</h5>
                                 <span class="status-badge inactive" style="font-family: monospace;">Total Records: <span th:text="${#lists.size(rawLedger)}"></span></span>
                             </div>
-                            <div style="max-height: 400px; overflow-y: auto;">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
                                 <table class="table-eac" style="margin: 0;">
                                     <thead style="position: sticky; top: 0; background: var(--bg-tertiary); z-index: 1;">
                                         <tr>
@@ -101,7 +101,7 @@
                                     <tbody>
                                         <tr th:if="${#lists.isEmpty(rawLedger)}"><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">No transaction history found.</td></tr>
                                         <tr th:each="row : ${rawLedger}">
-                                            <td style="font-size: 0.85rem;" th:text="${#calendars.format(row.transaction_date, 'MMM dd, yyyy hh:mm a')}"></td>
+                                            <td style="font-size: 0.85rem;" th:text="${#dates.format(row.transaction_date, 'MMM dd, yyyy hh:mm a')}"></td>
                                             <td style="font-weight: 600; font-size: 0.85rem; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" th:title="${row.description}" th:text="${row.description}"></td>
                                             <td style="text-align: right; color: #DC2626; font-size: 0.85rem; font-family: monospace;" th:text="${row.debit != null and row.debit > 0 ? #numbers.formatDecimal(row.debit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
                                             <td style="text-align: right; color: var(--success-color); font-weight: 600; font-size: 0.85rem; font-family: monospace;" th:text="${row.credit != null and row.credit > 0 ? #numbers.formatDecimal(row.credit, 1, 'COMMA', 2, 'POINT') : '-'}"></td>
@@ -119,7 +119,7 @@
                                 <span class="status-badge enrolled" style="font-family: monospace;">Total Records: <span th:text="${#lists.size(paymentHistory)}"></span></span>
                             </div>
                             
-                            <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: var(--radius-md); margin: 0 1.5rem 1rem 1.5rem; display: flex; gap: 1rem; align-items: flex-end;">
+                            <div class="ledger-filter-bar">
                                 <div>
                                     <label style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 0.25rem; display: block;">Payment Type</label>
                                     <select id="filterType" class="form-control" style="font-size: 0.85rem; padding: 0.4rem;" onchange="filterPayments()">
@@ -139,7 +139,7 @@
                                 </div>
                             </div>
 
-                            <div style="max-height: 400px; overflow-y: auto; border-top: 1px solid var(--border-color);">
+                            <div class="table-responsive" style="max-height: 400px; overflow-y: auto; border-top: 1px solid var(--border-color);">
                                 <table class="table-eac" id="paymentTable" style="margin: 0;">
                                     <thead style="position: sticky; top: 0; background: var(--bg-tertiary); z-index: 1;">
                                         <tr>
@@ -152,11 +152,11 @@
                                     </thead>
                                     <tbody>
                                         <tr th:if="${#lists.isEmpty(paymentHistory)}"><td colspan="5" style="text-align: center; padding: 2rem; color: var(--text-muted);">No payment records found.</td></tr>
-                                        <tr th:each="p : ${paymentHistory}" class="payment-row" th:data-type="${p['REMARKS'] != null ? p['REMARKS'] : 'Tuition Fee'}" th:data-date="${#temporals.format(p['PAYMENT_DATE'], 'yyyy-MM-dd')}">
+                                        <tr th:each="p : ${paymentHistory}" class="payment-row" th:data-type="${p['REMARKS'] != null ? p['REMARKS'] : 'Tuition Fee'}" th:data-date="${#dates.format(p['PAYMENT_DATE'], 'yyyy-MM-dd')}">
                                             <td style="font-size: 0.85rem;" th:text="${p['REMARKS'] != null ? p['REMARKS'] : 'Tuition Fee'}"></td>
                                             <td style="font-family: monospace; font-weight: 700; color: var(--primary-color); font-size: 0.9rem;" th:text="${p['OR_NUMBER']}"></td>
                                             <td style="text-align: right; color: var(--success-color); font-weight: 700; font-size: 0.9rem; font-family: monospace;" th:text="${'₱ ' + #numbers.formatDecimal(p['AMOUNT'], 1, 'COMMA', 2, 'POINT')}"></td>
-                                            <td style="font-size: 0.85rem;" th:text="${#temporals.format(p['PAYMENT_DATE'], 'MMM dd, yyyy hh:mm a')}"></td>
+                                            <td style="font-size: 0.85rem;" th:text="${#dates.format(p['PAYMENT_DATE'], 'MMM dd, yyyy hh:mm a')}"></td>
                                             <td style="text-align: center; color: var(--text-muted); font-size: 0.75rem; font-family: monospace;" th:text="${p['TRANSACTION_ID']}"></td>
                                         </tr>
                                     </tbody>
@@ -166,12 +166,12 @@
                     </div>
 
                     <!-- Right Column: Academic Load -->
-                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                    <div class="ledger-column">
                         <div class="card" style="border-left: 4px solid #3B82F6;">
                             <div class="card-header">
                                 <h5 class="card-title" style="margin: 0; color: #3B82F6;"><i class="ti ti-book" aria-hidden="true"></i> Current Academic Load</h5>
                             </div>
-                            <div style="max-height: 500px; overflow-y: auto;">
+                            <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                                 <table class="table-eac" style="margin: 0;">
                                     <thead style="position: sticky; top: 0; background: var(--bg-tertiary); z-index: 1;">
                                         <tr>
@@ -233,6 +233,87 @@
         filterPayments();
     }
 </script>
+
+<style>
+    .ledger-search-form {
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+    }
+
+    .ledger-layout {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 1.5rem;
+        align-items: start;
+    }
+
+    .ledger-column {
+        display: flex;
+        flex-direction: column;
+        gap: 1.5rem;
+        min-width: 0;
+    }
+
+    .ledger-filter-bar {
+        background: var(--bg-tertiary);
+        padding: 1rem;
+        border-radius: var(--radius-md);
+        margin: 0 1.5rem 1rem 1.5rem;
+        display: flex;
+        gap: 1rem;
+        align-items: flex-end;
+        flex-wrap: wrap;
+    }
+
+    .ledger-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+        padding: 1.5rem;
+    }
+
+    @media (max-width: 920px) {
+        .ledger-layout {
+            grid-template-columns: 1fr;
+        }
+
+        .ledger-column {
+            order: initial;
+        }
+
+        .ledger-search-form {
+            flex-direction: column;
+            align-items: stretch;
+        }
+
+        .ledger-filter-bar {
+            margin: 0 1rem 1rem 1rem;
+            align-items: stretch;
+        }
+
+        .ledger-filter-bar > div {
+            width: 100%;
+        }
+    }
+
+    @media (max-width: 720px) {
+        .ledger-summary-grid {
+            grid-template-columns: 1fr;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        .ledger-search-form {
+            gap: 0.75rem;
+        }
+
+        .ledger-filter-bar {
+            margin: 0 1rem 1rem 1rem;
+            padding: 0.9rem;
+        }
+    }
+</style>
 
 </body>
 </html>

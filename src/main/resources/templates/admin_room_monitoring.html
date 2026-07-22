@@ -4,13 +4,28 @@
     <title>Room Monitoring - EAC Registrar</title>
     <th:block th:replace="~{fragments/layout :: head}"></th:block>
     <style>
+        .room-page-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+            gap:1rem;
+            flex-wrap:wrap;
+            margin-bottom:1rem;
+        }
+        .room-actions {
+            display:flex;
+            gap:.5rem;
+            flex-wrap:wrap;
+        }
         .stats-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); gap:1rem; margin-bottom:1.5rem; }
         .stat-card { background:white; border:1px solid var(--border-color); border-radius:var(--radius-lg); padding:1rem; }
         .stat-value { font-size:1.6rem; font-weight:800; }
         .stat-label { color:var(--text-muted); font-size:.75rem; font-weight:700; text-transform:uppercase; }
         .filter-row { display:flex; gap:.8rem; flex-wrap:wrap; align-items:flex-end; margin-bottom:1rem; }
+        .filter-row > div { min-width:180px; }
         .hint-box { margin-bottom:1.5rem; color:var(--text-muted); background:var(--bg-tertiary); border:1px solid var(--border-color); border-radius:var(--radius-md); padding:.8rem 1rem; font-size:.88rem; }
         .split-grid { display:grid; grid-template-columns:minmax(320px, 0.9fr) minmax(420px, 1.1fr); gap:1rem; align-items:start; }
+        .room-table-wrap { overflow-x:auto; }
         .meter { height:8px; background:var(--bg-tertiary); border-radius:99px; overflow:hidden; min-width:90px; }
         .meter-fill { display:block; height:100%; background:var(--primary-color); border-radius:99px; }
         .room-code { font-weight:800; color:var(--text-primary); }
@@ -43,6 +58,17 @@
         .modal-body { padding:1rem 1.1rem; display:grid; gap:.8rem; }
         .modal-footer { border-top:1px solid var(--border-color); display:flex; justify-content:flex-end; gap:.5rem; }
         @media (max-width: 1100px) { .split-grid { grid-template-columns:1fr; } }
+        @media (max-width: 720px) {
+            .room-page-header { align-items:flex-start; }
+            .room-actions { width:100%; }
+            .room-actions .btn { width:100%; justify-content:center; }
+            .filter-row { flex-direction:column; align-items:stretch; }
+            .filter-row > div,
+            .filter-row .btn { width:100%; }
+            .stats-grid { grid-template-columns:1fr; }
+            .room-table-wrap table { min-width:860px; }
+            .modal-dialog { width: calc(100vw - 1rem); }
+        }
     </style>
 </head>
 <body>
@@ -58,12 +84,12 @@
                 <span>Academics</span><i class="ti ti-chevron-right" aria-hidden="true"></i><span>Room Monitoring</span>
             </div>
 
-            <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+            <div class="room-page-header">
                 <div>
                     <h1 class="page-title">Room Monitoring</h1>
                     <p class="page-subtitle">Room assignments, room conflicts, and schedule completeness for the selected term.</p>
                 </div>
-                <div style="display:flex;gap:.5rem;flex-wrap:wrap;">
+                <div class="room-actions">
                     <button type="button" class="btn btn-primary" onclick="openRoomModal()">
                         <i class="ti ti-plus"></i> Add Room
                     </button>
@@ -81,7 +107,7 @@
                 missing room assignments, and room overlaps that would make a schedule impossible to run.
             </div>
 
-            <div class="stats-grid">
+            <div class="stats-grid" th:if="${hasRoomProgramFilter}">
                 <div class="stat-card"><div class="stat-value" th:text="${summary.total_rooms}">0</div><div class="stat-label">Active Rooms</div></div>
                 <div class="stat-card"><div class="stat-value" th:text="${summary.used_rooms}">0</div><div class="stat-label">Used Rooms</div></div>
                 <div class="stat-card"><div class="stat-value" th:text="${summary.conflict_rooms}">0</div><div class="stat-label">Conflict Rooms</div></div>
@@ -90,38 +116,57 @@
                 <div class="stat-card"><div class="stat-value" th:text="${summary.sections_without_faculty}">0</div><div class="stat-label">No Faculty</div></div>
             </div>
 
-            <form th:action="@{/admin/room-monitoring}" method="get" class="filter-row">
-                <div><label class="form-label">Term</label>
-                    <select name="termId" class="form-control" onchange="this.form.submit()">
-                        <option th:each="t : ${terms}" th:value="${t.term_id}" th:text="${t.term_name}" th:selected="${t.term_id == termId}"></option>
-                    </select>
-                </div>
-                <div><label class="form-label">Search room</label><input name="search" class="form-control" th:value="${search}" placeholder="Room or building"></div>
-                <div><label class="form-label">Building</label>
-                    <select name="building" class="form-control">
-                        <option value="">All buildings</option>
-                        <option th:each="b : ${buildings}" th:value="${b}" th:text="${b}" th:selected="${b == building}"></option>
-                    </select>
-                </div>
-                <div><label class="form-label">Room type</label>
-                    <select name="roomType" class="form-control">
-                        <option value="">All types</option>
-                        <option th:each="t : ${roomTypes}" th:value="${t}" th:text="${t}" th:selected="${t == roomType}"></option>
-                    </select>
-                </div>
-                <button type="submit" class="btn btn-primary">Apply</button>
-                <a th:href="@{/admin/room-monitoring(termId=${termId})}" class="btn btn-outline">Reset</a>
-            </form>
+            <div class="card" style="padding:1rem; margin-bottom:1rem;">
+                <form th:action="@{/admin/room-monitoring}" method="get" class="filter-row" style="margin-bottom:0;">
+                    <input type="hidden" name="page" value="1">
+                    <div><label class="form-label">Term</label>
+                        <select name="termId" class="form-control" onchange="this.form.submit()">
+                            <option th:each="t : ${terms}" th:value="${t.term_id}" th:text="${t.term_name}" th:selected="${t.term_id == termId}"></option>
+                        </select>
+                    </div>
+                    <div><label class="form-label">Program</label>
+                        <select name="programCode" class="form-control" onchange="this.form.submit()">
+                            <option value="">Select program</option>
+                            <option th:each="p : ${roomProgramOptions}"
+                                    th:value="${p.program_code}"
+                                    th:text="${p.program_code + ' - ' + p.program_name}"
+                                    th:selected="${programCode == p.program_code}"></option>
+                        </select>
+                    </div>
+                    <div th:if="${hasRoomProgramFilter}"><label class="form-label">Search room</label><input name="search" class="form-control" th:value="${search}" placeholder="Room or building"></div>
+                    <div th:if="${hasRoomProgramFilter}"><label class="form-label">Building</label>
+                        <select name="building" class="form-control">
+                            <option value="">All buildings</option>
+                            <option th:each="b : ${buildings}" th:value="${b}" th:text="${b}" th:selected="${b == building}"></option>
+                        </select>
+                    </div>
+                    <div th:if="${hasRoomProgramFilter}"><label class="form-label">Room type</label>
+                        <select name="roomType" class="form-control">
+                            <option value="">All types</option>
+                            <option th:each="t : ${roomTypes}" th:value="${t}" th:text="${t}" th:selected="${t == roomType}"></option>
+                        </select>
+                    </div>
+                    <div th:if="${hasRoomProgramFilter}"><label class="form-label">Rows</label><select name="size" class="form-control">
+                        <option value="25" th:selected="${pageSize == 25}">25</option>
+                        <option value="50" th:selected="${pageSize == 50}">50</option>
+                        <option value="100" th:selected="${pageSize == 100}">100</option>
+                    </select></div>
+                    <button type="submit" class="btn btn-primary" th:if="${hasRoomProgramFilter}">Apply</button>
+                    <a th:href="@{/admin/room-monitoring(termId=${termId})}" class="btn btn-outline"
+                       th:if="${hasRoomProgramFilter or (search != null and !#strings.isEmpty(search))}">Clear</a>
+                </form>
+            </div>
 
-            <div class="split-grid">
+            <div th:if="${hasRoomProgramFilter}" class="split-grid">
                 <section class="card" style="padding:0;overflow:hidden;">
                     <div style="padding:.85rem 1rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;gap:.75rem;align-items:center;">
                         <div>
                             <h2 style="margin:0;font-size:1rem;">Room Inventory</h2>
                             <small style="color:var(--text-muted);">Click a room to isolate its schedule rows.</small>
                         </div>
-                        <span style="color:var(--text-muted);font-size:.8rem;" th:text="${#lists.size(rooms)} + ' rooms'">0 rooms</span>
+                        <span style="color:var(--text-muted);font-size:.8rem;" th:text="${totalRows} + ' rooms'">0 rooms</span>
                     </div>
+                    <div class="room-table-wrap">
                     <table class="table-eac" style="margin:0;">
                         <thead>
                         <tr><th>Room</th><th>Load</th><th>Status</th><th></th></tr>
@@ -146,22 +191,34 @@
                                 <div th:if="${r.conflict_count > 0}" class="room-meta" th:text="${r.conflict_count + ' overlap(s)'}">0 overlap(s)</div>
                             </td>
                             <td style="text-align:right;">
-                                <a th:href="@{/admin/room-monitoring(termId=${termId}, roomId=${r.room_id}, search=${search}, building=${building}, roomType=${roomType})}" class="btn btn-outline" style="padding:.25rem .5rem;">View</a>
+                                <a th:href="@{/admin/room-monitoring(termId=${termId}, programCode=${programCode}, roomId=${r.room_id}, search=${search}, building=${building}, roomType=${roomType})}" class="btn btn-outline" style="padding:.25rem .5rem;">View</a>
                             </td>
                         </tr>
                         <tr th:if="${#lists.isEmpty(rooms)}"><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted);">No active rooms match the filters.</td></tr>
                         </tbody>
                     </table>
+                    </div>
+                    <div th:if="${totalRows > 0}" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;padding:.75rem 1rem;color:var(--text-muted);font-size:.82rem;">
+                        <span th:text="|Showing ${pageStart}-${pageEnd} of ${totalRows} rooms|">Showing 1-50 of 50 rooms</span>
+                        <div style="display:flex;gap:.5rem;align-items:center;">
+                            <a class="btn btn-outline" th:style="${page == 1} ? 'opacity:.45;pointer-events:none;'"
+                               th:href="@{/admin/room-monitoring(termId=${termId},programCode=${programCode},search=${search},building=${building},roomType=${roomType},page=${page - 1},size=${pageSize})}">Previous</a>
+                            <span th:text="|Page ${page} of ${totalPages}|">Page 1 of 1</span>
+                            <a class="btn btn-outline" th:style="${page >= totalPages} ? 'opacity:.45;pointer-events:none;'"
+                               th:href="@{/admin/room-monitoring(termId=${termId},programCode=${programCode},search=${search},building=${building},roomType=${roomType},page=${page + 1},size=${pageSize})}">Next</a>
+                        </div>
+                    </div>
                 </section>
 
                 <section class="card" style="padding:0;overflow:hidden;">
                     <div style="padding:.85rem 1rem;border-bottom:1px solid var(--border-color);display:flex;justify-content:space-between;gap:.75rem;align-items:center;">
                         <div>
                             <h2 style="margin:0;font-size:1rem;">Room Schedule Rows</h2>
-                            <small style="color:var(--text-muted);" th:text="${selectedRoomId != null ? 'Filtered to one room.' : 'Showing all room-assigned schedules.'}">Showing all room schedules.</small>
+                            <small style="color:var(--text-muted);" th:text="${selectedRoomId != null ? 'Filtered to one room.' : 'Select a room to load its schedules.'}">Select a room to load schedules.</small>
                         </div>
-                        <a th:if="${selectedRoomId != null}" th:href="@{/admin/room-monitoring(termId=${termId}, search=${search}, building=${building}, roomType=${roomType})}" class="btn btn-outline" style="padding:.3rem .6rem;">Clear room</a>
+                        <a th:if="${selectedRoomId != null}" th:href="@{/admin/room-monitoring(termId=${termId}, programCode=${programCode}, search=${search}, building=${building}, roomType=${roomType})}" class="btn btn-outline" style="padding:.3rem .6rem;">Clear room</a>
                     </div>
+                    <div class="room-table-wrap">
                     <table class="table-eac" style="margin:0;">
                         <thead>
                         <tr><th>Room</th><th>Schedule</th><th>Class</th><th>Faculty</th></tr>
@@ -185,14 +242,16 @@
                         <tr th:if="${#lists.isEmpty(roomSchedules)}"><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted);">No room-assigned schedules for this filter.</td></tr>
                         </tbody>
                     </table>
+                    </div>
                 </section>
             </div>
 
-            <section class="card" style="padding:0;overflow:hidden;margin-top:1rem;">
+            <section class="card" th:if="${loadRoomDiagnostics}" style="padding:0;overflow:hidden;margin-top:1rem;">
                 <div style="padding:.85rem 1rem;border-bottom:1px solid var(--border-color);">
                     <h2 style="margin:0;font-size:1rem;">Scheduling Exceptions</h2>
                     <small style="color:var(--text-muted);">These rows must be cleared before a no-TBA demo or production-ready schedule review.</small>
                 </div>
+                <div class="room-table-wrap">
                 <table class="table-eac" style="margin:0;">
                     <thead><tr><th>Issue</th><th>Section</th><th>Course</th><th>Action</th></tr></thead>
                     <tbody>
@@ -210,6 +269,7 @@
                     <tr th:if="${#lists.isEmpty(incompleteSchedules)}"><td colspan="4" style="text-align:center;padding:2rem;color:var(--text-muted);">No scheduling completeness exceptions for this term.</td></tr>
                     </tbody>
                 </table>
+                </div>
             </section>
         </main>
     </div>
@@ -228,6 +288,7 @@
             <div class="modal-body">
                 <input type="hidden" name="termId" th:value="${termId}">
                 <input type="hidden" name="search" th:value="${search}">
+                <input type="hidden" name="programCode" th:value="${programCode}">
                 <input type="hidden" name="building" th:value="${building}">
                 <input type="hidden" name="roomFilterType" th:value="${roomType}">
                 <div>

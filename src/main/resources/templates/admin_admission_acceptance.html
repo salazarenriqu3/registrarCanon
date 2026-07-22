@@ -393,7 +393,9 @@
                                 <div>
                                     <button type="submit" class="btn btn-primary" style="height: 42px; min-width: 120px;"
                                             th:disabled="${applicant.applicant_status == 'ENROLLED' or !isIrregularApplicant or applicant.has_existing_student_number == true or preRegReady != true}"
-                                            onclick="return confirm('Validate this irregular applicant handoff after Dean / Faculty pre-registration?')">
+                                            data-confirm="Validate this irregular applicant handoff after Dean / Faculty pre-registration?"
+                                            data-confirm-title="Validate applicant handoff?"
+                                            data-confirm-tone="warning">
                                         <i class="ti ti-user-check" aria-hidden="true"></i> Validate Handoff
                                     </button>
                                 </div>

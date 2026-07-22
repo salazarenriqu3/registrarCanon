@@ -142,7 +142,7 @@
                         <div class="alert alert-warning" style="margin-bottom: 1.5rem;">
                             <i class="ti ti-alert-triangle"></i> Updating the global term <strong>advances all eligible students</strong> (ENROLLED, ADMITTED, or ACTIVE) to the next semester/year. Unpaid balances from the closing term are rolled into <strong>FORWARDED_BALANCE</strong> on the ledger. Students with forwarded debt at or above the configured threshold (<strong>&#8369;<span th:text="${settings.get('ACCOUNTING_BLOCK_THRESHOLD')}">100.00</span></strong>) are blocked from <em>new enlistment</em> until Cashier posts payment - they are <strong>not</strong> left on the previous term. <strong>This action cannot be undone.</strong>
                         </div>
-                        <form th:action="@{/admin/update-global-term}" method="post" onsubmit="return confirm('WARNING: Are you sure you want to transition the entire student body to the new term? This will clear current subject loads and require students to enroll anew.');" style="margin: 0;">
+                        <form th:action="@{/admin/update-global-term}" method="post" data-confirm="WARNING: Are you sure you want to transition the entire student body to the new term? This will clear current subject loads and require students to enroll anew." data-confirm-title="Transition global term?" data-confirm-tone="danger" style="margin: 0;">
                             <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-start;">
                                 <div style="flex: 1; min-width: 300px;">
                                     <select id="newTermCodeSelect" name="newTermCode" class="form-control" style="border-color: var(--warning-color); border-width: 2px;" required>
@@ -230,10 +230,22 @@
                                     Admission fee, downpayment, accounting block, installment schedules, and enrollment rules are managed on
                                     <a th:href="@{/admin/finance-policy}">Finance &amp; Accounting Policy</a>.
                                 </div>
-                                <div style="max-width: 320px;">
-                                    <label class="form-label">INC Expiration Date</label>
-                                    <input type="date" name="INC_EXPIRATION_DATE" class="form-control" th:value="${settings.get('INC_EXPIRATION_DATE')}">
-                                    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;" th:text="${settings.get('INC_EXPIRATION_SOURCE') == 'TERM'} ? 'Set for this term.' : 'Fallback: finals end date plus one year.'"></div>
+                                <div class="alert alert-warning" style="margin-bottom: 1.25rem;">
+                                    <i class="ti ti-alert-triangle"></i>
+                                    Subject dropping uses the Midterm End date in the grading window matrix below. The legacy midterm exam date field is kept for migration only.
+                                    Flat subject-drop and shift-cleanup fee knobs now live on <a th:href="@{/admin/finance-policy}">Finance &amp; Accounting Policy</a>.
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+                                    <div style="max-width: 320px;">
+                                        <label class="form-label">Subject Drop Allowed Until / Midterm Exam Date</label>
+                                        <input type="date" name="MIDTERM_EXAM_DATE" class="form-control" th:value="${settings.get('MIDTERM_EXAM_DATE')}">
+                                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;" th:text="${settings.get('MIDTERM_EXAM_DATE_SOURCE') == 'TERM'} ? 'Legacy transitional date saved for this term.' : 'Legacy transitional date is not configured for this term.'"></div>
+                                    </div>
+                                    <div style="max-width: 320px;">
+                                        <label class="form-label">INC Expiration Date</label>
+                                        <input type="date" name="INC_EXPIRATION_DATE" class="form-control" th:value="${settings.get('INC_EXPIRATION_DATE')}">
+                                        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;" th:text="${settings.get('INC_EXPIRATION_SOURCE') == 'TERM'} ? 'Set for this term.' : 'Fallback: finals end date plus one year.'"></div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -289,7 +301,7 @@
                             </div>
 
                             <div style="display: flex; justify-content: flex-end; gap: 1rem; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
-                                <button type="submit" class="btn btn-outline" style="color: var(--danger-color); border-color: rgba(220, 38, 38, 0.2);" th:formaction="@{/admin/expire-inc}" formmethod="post" onclick="return confirm('Expire overdue INC grades for the selected term? This will mark due INC grades as Failed.');">
+                                <button type="submit" class="btn btn-outline" style="color: var(--danger-color); border-color: rgba(220, 38, 38, 0.2);" th:formaction="@{/admin/expire-inc}" formmethod="post" data-confirm="Expire overdue INC grades for the selected term? This will mark due INC grades as Failed." data-confirm-title="Expire INC grades?" data-confirm-tone="danger">
                                     <i class="ti ti-hourglass-empty" aria-hidden="true"></i> Expire Due INCs
                                 </button>
                                 <button type="submit" class="btn btn-primary"><i class="ti ti-device-floppy" aria-hidden="true"></i> Save Matrix Configurations</button>

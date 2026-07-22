@@ -26,60 +26,330 @@
             <div class="school-sub">Registrar Portal</div>
         </div>
     </div>
-    <div class="topbar-right">
-        <form id="globalSearchForm" onsubmit="handleGlobalSearch(event)" style="display:inline-block; margin-right: 1rem; position: relative;">
-            <input type="text" id="globalSearchInput" placeholder="Search features..." style="padding: 0.35rem 0.75rem; border-radius: 4px; border: 1px solid var(--border-color); background: var(--surface-color); color: var(--text-color); font-size: 0.85rem;" />
-            <button type="submit" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text-muted);">
-                <i class="ti ti-search" aria-hidden="true" style="font-size: 1rem;"></i>
+<!-- SHARED CONFIRMATION MODAL -->
+<div id="registrarConfirmModal" class="confirm-modal" hidden aria-hidden="true">
+    <div class="confirm-modal__backdrop" data-confirm-cancel></div>
+    <div class="confirm-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="registrarConfirmTitle" aria-describedby="registrarConfirmMessage">
+        <div class="confirm-modal__header">
+            <div class="confirm-modal__icon" aria-hidden="true">
+                <i class="ti ti-alert-triangle"></i>
+            </div>
+            <div>
+                <div class="confirm-modal__eyebrow">Registrar confirmation</div>
+                <h3 id="registrarConfirmTitle" class="confirm-modal__title">Confirm action</h3>
+            </div>
+            <button type="button" class="confirm-modal__close" data-confirm-cancel aria-label="Close confirmation dialog">
+                <i class="ti ti-x"></i>
             </button>
-        </form>
-        <a th:href="@{/admin/admission-acceptance}" class="top-icon-btn" title="Notifications" aria-label="Notifications" style="text-decoration:none; position:relative;">
-            <i class="ti ti-bell" aria-hidden="true"></i>
-            <span class="notif-dot" th:if="${pendingApps != null && pendingApps > 0}"></span>
-            <span class="notif-badge" th:if="${pendingApps != null && pendingApps > 0}" th:text="${pendingApps}" style="position:absolute; top:-4px; right:-4px; background:var(--danger-color); color:white; font-size:0.6rem; padding:0.1rem 0.3rem; border-radius:10px; font-weight:bold;">1</span>
-        </a>
-        <button class="top-icon-btn" title="Help" aria-label="Help">
-            <i class="ti ti-help" aria-hidden="true"></i>
-        </button>
-        <!-- The initials could be dynamic based on the logged-in user in a real scenario -->
-        <div class="avatar" title="Registrar" role="button" tabindex="0" aria-label="Account menu" th:text="${user != null ? #strings.substring(user.username, 0, 2).toUpperCase() : 'RG'}">RG</div>
+        </div>
+        <div class="confirm-modal__body">
+            <p id="registrarConfirmMessage">Please confirm this action.</p>
+            <div id="registrarConfirmSummary" class="confirm-modal__summary" hidden></div>
+            <div id="registrarConfirmTypedWrap" class="confirm-modal__typed" hidden>
+                <label id="registrarConfirmTypedLabel" for="registrarConfirmTypedInput">Type the required confirmation</label>
+                <input id="registrarConfirmTypedInput" type="text" class="form-control" autocomplete="off" spellcheck="false">
+                <div id="registrarConfirmTypedHint" class="confirm-modal__typed-hint"></div>
+            </div>
+        </div>
+        <div class="confirm-modal__footer">
+            <button type="button" class="btn btn-ghost" data-confirm-cancel>Cancel</button>
+            <button type="button" class="btn btn-primary" data-confirm-accept>Continue</button>
+        </div>
     </div>
 </div>
 
 <script>
-    function handleGlobalSearch(e) {
-        e.preventDefault();
-        const query = document.getElementById('globalSearchInput').value.toLowerCase().trim();
-        if (!query) return;
-        
-        if (query.includes('student') || query.includes('directory')) {
-            window.location.href = '/admin/student-manager';
-        } else if (query.includes('admission') || query.includes('applicant')) {
-            window.location.href = '/admin/admission-acceptance';
-        } else if (query.includes('fee') || query.includes('finance')) {
-            window.location.href = '/admin/term-fees';
-        } else if (query.includes('grade')) {
-            window.location.href = '/admin/grade-records';
-        } else if (query.includes('course') || query.includes('catalog') || query.includes('subject')) {
-            window.location.href = '/admin/courses';
-        } else if (query.includes('program')) {
-            window.location.href = '/admin/programs';
-        } else if (query.includes('room') || query.includes('classroom')) {
-            window.location.href = '/admin/room-monitoring';
-        } else if (query.includes('slot') || query.includes('capacity')) {
-            window.location.href = '/admin/slot-monitoring';
-        } else if (query.includes('curriculum')) {
-            window.location.href = '/admin/curriculum';
-        } else if (query.includes('setting')) {
-            window.location.href = '/admin/settings';
-        } else if (query.includes('scholarship')) {
-            window.location.href = '/admin/scholarships';
-        } else {
-            // fallback
-            window.location.href = '/admin/settings';
+    (function setupRegistrarConfirmModal() {
+        const modal = document.getElementById('registrarConfirmModal');
+        if (!modal) return;
+
+        const titleEl = document.getElementById('registrarConfirmTitle');
+        const messageEl = document.getElementById('registrarConfirmMessage');
+        const summaryEl = document.getElementById('registrarConfirmSummary');
+        const typedWrapEl = document.getElementById('registrarConfirmTypedWrap');
+        const typedLabelEl = document.getElementById('registrarConfirmTypedLabel');
+        const typedInputEl = document.getElementById('registrarConfirmTypedInput');
+        const typedHintEl = document.getElementById('registrarConfirmTypedHint');
+        const acceptBtn = modal.querySelector('[data-confirm-accept]');
+        const cancelNodes = modal.querySelectorAll('[data-confirm-cancel]');
+
+        let pendingAction = null;
+        let lastFocused = null;
+        let requiredText = '';
+
+        function focusableNodes() {
+            return Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+                .filter(function (node) { return !node.closest('[hidden]'); });
         }
-    }
+
+        function canAccept() {
+            return !requiredText || typedInputEl.value.trim() === requiredText;
+        }
+
+        function updateAcceptState() {
+            acceptBtn.disabled = !canAccept();
+        }
+
+        function setTone(tone) {
+            modal.classList.remove('confirm-modal--danger', 'confirm-modal--warning', 'confirm-modal--info');
+            modal.classList.add(`confirm-modal--${tone || 'danger'}`);
+        }
+
+        function closeModal() {
+            modal.hidden = true;
+            modal.setAttribute('aria-hidden', 'true');
+            pendingAction = null;
+            requiredText = '';
+            typedInputEl.value = '';
+            updateAcceptState();
+            if (lastFocused && typeof lastFocused.focus === 'function') {
+                lastFocused.focus();
+            }
+        }
+
+        function openModal({ title, message, summary, tone, label, requiredConfirmation, requiredLabel, onConfirm }) {
+            lastFocused = document.activeElement;
+            pendingAction = typeof onConfirm === 'function' ? onConfirm : null;
+            titleEl.textContent = title || 'Confirm action';
+            messageEl.textContent = message || 'Please confirm this action.';
+            summaryEl.textContent = summary || '';
+            summaryEl.hidden = !summary;
+            acceptBtn.textContent = label || 'Continue';
+            acceptBtn.disabled = false;
+            requiredText = requiredConfirmation || '';
+            typedInputEl.value = '';
+            typedWrapEl.hidden = !requiredText;
+            typedLabelEl.textContent = requiredLabel || 'Type the confirmation below to continue';
+            typedHintEl.textContent = requiredText ? `Required: ${requiredText}` : '';
+            updateAcceptState();
+            setTone(tone || 'danger');
+            modal.hidden = false;
+            modal.setAttribute('aria-hidden', 'false');
+            (requiredText ? typedInputEl : acceptBtn).focus();
+        }
+
+        window.registrarOpenConfirmModal = openModal;
+
+        function defaultOptionsForForm(form) {
+            const path = new URL(form.action, window.location.origin).pathname;
+            const defaults = {
+                '/admin/approve-class': {
+                    title: 'Post class to transcripts',
+                    message: 'Post this class submission to student transcripts? This finalizes the submitted class record for registrar processing.',
+                    tone: 'warning', label: 'Post to transcripts'
+                },
+                '/admin/reject-change': {
+                    title: 'Reject grade change',
+                    message: 'Reject this grade correction request? The registrar review note will be recorded with the decision.',
+                    tone: 'danger', label: 'Reject request'
+                },
+                '/admin/slot-monitoring/bulk-close': {
+                    title: 'Close selected sections',
+                    message: 'Close the selected sections using the current registrar close rule? New enrollment will be blocked for each selected section.',
+                    tone: 'warning', label: 'Close sections'
+                },
+                '/admin/slot-monitoring/update-capacity': {
+                    title: 'Update section capacity',
+                    message: 'Save this section capacity? This can change the number of students who may enroll.',
+                    tone: 'warning', label: 'Save capacity'
+                },
+                '/admin/slot-monitoring/close': {
+                    title: 'Close section',
+                    message: 'Close this section? New enrollment will be blocked while the section is closed.',
+                    tone: 'warning', label: 'Close section'
+                },
+                '/admin/class-scheduling/assign-faculty': {
+                    title: 'Assign faculty',
+                    message: 'Save this faculty assignment for the selected class section?',
+                    tone: 'warning', label: 'Assign faculty'
+                },
+                '/admin/class-scheduling/remove-schedule': {
+                    title: 'Remove schedule slot',
+                    message: 'Remove this schedule slot? The class may no longer have a complete meeting schedule.',
+                    tone: 'danger', label: 'Remove slot'
+                },
+                '/admin/class-scheduling/add-schedule': {
+                    title: 'Add schedule slot',
+                    message: 'Add this meeting schedule to the class? Room and conflict validation still apply.',
+                    tone: 'warning', label: 'Add schedule'
+                },
+                '/admin/class-scheduling/close-section': {
+                    title: 'Close section',
+                    message: 'Close this section? New enrollment will be blocked while the section is closed.',
+                    tone: 'warning', label: 'Close section'
+                },
+                '/admin/class-scheduling/set-irregular-block-access': {
+                    title: 'Change irregular access',
+                    message: 'Apply this irregular-enrollment access rule to the block?',
+                    tone: 'warning', label: 'Save access rule'
+                },
+                '/admin/class-scheduling/set-irregular-program-scope': {
+                    title: 'Change irregular access',
+                    message: 'Apply this program-scope rule for irregular enrollment?',
+                    tone: 'warning', label: 'Save access rule'
+                },
+                '/admin/class-scheduling/set-irregular-class-access': {
+                    title: 'Change irregular access',
+                    message: 'Apply this irregular-enrollment access rule to the class?',
+                    tone: 'warning', label: 'Save access rule'
+                },
+                '/admin/term-fees/import-global': {
+                    title: 'Import global fees',
+                    message: 'Import the selected global fee schedule? Existing fee ownership and readiness checks remain in effect.',
+                    tone: 'warning', label: 'Import fees'
+                },
+                '/admin/term-fees/import-template': {
+                    title: 'Import fee template',
+                    message: 'Import this fee template? The file will update the canonical fee mirror for the selected term.',
+                    tone: 'warning', label: 'Import template'
+                }
+            };
+            return defaults[path] || null;
+        }
+
+        function buildOptionsFromElement(el, fallback) {
+            return {
+                title: el.dataset.confirmTitle || (fallback && fallback.title) || 'Confirm action',
+                message: el.dataset.confirm || (fallback && fallback.message) || 'Please confirm this action.',
+                summary: el.dataset.confirmSummary || (fallback && fallback.summary) || '',
+                tone: el.dataset.confirmTone || (fallback && fallback.tone) || 'danger',
+                label: el.dataset.confirmAccept || (fallback && fallback.label) || 'Continue',
+                requiredConfirmation: el.dataset.confirmRequired || (fallback && fallback.requiredConfirmation) || '',
+                requiredLabel: el.dataset.confirmRequiredLabel || (fallback && fallback.requiredLabel) || ''
+            };
+        }
+
+        document.addEventListener('submit', function (event) {
+            const form = event.target;
+            if (!(form instanceof HTMLFormElement) || form.dataset.confirmBypass === '1') return;
+
+            const submitter = event.submitter || null;
+            const fallbackOptions = defaultOptionsForForm(form);
+            const confirmationSource = form.dataset.confirm
+                ? form
+                : (submitter && submitter.dataset.confirm ? submitter : (form.querySelector('[data-confirm]') || (fallbackOptions ? form : null)));
+            if (!confirmationSource) return;
+
+            event.preventDefault();
+            event.stopPropagation();
+
+            const options = buildOptionsFromElement(confirmationSource, fallbackOptions);
+            openModal({
+                title: options.title,
+                message: options.message,
+                summary: options.summary,
+                tone: options.tone,
+                label: options.label,
+                requiredConfirmation: options.requiredConfirmation,
+                requiredLabel: options.requiredLabel,
+                onConfirm: function () {
+                    form.dataset.confirmBypass = '1';
+                    try {
+                        if (submitter && typeof form.requestSubmit === 'function') {
+                            form.requestSubmit(submitter);
+                        } else if (typeof form.requestSubmit === 'function') {
+                            form.requestSubmit();
+                        } else {
+                            form.submit();
+                        }
+                    } finally {
+                        delete form.dataset.confirmBypass;
+                    }
+                }
+            });
+        }, true);
+
+        document.addEventListener('click', function (event) {
+            const trigger = event.target.closest('[data-confirm]');
+            if (!trigger) return;
+
+            if (trigger instanceof HTMLFormElement) return;
+            if (trigger.tagName === 'FORM') return;
+            if (trigger.closest && trigger.closest('#registrarConfirmModal')) return;
+
+            const isSubmitButton = trigger.tagName === 'BUTTON' || trigger.tagName === 'INPUT';
+            const form = trigger.form || trigger.closest('form');
+            if (form && form.dataset.confirm) {
+                return;
+            }
+
+            event.preventDefault();
+            const options = buildOptionsFromElement(trigger);
+            openModal({
+                title: options.title,
+                message: options.message,
+                summary: options.summary,
+                tone: options.tone,
+                label: options.label,
+                requiredConfirmation: options.requiredConfirmation,
+                requiredLabel: options.requiredLabel,
+                onConfirm: function () {
+                    if (form) {
+                        form.dataset.confirmBypass = '1';
+                        try {
+                            if (isSubmitButton && typeof form.requestSubmit === 'function') {
+                                form.requestSubmit(trigger);
+                            } else if (typeof form.requestSubmit === 'function') {
+                                form.requestSubmit();
+                            } else {
+                                form.submit();
+                            }
+                        } finally {
+                            delete form.dataset.confirmBypass;
+                        }
+                    } else if (trigger.tagName === 'A' && trigger.href) {
+                        window.location.href = trigger.href;
+                    } else if (typeof trigger.click === 'function') {
+                        trigger.click();
+                    }
+                }
+            });
+        }, true);
+
+        cancelNodes.forEach(function (node) {
+            node.addEventListener('click', closeModal);
+        });
+        acceptBtn.addEventListener('click', function () {
+            if (!pendingAction || !canAccept() || acceptBtn.disabled) {
+                return;
+            }
+            const action = pendingAction;
+            acceptBtn.disabled = true;
+            acceptBtn.textContent = 'Continuing...';
+            pendingAction = null;
+            action();
+            closeModal();
+        });
+        typedInputEl.addEventListener('input', updateAcceptState);
+        modal.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                closeModal();
+                return;
+            }
+            if (event.key === 'Tab') {
+                const nodes = focusableNodes();
+                if (!nodes.length) return;
+                const first = nodes[0];
+                const last = nodes[nodes.length - 1];
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first.focus();
+                }
+            }
+        });
+        modal.addEventListener('click', function (event) {
+            if (event.target === modal || event.target.classList.contains('confirm-modal__backdrop')) {
+                closeModal();
+            }
+        });
+    })();
 </script>
+
+</div>
 
 <!-- SIDEBAR FRAGMENT -->
 <nav th:fragment="sidebar(activeLink)" class="sidebar" role="navigation" aria-label="Main navigation">
@@ -88,12 +358,11 @@
         <i class="ti ti-layout-dashboard" aria-hidden="true"></i> <span>Dashboard</span>
     </a>
 
-    <div class="nav-section-label">Admissions</div>
-    <a th:href="@{/admin/admission-acceptance}" class="nav-item" th:classappend="${activeLink == 'admissions' ? 'active' : ''}">
-        <i class="ti ti-user-check" aria-hidden="true"></i> <span>Admissions</span>
-    </a>
     <a th:href="@{/admin/student-manager}" class="nav-item" th:classappend="${activeLink == 'students' ? 'active' : ''}">
         <i class="ti ti-users" aria-hidden="true"></i> <span>Student Profile</span>
+    </a>
+    <a th:href="@{/admin/enrollment}" class="nav-item" th:classappend="${activeLink == 'enrollment' ? 'active' : ''}">
+        <i class="ti ti-school" aria-hidden="true"></i> <span>Student Enrollment</span>
     </a>
 
     <div class="nav-section-label">Academics</div>
@@ -124,6 +393,9 @@
     <a th:href="@{/admin/grade-records}" class="nav-item" th:classappend="${activeLink == 'grade-records' ? 'active' : ''}">
         <i class="ti ti-table" aria-hidden="true"></i> <span>Grade Records</span>
     </a>
+    <a th:href="@{/admin/demo-grades}" class="nav-item" th:classappend="${activeLink == 'demo-grades' ? 'active' : ''}">
+        <i class="ti ti-clipboard-text" aria-hidden="true"></i> <span>Demo Grade Entry</span>
+    </a>
     <a th:href="@{/admin/approvals}" class="nav-item" th:classappend="${activeLink == 'approvals' ? 'active' : ''}">
         <i class="ti ti-checkup-list" aria-hidden="true"></i> <span>Grade Approvals</span>
     </a>
@@ -139,10 +411,10 @@
 
     <div class="nav-section-label">Admin & Finance</div>
     <a th:href="@{/admin/finance-policy}" class="nav-item" th:classappend="${activeLink == 'finance-policy' ? 'active' : ''}">
-        <i class="ti ti-calculator" aria-hidden="true"></i> <span>Finance Policy</span>
+        <i class="ti ti-calculator" aria-hidden="true"></i> <span>Finance / Accounting Mirror</span>
     </a>
     <a th:href="@{/admin/term-fees}" class="nav-item" th:classappend="${activeLink == 'term-fees' ? 'active' : ''}">
-        <i class="ti ti-coin" aria-hidden="true"></i> <span>Term Fees</span>
+        <i class="ti ti-coin" aria-hidden="true"></i> <span>Program Fee Readiness</span>
     </a>
     <a th:href="@{/admin/scholarships}" class="nav-item" th:classappend="${activeLink == 'scholarships' ? 'active' : ''}">
         <i class="ti ti-award" aria-hidden="true"></i> <span>Scholarships</span>
@@ -153,6 +425,11 @@
     <a th:href="@{/admin/settings}" class="nav-item" th:classappend="${activeLink == 'settings' ? 'active' : ''}">
         <i class="ti ti-settings" aria-hidden="true"></i> <span>Settings</span>
     </a>
+    <form th:action="@{/logout}" method="post" class="nav-logout-form">
+        <button type="submit" class="nav-item nav-logout">
+            <i class="ti ti-logout" aria-hidden="true"></i> <span>Logout</span>
+        </button>
+    </form>
 </nav>
 
 </body>

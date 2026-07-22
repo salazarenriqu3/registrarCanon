@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head}"></head>
+<body>
+<script th:inline="javascript">const contextPath = /*[[@{/}]]*/ '';</script>
+<div class="app">
+    <div th:replace="~{fragments/layout :: topbar}"></div>
+    <style>
+        .demo-page-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+            gap:1rem;
+            flex-wrap:wrap;
+            margin-bottom:1.5rem;
+        }
+        .demo-header-actions {
+            display:flex;
+            gap:.75rem;
+            flex-wrap:wrap;
+        }
+        .demo-search-form {
+            display:grid;
+            grid-template-columns:minmax(260px, 1.5fr) minmax(180px, .8fr) auto;
+            gap:0.9rem;
+            align-items:end;
+        }
+        .demo-summary-grid {
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(170px, 1fr));
+            gap:1rem;
+            margin:1rem 0 1.5rem;
+        }
+        .demo-table-wrap {
+            overflow-x:auto;
+        }
+        .demo-entry-form {
+            display:grid;
+            gap:.6rem;
+        }
+        .demo-score-grid {
+            display:grid;
+            grid-template-columns:repeat(4, minmax(120px, 1fr));
+            gap:.55rem;
+        }
+        .demo-action-row {
+            display:flex;
+            flex-wrap:wrap;
+            gap:.5rem;
+            align-items:center;
+        }
+        .demo-note {
+            min-width: 180px;
+        }
+        @media (max-width: 960px) {
+            .demo-search-form {
+                grid-template-columns:1fr;
+            }
+            .demo-score-grid {
+                grid-template-columns:repeat(2, minmax(120px, 1fr));
+            }
+        }
+        @media (max-width: 720px) {
+            .demo-page-header {
+                align-items:flex-start;
+            }
+            .demo-header-actions,
+            .demo-header-actions .btn {
+                width:100%;
+            }
+            .demo-header-actions .btn {
+                justify-content:center;
+            }
+            .demo-score-grid {
+                grid-template-columns:1fr;
+            }
+            .demo-action-row,
+            .demo-action-row .btn {
+                width:100%;
+            }
+            .demo-action-row .btn {
+                justify-content:center;
+            }
+            .demo-table-wrap table {
+                min-width: 1120px;
+            }
+        }
+    </style>
+
+    <div class="body-wrapper">
+        <nav th:replace="~{fragments/layout :: sidebar(activeLink='demo-grades')}"></nav>
+
+        <main class="main" role="main" id="main-content">
+            <div class="demo-page-header">
+                <div>
+                    <h1 class="page-title">Demo Grade Entry</h1>
+                    <p class="page-subtitle">Registrar-side demo workspace for enrolled subjects only. Dean submits, registrar approves.</p>
+                </div>
+                <div class="demo-header-actions">
+                    <a th:href="@{/admin/grade-records}" class="btn btn-outline"><i class="ti ti-table"></i> Open Grade Records</a>
+                    <a th:href="@{/admin/approvals}" class="btn btn-outline"><i class="ti ti-checkup-list"></i> Open Approvals</a>
+                </div>
+            </div>
+
+            <div th:if="${successMessage}" class="card" style="margin-bottom:1rem; border-left:4px solid var(--success-color);">
+                <div style="padding:1rem 1.25rem;" th:text="${successMessage}"></div>
+            </div>
+            <div th:if="${errorMessage}" class="card" style="margin-bottom:1rem; border-left:4px solid var(--danger-color);">
+                <div style="padding:1rem 1.25rem;" th:text="${errorMessage}"></div>
+            </div>
+
+            <div class="card" style="margin-bottom:1rem;">
+                <div style="padding:1rem 1.25rem 1.25rem;">
+                    <form method="get" th:action="@{/admin/demo-grades}" class="demo-search-form">
+                        <div>
+                            <label class="form-label">Student</label>
+                            <input type="text" name="q" class="form-control" placeholder="Student number or name" th:value="${searchQuery}">
+                        </div>
+                        <div>
+                            <label class="form-label">Academic Term</label>
+                            <select name="termId" class="form-select">
+                                <option th:each="term : ${terms}"
+                                        th:value="${term['term_id']}"
+                                        th:text="${term['term_label'] != null ? term['term_label'] : term['term_name']}"
+                                        th:selected="${selectedTermId != null and selectedTermId == term['term_id']}"></option>
+                            </select>
+                        </div>
+                        <div style="display:flex; gap:.75rem;">
+                            <button type="submit" class="btn btn-primary" style="width:100%;"><i class="ti ti-search"></i> Load</button>
+                            <a th:href="@{/admin/demo-grades}" class="btn btn-outline" style="width:100%; text-align:center;">Reset</a>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <div th:if="${searchAttempted and searchError != null}" class="card" style="margin-bottom:1rem; border-left:4px solid var(--warning-color);">
+                <div style="padding:1rem 1.25rem;" th:text="${searchError}"></div>
+            </div>
+
+            <div th:if="${student != null}" class="card" style="margin-bottom:1rem;">
+                <div style="padding:1rem 1.25rem;">
+                    <div style="display:flex; gap:1rem; flex-wrap:wrap; justify-content:space-between; align-items:flex-start;">
+                        <div>
+                            <div style="font-weight:700; font-size:1.05rem;" th:text="${student['real_name'] != null ? student['real_name'] : student['username']}"></div>
+                            <div style="color:var(--text-muted);" th:text="${student['username']}"></div>
+                        </div>
+                        <div style="display:flex; gap:.75rem; flex-wrap:wrap;">
+                            <span class="badge bg-secondary" th:text="${student['admission_status'] != null ? student['admission_status'] : 'UNKNOWN'}"></span>
+                            <span class="badge bg-secondary" th:text="${student['program_code'] != null ? student['program_code'] : 'No program'}"></span>
+                            <span class="badge bg-secondary" th:text="${student['year_level'] != null ? 'Year ' + student['year_level'] : 'Year ?'}"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="demo-summary-grid" th:if="${student != null}">
+                <div class="card"><div style="padding:1rem 1.15rem;"><div class="page-subtitle">Rows</div><div class="page-title" th:text="${#lists.size(demoRows)}">0</div></div></div>
+                <div class="card"><div style="padding:1rem 1.15rem;"><div class="page-subtitle">Save Access</div><div class="page-title" th:text="${canSaveDemoGrades ? 'Yes' : 'No'}">No</div></div></div>
+                <div class="card"><div style="padding:1rem 1.15rem;"><div class="page-subtitle">Submit Access</div><div class="page-title" th:text="${canSubmitDemoGrades ? 'Yes' : 'No'}">No</div></div></div>
+                <div class="card"><div style="padding:1rem 1.15rem;"><div class="page-subtitle">Review Access</div><div class="page-title" th:text="${canReviewDemoGrades ? 'Yes' : 'No'}">No</div></div></div>
+            </div>
+
+            <div class="card">
+                <div class="card-header" style="border-bottom:none; padding-bottom:0;">
+                    <h4 class="card-title"><i class="ti ti-school"></i> Enrolled Subject Rows</h4>
+                </div>
+                <div class="demo-table-wrap" style="padding:1rem 1.25rem 1.25rem;">
+                    <table class="table-eac">
+                        <thead>
+                            <tr>
+                                <th style="padding-left:1rem;">Course / Section</th>
+                                <th>Term</th>
+                                <th>Current State</th>
+                                <th>Full Component Entry</th>
+                                <th>Quick Final</th>
+                                <th>Review Note</th>
+                                <th style="padding-right:1rem;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr th:each="row : ${demoRows}">
+                                <td style="padding-left:1rem;">
+                                    <div style="font-weight:700;" th:text="${row['course_code']}"></div>
+                                    <div style="font-size:.82rem; color:var(--text-muted);" th:text="${row['course_title']}"></div>
+                                    <div style="font-size:.82rem; color:var(--text-muted);" th:text="${row['section_code']}"></div>
+                                </td>
+                                <td>
+                                    <div th:text="${row['term_label']}"></div>
+                                </td>
+                                <td>
+                                    <div style="display:flex; flex-direction:column; gap:.35rem;">
+                                        <span class="badge"
+                                              th:classappend="${row['workflow_state'] == 'APPROVED' ? ' bg-success' : (row['workflow_state'] == 'SUBMITTED' ? ' bg-primary' : (row['workflow_state'] == 'REJECTED' ? ' bg-danger' : ' bg-secondary'))}"
+                                              th:text="${row['workflow_state']}"></span>
+                                        <div style="font-weight:700;" th:text="${row['display_grade']}"></div>
+                                        <div style="font-size:.82rem; color:var(--text-muted);" th:text="${row['display_remarks']}"></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <form method="post"
+                                          th:action="@{/admin/demo-grades/save}"
+                                          class="demo-entry-form">
+                                        <input type="hidden" name="studentNumber" th:value="${student['username']}">
+                                        <input type="hidden" name="sectionId" th:value="${row['section_id']}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <input type="hidden" name="q" th:value="${searchQuery}">
+                                        <div class="demo-score-grid">
+                                            <input type="number" step="0.01" min="0" max="100" name="prelim" class="form-control" placeholder="Prelim" th:value="${row['prelim']}">
+                                            <input type="number" step="0.01" min="0" max="100" name="midterm" class="form-control" placeholder="Midterm" th:value="${row['midterm']}">
+                                            <input type="number" step="0.01" min="0" max="100" name="finals" class="form-control" placeholder="Finals" th:value="${row['final_grade']}">
+                                            <input type="text" class="form-control" disabled th:value="${row['has_full_entry'] ? 'Loaded' : 'Draft'}">
+                                        </div>
+                                        <div class="demo-action-row">
+                                            <button type="submit" class="btn btn-primary" th:if="${canSaveDemoGrades and row['can_save']}"><i class="ti ti-device-floppy"></i> Save Draft</button>
+                                            <button type="submit" class="btn btn-outline" th:if="${canSubmitDemoGrades and row['can_submit']}" th:formaction="@{/admin/demo-grades/submit}"><i class="ti ti-send"></i> Submit</button>
+                                        </div>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form method="post"
+                                          th:action="@{/admin/demo-grades/save}"
+                                          class="demo-entry-form">
+                                        <input type="hidden" name="studentNumber" th:value="${student['username']}">
+                                        <input type="hidden" name="sectionId" th:value="${row['section_id']}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <input type="hidden" name="q" th:value="${searchQuery}">
+                                        <input type="text" name="quickFinal" class="form-control" placeholder="1.75" th:value="${row['semestral_grade']}">
+                                        <div class="demo-action-row">
+                                            <button type="submit" class="btn btn-primary" th:if="${canSaveDemoGrades and row['can_save']}"><i class="ti ti-device-floppy"></i> Save Quick</button>
+                                        </div>
+                                    </form>
+                                </td>
+                                <td>
+                                    <form method="post" th:action="@{/admin/demo-grades/reject}" class="demo-entry-form" th:if="${canReviewDemoGrades and row['can_review']}">
+                                        <input type="hidden" name="studentNumber" th:value="${student['username']}">
+                                        <input type="hidden" name="sectionId" th:value="${row['section_id']}">
+                                        <input type="hidden" name="termId" th:value="${selectedTermId}">
+                                        <input type="hidden" name="q" th:value="${searchQuery}">
+                                        <input type="text" name="reviewNote" class="form-control demo-note" placeholder="Review note">
+                                        <div class="demo-action-row">
+                                            <button type="submit" class="btn btn-success" th:formaction="@{/admin/demo-grades/approve}"><i class="ti ti-circle-check"></i> Approve</button>
+                                            <button type="submit" class="btn btn-danger"><i class="ti ti-circle-x"></i> Reject</button>
+                                        </div>
+                                    </form>
+                                    <div th:if="${not canReviewDemoGrades or not row['can_review']}" style="color:var(--text-muted); font-size:.88rem;">
+                                        <span th:if="${row['workflow_state'] == 'APPROVED'}">Already approved.</span>
+                                        <span th:if="${row['workflow_state'] == 'DRAFT'}">Waiting for dean submission.</span>
+                                        <span th:if="${row['workflow_state'] == 'REJECTED'}">Returned to draft for edits.</span>
+                                        <span th:if="${row['workflow_state'] == 'SUBMITTED'}">Awaiting registrar review.</span>
+                                    </div>
+                                </td>
+                                <td style="padding-right:1rem;">
+                                    <div style="font-size:.82rem; color:var(--text-muted);" th:text="${row['grade_lock_reason'] != null ? row['grade_lock_reason'] : '-'}"></div>
+                                </td>
+                            </tr>
+                            <tr th:if="${student != null and #lists.isEmpty(demoRows)}">
+                                <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2.5rem;">No committed enrolled subjects were found for the selected term.</td>
+                            </tr>
+                            <tr th:if="${student == null}">
+                                <td colspan="7" style="text-align:center; color:var(--text-muted); padding:2.5rem;">Search for an enrolled student to open the demo grade workspace.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+</body>
+</html>

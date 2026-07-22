@@ -1,6 +1,6 @@
 package com.iuims.registrar.security;
 
-import com.iuims.registrar.core.SysUserRepository;
+import com.iuims.registrar.repository.SysUserRepository;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;

@@ -2,6 +2,37 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/layout :: head}"></head>
 <body>
+<style>
+    .trail-page-header { display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem; margin-bottom:1.5rem; }
+    .trail-header-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    .trail-stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .trail-filter-card, .trail-events-card { border-left:4px solid #0EA5E9; }
+    .trail-filter-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.75rem; align-items:end; }
+    .trail-summary-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-bottom:1.5rem; }
+    .trail-summary-card { min-width:0; overflow:visible; }
+    .trail-summary-card > div { min-width:0; }
+    .trail-summary-name {
+        font-size:0.95rem;
+        font-weight:800;
+        line-height:1.25;
+        margin-top:0.25rem;
+        overflow-wrap:anywhere;
+        word-break:normal;
+    }
+    .trail-table-wrap { overflow-x:auto; border:1px solid var(--border-color); border-radius:var(--radius-md); }
+    .trail-actions { display:flex; gap:0.5rem; flex-wrap:wrap; }
+    @media (max-width: 900px) {
+        .trail-page-header { align-items:flex-start; }
+        .trail-header-actions, .trail-actions { width:100%; }
+        .trail-header-actions .btn, .trail-actions .btn { width:100%; justify-content:center; }
+        .trail-filter-grid { grid-template-columns: 1fr; }
+        .trail-table-wrap table { min-width: 980px; }
+    }
+    @media (max-width: 760px) {
+        .trail-stats-grid, .trail-summary-grid { grid-template-columns:1fr; }
+        .trail-table-wrap table { min-width: 860px; }
+    }
+</style>
 <div class="app">
     <div th:replace="~{fragments/layout :: topbar}"></div>
 
@@ -17,19 +48,19 @@
                 <span>Document Trail</span>
             </div>
 
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+            <div class="trail-page-header">
                 <div>
                     <h1 class="page-title" th:text="${pageTitle}">Document Trail</h1>
                     <p class="page-subtitle" th:text="${pageSubtitle}">Unified registrar trail of student-document transactions and movement.</p>
                 </div>
-                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <div class="trail-header-actions">
                     <a th:href="@{/admin/student-manager}" class="btn btn-outline" style="font-size: 0.85rem;">Open Student Profile</a>
                     <a th:href="@{/admin/reg-form-history}" class="btn btn-outline" style="font-size: 0.85rem;">Reg Form History</a>
                     <a th:href="@{/admin/withdrawals/report}" class="btn btn-outline" style="font-size: 0.85rem;">Withdrawal Report</a>
                 </div>
             </div>
 
-            <div th:if="${summary != null}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+            <div th:if="${summary != null}" class="trail-stats-grid">
                 <div class="card" style="border-left: 4px solid #0EA5E9;">
                     <div style="padding: 1rem 1.1rem;">
                         <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Total Events</div>
@@ -50,14 +81,14 @@
                 </div>
             </div>
 
-            <div class="card" style="margin-bottom: 1.5rem; border-left: 4px solid #0EA5E9;">
+            <div class="card trail-filter-card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
                     <h4 class="card-title" style="margin: 0; color: #0EA5E9;">
                         <i class="ti ti-filter" aria-hidden="true"></i> Filters
                     </h4>
                 </div>
                 <div style="padding: 1rem 1.25rem 1.25rem;">
-                    <form method="get" th:action="@{/admin/document-trail}" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem; align-items: end;">
+                    <form method="get" th:action="@{/admin/document-trail}" class="trail-filter-grid">
                         <div>
                             <label style="font-size: 0.8rem; font-weight: 600;">Search</label>
                             <input type="text" name="query" class="form-control" placeholder="Student number, ref no, actor, note" th:value="${query}">
@@ -88,7 +119,7 @@
                             <label style="font-size: 0.8rem; font-weight: 600;">Limit</label>
                             <input type="number" name="limit" min="1" max="500" class="form-control" th:value="${limit}">
                         </div>
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <div class="trail-actions">
                             <button type="submit" class="btn btn-primary" style="background: #0EA5E9; border-color: #0EA5E9;">Apply Filters</button>
                             <a th:href="@{/admin/document-trail}" class="btn btn-outline">Reset</a>
                         </div>
@@ -96,24 +127,24 @@
                 </div>
             </div>
 
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                <div class="card" th:each="row : ${eventTypeOptions}" style="border-left: 4px solid #0EA5E9;">
+            <div class="trail-summary-grid">
+                <div class="card trail-summary-card" th:each="row : ${eventTypeOptions}" style="border-left: 4px solid #0EA5E9;">
                     <div style="padding: 1rem 1.1rem;">
                         <div style="font-size: 0.72rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em;">Event Type</div>
-                        <div style="font-weight: 800; font-size: 1.05rem; margin-top: 0.25rem;" th:text="${row.event_type}">EVENT</div>
+                        <div class="trail-summary-name" th:text="${row.event_type}">EVENT</div>
                         <div style="margin-top: 0.35rem; color: var(--text-muted);" th:text="${row.event_count + ' record(s)'}">0 record(s)</div>
                     </div>
                 </div>
             </div>
 
-            <div class="card" style="border-left: 4px solid #0EA5E9;">
+            <div class="card trail-events-card">
                 <div class="card-header">
                     <h4 class="card-title" style="margin: 0; color: #0EA5E9;">
                         <i class="ti ti-list-details" aria-hidden="true"></i> Recent Events
                     </h4>
                 </div>
                 <div style="padding: 1rem 1.25rem 1.25rem;">
-                    <div style="overflow-x: auto; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                    <div class="trail-table-wrap">
                         <table class="table-eac" style="margin: 0;">
                             <thead>
                                 <tr>

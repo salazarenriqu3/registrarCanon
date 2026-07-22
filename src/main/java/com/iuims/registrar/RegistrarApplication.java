@@ -1,18 +1,18 @@
 package com.iuims.registrar;
-import com.iuims.registrar.academic.AcademicGradingService;
-import com.iuims.registrar.core.GradeOutcomeSql;
-import com.iuims.registrar.admission.ApplicantStatusSyncService;
-import com.iuims.registrar.admission.FinanceAdmissionService;
-import com.iuims.registrar.curriculum.CurriculumSeederService;
-import com.iuims.registrar.curriculum.StudentCurriculumService;
-import com.iuims.registrar.core.EnlistmentSchemaService;
-import com.iuims.registrar.faculty.FacultyLoadService;
-import com.iuims.registrar.scholarship.ScholarEnrollmentService;
-import com.iuims.registrar.finance.TermFeeAdminService;
-import com.iuims.registrar.core.DatabaseSetupService;
-import com.iuims.registrar.jaypee.JaypeeIntegrationService;
-import com.iuims.registrar.core.PolicySettings;
-import com.iuims.registrar.core.SqlGenerator;
+import com.iuims.registrar.service.academic.AcademicGradingService;
+import com.iuims.registrar.support.GradeOutcomeSql;
+import com.iuims.registrar.service.admission.ApplicantStatusSyncService;
+import com.iuims.registrar.service.admission.FinanceAdmissionService;
+import com.iuims.registrar.service.curriculum.CurriculumSeederService;
+import com.iuims.registrar.service.curriculum.StudentCurriculumService;
+import com.iuims.registrar.service.support.EnlistmentSchemaService;
+import com.iuims.registrar.service.faculty.FacultyLoadService;
+import com.iuims.registrar.service.scholarship.ScholarEnrollmentService;
+import com.iuims.registrar.service.finance.TermFeeAdminService;
+import com.iuims.registrar.service.support.DatabaseSetupService;
+import com.iuims.registrar.service.integration.JaypeeIntegrationService;
+import com.iuims.registrar.support.PolicySettings;
+import com.iuims.registrar.support.SqlGenerator;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -35,4 +35,3 @@ public class RegistrarApplication extends SpringBootServletInitializer {
         SpringApplication.run(RegistrarApplication.class, args);
     }
 }
-

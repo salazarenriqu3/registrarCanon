@@ -112,6 +112,9 @@
             justify-content: flex-end;
             flex-wrap: wrap;
         }
+        .pager { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:1rem 1.25rem; border-top:1px solid var(--border-color); color:var(--text-muted); font-size:.86rem; }
+        .pager-links { display:flex; gap:.5rem; align-items:center; }
+        .pager-disabled { opacity:.45; pointer-events:none; }
         .modal {
             display: none;
             position: fixed;
@@ -167,6 +170,118 @@
             border-radius: var(--radius-md);
             padding: .75rem .9rem;
             font-size: .86rem;
+        }
+        .relationship-dialog {
+            width: min(980px, 100%);
+        }
+        .relationship-toolbar {
+            display: grid;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .relationship-search-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+            gap: 1rem;
+        }
+        .relationship-search-results,
+        .relationship-selection-list {
+            display: grid;
+            gap: .65rem;
+        }
+        .relationship-search-results {
+            min-height: 88px;
+        }
+        .relationship-result,
+        .relationship-selected-item,
+        .relationship-selection-empty {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: white;
+            padding: .8rem .9rem;
+        }
+        .relationship-result {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: .85rem;
+            align-items: center;
+        }
+        .relationship-result-title,
+        .relationship-selected-title {
+            display: flex;
+            align-items: center;
+            gap: .45rem;
+            flex-wrap: wrap;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .relationship-result-meta,
+        .relationship-selected-meta,
+        .relationship-selection-empty {
+            color: var(--text-muted);
+            font-size: .82rem;
+        }
+        .relationship-result-actions {
+            display: flex;
+            gap: .45rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+        .relationship-selection-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .relationship-selection-card {
+            border: 1px solid var(--border-color);
+            border-radius: var(--radius-md);
+            background: var(--bg-tertiary);
+            padding: .9rem;
+        }
+        .relationship-selection-card h4 {
+            margin: 0 0 .25rem;
+            font-size: .95rem;
+        }
+        .relationship-selection-note {
+            margin-bottom: .7rem;
+            color: var(--text-muted);
+            font-size: .8rem;
+        }
+        .relationship-selected-item {
+            background: white;
+        }
+        .relationship-selected-header {
+            display: flex;
+            justify-content: space-between;
+            gap: .75rem;
+            align-items: flex-start;
+        }
+        .relationship-empty-state {
+            padding: 1rem;
+            text-align: center;
+            border: 1px dashed var(--border-color);
+            border-radius: var(--radius-md);
+            background: rgba(255,255,255,.74);
+        }
+        .relationship-status {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: .15rem .45rem;
+            font-size: .72rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+        }
+        .relationship-status.active {
+            color: #047857;
+            background: rgba(16, 185, 129, .12);
+            border-color: rgba(16, 185, 129, .22);
+        }
+        .relationship-status.inactive {
+            color: #b45309;
+            background: rgba(245, 158, 11, .12);
+            border-color: rgba(245, 158, 11, .22);
         }
         .usage-section { margin-bottom: 1.25rem; }
         .usage-section h4 { margin: 0 0 .55rem; font-size: .95rem; }
@@ -258,6 +373,10 @@
             .form-grid {
                 grid-template-columns: 1fr;
             }
+            .relationship-search-grid,
+            .relationship-selection-grid {
+                grid-template-columns: 1fr;
+            }
             .row-actions {
                 justify-content: flex-start;
             }
@@ -306,7 +425,7 @@
 
             <div class="catalog-guide">
                 <i class="ti ti-info-circle" aria-hidden="true" style="color:var(--primary-color); font-size:1.15rem;"></i>
-                <span><strong>One course, reused everywhere.</strong> Curriculum versions place these catalog courses by year and semester; class scheduling creates offerings from them. Use <strong>Where Used</strong> before editing to inspect the exact curricula, sections, student records, and prerequisites linked to a course.</span>
+                <span><strong>One course, reused everywhere.</strong> Curriculum versions place these catalog courses by year and semester; class scheduling creates offerings from them. Manage structured prerequisites, corequisites, and equivalencies here, then use <strong>Where Used</strong> to inspect the exact curricula, sections, and linked relationship rules.</span>
             </div>
 
             <div class="stats-grid">
@@ -330,6 +449,7 @@
 
             <div class="filter-card">
                 <form th:action="@{/admin/courses}" method="get" class="filter-row">
+                    <input type="hidden" name="page" value="1">
                     <div class="grow">
                         <label class="form-label">Search</label>
                         <input name="search" class="form-control" th:value="${search}" placeholder="Code or title">
@@ -408,6 +528,14 @@
                                         <i class="ti ti-link" aria-hidden="true"></i>
                                         <span th:text="${c.prerequisite_usage} + ' prereq'">0 prereq</span>
                                     </span>
+                                    <span class="usage-chip" th:classappend="${c.corequisite_usage > 0} ? 'warn' : ''">
+                                        <i class="ti ti-link-plus" aria-hidden="true"></i>
+                                        <span th:text="${c.corequisite_usage} + ' coreq'">0 coreq</span>
+                                    </span>
+                                    <span class="usage-chip" th:classappend="${c.equivalency_usage > 0} ? 'warn' : ''">
+                                        <i class="ti ti-git-merge" aria-hidden="true"></i>
+                                        <span th:text="${c.equivalency_usage} + ' equiv'">0 equiv</span>
+                                    </span>
                                 </div>
                             </td>
                             <td style="padding-right: 1.25rem;">
@@ -415,6 +543,12 @@
                                     <button type="button" class="btn btn-outline" style="padding: .3rem .65rem;" th:attr="data-course-id=${c.course_id},data-usage-url=@{/admin/courses/usage}" onclick="openUsageModal(this)" title="View where this course is used">
                                         <i class="ti ti-map-pin" aria-hidden="true"></i>
                                         <span>Where Used</span>
+                                    </button>
+                                    <button type="button" class="btn btn-outline" style="padding: .3rem .65rem;"
+                                            th:attr="data-course-id=${c.course_id},data-course-code=${c.course_code},data-course-title=${c.course_title}"
+                                            onclick="openRelationshipModal(this)" title="Manage prerequisite, corequisite, and equivalency links">
+                                        <i class="ti ti-link-plus" aria-hidden="true"></i>
+                                        <span>Relationships</span>
                                     </button>
                                     <button type="button" class="btn btn-outline" style="padding: .3rem .55rem;"
                                             th:attr="data-course-id=${c.course_id},data-course-code=${c.course_code},data-course-title=${c.course_title},data-department-id=${c.department_id},data-lecture-units=${c.lec_units},data-laboratory-units=${c.lab_units},data-active=${c.active_status}"
@@ -427,8 +561,12 @@
                                         <input type="hidden" name="returnSearch" th:value="${search}">
                                         <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                                         <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
+                                        <input type="hidden" name="returnPage" th:value="${page}">
+                                        <input type="hidden" name="returnSize" th:value="${pageSize}">
                                         <button type="submit" class="btn btn-outline" style="padding: .3rem .55rem;"
-                                                th:onclick="${c.active_status == 1} ? 'return confirm(''Deactivate this course? Existing curriculum/history links remain intact.'')' : null"
+                                                th:data-confirm="${c.active_status == 1} ? 'Deactivate this course? Existing curriculum/history links remain intact.' : null"
+                                                th:data-confirm-title="${c.active_status == 1} ? 'Deactivate course?' : null"
+                                                th:data-confirm-tone="${c.active_status == 1} ? 'warning' : null"
                                                 th:title="${c.active_status == 1} ? 'Deactivate' : 'Reactivate'">
                                             <i class="ti" th:classappend="${c.active_status == 1} ? 'ti-eye-off' : 'ti-eye'" aria-hidden="true"></i>
                                         </button>
@@ -438,7 +576,9 @@
                                         <input type="hidden" name="returnSearch" th:value="${search}">
                                         <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                                         <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
-                                        <button type="submit" class="btn btn-outline" style="padding: .3rem .55rem;" onclick="return confirm('Delete this unused course from the catalog?')">
+                                        <input type="hidden" name="returnPage" th:value="${page}">
+                                        <input type="hidden" name="returnSize" th:value="${pageSize}">
+                                        <button type="submit" class="btn btn-outline" style="padding: .3rem .55rem;" data-confirm="Delete this unused course from the catalog?" data-confirm-title="Delete course?" data-confirm-tone="danger">
                                             <i class="ti ti-trash" aria-hidden="true"></i>
                                         </button>
                                     </form>
@@ -452,6 +592,16 @@
                         </tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="pager" th:if="${totalRows > 0}">
+                    <span th:text="|Showing ${pageStart}-${pageEnd} of ${totalRows} courses|">Showing 1-50 of 50 courses</span>
+                    <div class="pager-links">
+                        <a class="btn btn-outline" th:classappend="${page == 1} ? 'pager-disabled'"
+                           th:href="@{/admin/courses(search=${search},departmentId=${selectedDepartmentId},status=${selectedStatus},page=${page - 1},size=${pageSize})}">Previous</a>
+                        <span th:text="|Page ${page} of ${totalPages}|">Page 1 of 1</span>
+                        <a class="btn btn-outline" th:classappend="${page >= totalPages} ? 'pager-disabled'"
+                           th:href="@{/admin/courses(search=${search},departmentId=${selectedDepartmentId},status=${selectedStatus},page=${page + 1},size=${pageSize})}">Next</a>
+                    </div>
                 </div>
             </div>
         </main>
@@ -473,6 +623,8 @@
                 <input type="hidden" name="returnSearch" th:value="${search}">
                 <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                 <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
+                <input type="hidden" name="returnPage" th:value="${page}">
+                <input type="hidden" name="returnSize" th:value="${pageSize}">
 
                 <div class="form-grid">
                     <div>
@@ -505,15 +657,92 @@
                             <option value="false">Inactive</option>
                         </select>
                     </div>
+                    <div>
+                        <label class="form-label">Rows</label>
+                        <select name="size" class="form-control">
+                            <option value="25" th:selected="${pageSize == 25}">25</option>
+                            <option value="50" th:selected="${pageSize == 50}">50</option>
+                            <option value="100" th:selected="${pageSize == 100}">100</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="hint-box">
-                    Mixed lecture/laboratory courses are saved as separate enlistable components: <strong>CODE-LEC</strong> and <strong>CODE-LAB</strong>. Each component has its own units, sections, schedules, and enlistment path; use <strong>Where Used</strong> before editing records that already have links.
+                    Mixed lecture/laboratory courses are saved as separate enlistable components: <strong>CODE-LEC</strong> and <strong>CODE-LAB</strong>. Each component has its own units, sections, schedules, and enlistment path, and the pair is auto-linked as corequisites. Structured prerequisite, corequisite, and equivalency links are managed separately through the dedicated <strong>Relationships</strong> editor for existing catalog courses.
                 </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeCourseModal()">Cancel</button>
                 <button type="submit" class="btn btn-primary">
                     <i class="ti ti-device-floppy" aria-hidden="true"></i> Save Course
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal" id="relationshipModal" aria-hidden="true">
+    <div class="modal-dialog relationship-dialog">
+        <div class="modal-header">
+            <div>
+                <h3 id="relationshipModalTitle" style="margin:0;">Course Relationships</h3>
+                <p id="relationshipModalSubtitle" style="margin:.25rem 0 0; color:var(--text-muted); font-size:.88rem;"></p>
+            </div>
+            <button type="button" class="btn btn-outline" onclick="closeRelationshipModal()">Close</button>
+        </div>
+        <form id="relationshipForm" th:action="@{/admin/courses/relationships/save}" method="post">
+            <div class="modal-body">
+                <input type="hidden" name="courseId" id="relationshipCourseId">
+                <input type="hidden" name="returnSearch" th:value="${search}">
+                <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
+                <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
+                <input type="hidden" name="returnPage" th:value="${page}">
+                <input type="hidden" name="returnSize" th:value="${pageSize}">
+
+                <div class="hint-box" style="margin-top:0;">
+                    Choose only existing catalog courses here. This editor handles prerequisite, corequisite, and equivalency setup outside the base course form. For split lecture/laboratory families, the saved links are mirrored to both components so the shared course stays aligned.
+                </div>
+
+                <div class="relationship-toolbar">
+                    <div class="relationship-search-grid">
+                        <div>
+                            <label class="form-label">Find Existing Catalog Course</label>
+                            <input id="relationshipSearchInput" class="form-control" placeholder="Search by course code or title">
+                        </div>
+                        <div>
+                            <label class="form-label">Department Filter</label>
+                            <select id="relationshipDepartmentFilter" class="form-control">
+                                <option value="">All departments</option>
+                                <option th:each="d : ${departments}" th:value="${d.department_id}" th:text="${d.department_name}">Department</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div id="relationshipSearchResults" class="relationship-search-results">
+                        <div class="relationship-selection-empty relationship-empty-state">Search by course code, title, or department to add an existing course relationship.</div>
+                    </div>
+                </div>
+
+                <div class="relationship-selection-grid">
+                    <section class="relationship-selection-card">
+                        <h4>Prerequisites</h4>
+                        <div class="relationship-selection-note">Courses the selected course requires before enrollment.</div>
+                        <div id="prerequisiteSelection" class="relationship-selection-list"></div>
+                    </section>
+                    <section class="relationship-selection-card">
+                        <h4>Corequisites</h4>
+                        <div class="relationship-selection-note">Courses that must be taken alongside this course.</div>
+                        <div id="corequisiteSelection" class="relationship-selection-list"></div>
+                    </section>
+                    <section class="relationship-selection-card">
+                        <h4>Equivalencies</h4>
+                        <div class="relationship-selection-note">Courses that may satisfy the same shared requirement.</div>
+                        <div id="equivalencySelection" class="relationship-selection-list"></div>
+                    </section>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline" onclick="closeRelationshipModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">
+                    <i class="ti ti-device-floppy" aria-hidden="true"></i> Save Relationships
                 </button>
             </div>
         </form>
@@ -536,6 +765,19 @@
 <script th:inline="javascript">
     const ctx = /*[[@{/}]]*/ '';
     const focusCourseId = /*[[${focusCourseId}]]*/ null;
+    const relationshipTypeConfig = {
+        prerequisite: { key: 'prerequisites', inputName: 'prerequisiteCourseIds', containerId: 'prerequisiteSelection', emptyText: 'No prerequisite courses selected yet.' },
+        corequisite: { key: 'corequisites', inputName: 'corequisiteCourseIds', containerId: 'corequisiteSelection', emptyText: 'No corequisite courses selected yet.' },
+        equivalency: { key: 'equivalencies', inputName: 'equivalencyCourseIds', containerId: 'equivalencySelection', emptyText: 'No equivalent courses selected yet.' }
+    };
+    const relationshipState = {
+        courseId: null,
+        prerequisites: [],
+        corequisites: [],
+        equivalencies: [],
+        searchResults: []
+    };
+    let relationshipSearchTimer = null;
 
     function openCourseModal(button) {
         const modal = document.getElementById('courseModal');
@@ -567,8 +809,187 @@
         modal.setAttribute('aria-hidden', 'true');
     }
 
+    function closeRelationshipModal() {
+        const modal = document.getElementById('relationshipModal');
+        modal.classList.remove('show');
+        modal.setAttribute('aria-hidden', 'true');
+    }
+
     function escapeHtml(value) {
         return String(value ?? '').replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[char]));
+    }
+
+    function relationshipStatusPill(course) {
+        const active = Number(course.active_status || 0) === 1;
+        return `<span class="relationship-status ${active ? 'active' : 'inactive'}">${active ? 'Active' : 'Inactive'}</span>`;
+    }
+
+    function relationshipSelected(type, courseId) {
+        const config = relationshipTypeConfig[type];
+        return relationshipState[config.key].some(course => Number(course.course_id) === Number(courseId));
+    }
+
+    function renderRelationshipSelection(type) {
+        const config = relationshipTypeConfig[type];
+        const container = document.getElementById(config.containerId);
+        const courses = relationshipState[config.key] || [];
+        if (!container) return;
+        if (courses.length === 0) {
+            container.innerHTML = `<div class="relationship-selection-empty relationship-empty-state">${escapeHtml(config.emptyText)}</div>`;
+            return;
+        }
+        container.innerHTML = courses.map(course => `
+            <div class="relationship-selected-item">
+                <div class="relationship-selected-header">
+                    <div>
+                        <div class="relationship-selected-title">
+                            <span>${escapeHtml(course.course_code)}</span>
+                            ${relationshipStatusPill(course)}
+                        </div>
+                        <div>${escapeHtml(course.course_title)}</div>
+                        <div class="relationship-selected-meta">${escapeHtml(course.department_name || 'Unassigned')}</div>
+                    </div>
+                    <button type="button" class="btn btn-outline relationship-remove" data-type="${type}" data-course-id="${escapeHtml(course.course_id)}">Remove</button>
+                </div>
+                <input type="hidden" name="${config.inputName}" value="${escapeHtml(course.course_id)}">
+            </div>
+        `).join('');
+        container.querySelectorAll('.relationship-remove').forEach(button => {
+            button.addEventListener('click', () => removeRelationshipCourse(button.dataset.type, Number(button.dataset.courseId)));
+        });
+    }
+
+    function renderRelationshipSelections() {
+        renderRelationshipSelection('prerequisite');
+        renderRelationshipSelection('corequisite');
+        renderRelationshipSelection('equivalency');
+        renderRelationshipSearchResults(relationshipState.searchResults);
+    }
+
+    function removeRelationshipCourse(type, courseId) {
+        const config = relationshipTypeConfig[type];
+        relationshipState[config.key] = relationshipState[config.key].filter(course => Number(course.course_id) !== Number(courseId));
+        renderRelationshipSelections();
+    }
+
+    function addRelationshipCourse(type, course) {
+        if (!course || Number(course.course_id) === Number(relationshipState.courseId) || relationshipSelected(type, course.course_id)) {
+            return;
+        }
+        const config = relationshipTypeConfig[type];
+        relationshipState[config.key] = [...relationshipState[config.key], course]
+            .sort((left, right) => String(left.course_code || '').localeCompare(String(right.course_code || '')));
+        renderRelationshipSelections();
+    }
+
+    function renderRelationshipSearchResults(courses) {
+        const container = document.getElementById('relationshipSearchResults');
+        if (!container) return;
+        relationshipState.searchResults = Array.isArray(courses) ? courses : [];
+        if (relationshipState.searchResults.length === 0) {
+            container.innerHTML = '<div class="relationship-selection-empty relationship-empty-state">No matching catalog courses found for the current filter.</div>';
+            return;
+        }
+        container.innerHTML = relationshipState.searchResults.map((course, index) => {
+            const isSelf = Number(course.course_id) === Number(relationshipState.courseId);
+            return `
+                <div class="relationship-result">
+                    <div>
+                        <div class="relationship-result-title">
+                            <span>${escapeHtml(course.course_code)}</span>
+                            ${relationshipStatusPill(course)}
+                        </div>
+                        <div>${escapeHtml(course.course_title)}</div>
+                        <div class="relationship-result-meta">${escapeHtml(course.department_name || 'Unassigned')} | ${escapeHtml(course.credit_units || 0)} total units (${escapeHtml(course.lec_units || 0)} lec + ${escapeHtml(course.lab_units || 0)} lab)</div>
+                    </div>
+                    <div class="relationship-result-actions">
+                        <button type="button" class="btn btn-outline relationship-add" data-index="${index}" data-type="prerequisite" ${isSelf || relationshipSelected('prerequisite', course.course_id) ? 'disabled' : ''}>Add prereq</button>
+                        <button type="button" class="btn btn-outline relationship-add" data-index="${index}" data-type="corequisite" ${isSelf || relationshipSelected('corequisite', course.course_id) ? 'disabled' : ''}>Add coreq</button>
+                        <button type="button" class="btn btn-outline relationship-add" data-index="${index}" data-type="equivalency" ${isSelf || relationshipSelected('equivalency', course.course_id) ? 'disabled' : ''}>Add equiv</button>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        container.querySelectorAll('.relationship-add').forEach(button => {
+            button.addEventListener('click', () => addRelationshipCourse(button.dataset.type, relationshipState.searchResults[Number(button.dataset.index)]));
+        });
+    }
+
+    async function searchRelationshipCourses() {
+        const queryInput = document.getElementById('relationshipSearchInput');
+        const departmentFilter = document.getElementById('relationshipDepartmentFilter');
+        const results = document.getElementById('relationshipSearchResults');
+        if (!queryInput || !departmentFilter || !results) return;
+        const q = queryInput.value.trim();
+        const departmentId = departmentFilter.value || '';
+        if (q.length < 2 && !departmentId) {
+            relationshipState.searchResults = [];
+            results.innerHTML = '<div class="relationship-selection-empty relationship-empty-state">Search by course code, title, or department to add an existing course relationship.</div>';
+            return;
+        }
+        const params = new URLSearchParams();
+        params.set('q', q);
+        if (departmentId) params.set('departmentId', departmentId);
+        results.innerHTML = '<div class="relationship-selection-empty relationship-empty-state">Loading catalog matches...</div>';
+        try {
+            const response = await fetch(`${ctx}admin/courses/relationship-search?${params.toString()}`);
+            if (!response.ok) throw new Error(await response.text() || 'Unable to search the course catalog right now.');
+            renderRelationshipSearchResults(await response.json());
+        } catch (error) {
+            relationshipState.searchResults = [];
+            results.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+        }
+    }
+
+    async function openRelationshipModal(button) {
+        const modal = document.getElementById('relationshipModal');
+        const title = document.getElementById('relationshipModalTitle');
+        const subtitle = document.getElementById('relationshipModalSubtitle');
+        const courseIdInput = document.getElementById('relationshipCourseId');
+        const searchInput = document.getElementById('relationshipSearchInput');
+        const searchResults = document.getElementById('relationshipSearchResults');
+        const departmentFilter = document.getElementById('relationshipDepartmentFilter');
+
+        relationshipState.courseId = Number(button?.dataset?.courseId || 0);
+        relationshipState.prerequisites = [];
+        relationshipState.corequisites = [];
+        relationshipState.equivalencies = [];
+        relationshipState.searchResults = [];
+        if (courseIdInput) courseIdInput.value = relationshipState.courseId || '';
+        if (title) title.textContent = 'Course Relationships';
+        if (subtitle) subtitle.textContent = `${button?.dataset?.courseCode || ''} - ${button?.dataset?.courseTitle || ''}`;
+        renderRelationshipSelections();
+        if (searchInput) searchInput.value = '';
+        if (departmentFilter) departmentFilter.value = '';
+        if (searchResults) {
+            searchResults.innerHTML = '<div class="relationship-selection-empty relationship-empty-state">Loading current relationship links...</div>';
+        }
+        modal.classList.add('show');
+        modal.setAttribute('aria-hidden', 'false');
+        try {
+            const response = await fetch(`${ctx}admin/courses/relationships?courseId=${encodeURIComponent(relationshipState.courseId)}`);
+            if (!response.ok) throw new Error(await response.text() || 'Unable to load course relationships.');
+            const data = await response.json();
+            const course = data.course || {};
+            relationshipState.courseId = Number(course.course_id || relationshipState.courseId || 0);
+            relationshipState.prerequisites = Array.isArray(data.prerequisites) ? data.prerequisites : [];
+            relationshipState.corequisites = Array.isArray(data.corequisites) ? data.corequisites : [];
+            relationshipState.equivalencies = Array.isArray(data.equivalencies) ? data.equivalencies : [];
+            if (courseIdInput) courseIdInput.value = relationshipState.courseId || '';
+            if (title) title.textContent = `${course.course_code || button?.dataset?.courseCode || ''} Relationships`;
+            if (subtitle) {
+                subtitle.textContent = `${course.course_title || button?.dataset?.courseTitle || ''} | ${course.department_name || 'Unassigned'} | ${Number(course.active_status || 0) === 1 ? 'Active' : 'Inactive'} catalog record`;
+            }
+            renderRelationshipSelections();
+            if (searchResults) {
+                searchResults.innerHTML = '<div class="relationship-selection-empty relationship-empty-state">Search by course code, title, or department to add an existing course relationship.</div>';
+            }
+        } catch (error) {
+            if (searchResults) {
+                searchResults.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
+            }
+        }
+        if (searchInput) searchInput.focus();
     }
 
     function renderUsageItems(items, formatter, emptyText) {
@@ -664,6 +1085,14 @@
                 <section class="usage-section">
                     <h4>Prerequisite relationships</h4>
                     ${renderUsageItems(data.prerequisites, item => `<strong>${escapeHtml(item.course_code)}</strong> requires <strong>${escapeHtml(item.prerequisite_code)}</strong>`, 'No prerequisite relationships.')}
+                </section>
+                <section class="usage-section">
+                    <h4>Corequisite relationships</h4>
+                    ${renderUsageItems(data.corequisites, item => `<strong>${escapeHtml(item.course_code)}</strong> pairs with <strong>${escapeHtml(item.corequisite_code)}</strong>`, 'No corequisite relationships.')}
+                </section>
+                <section class="usage-section">
+                    <h4>Equivalency relationships</h4>
+                    ${renderUsageItems(data.equivalencies, item => `<strong>${escapeHtml(item.course_code)}</strong> is equivalent to <strong>${escapeHtml(item.equivalent_code)}</strong>`, 'No equivalency relationships.')}
                 </section>`;
         } catch (error) {
             body.innerHTML = `<div class="alert alert-danger">${escapeHtml(error.message)}</div>`;
@@ -677,10 +1106,32 @@
     }
 
     document.addEventListener('keydown', event => {
-        if (event.key === 'Escape') closeCourseModal();
+        if (event.key === 'Escape') {
+            closeCourseModal();
+            closeRelationshipModal();
+            closeUsageModal();
+        }
     });
 
     document.addEventListener('DOMContentLoaded', () => {
+        const relationshipSearchInput = document.getElementById('relationshipSearchInput');
+        const relationshipDepartmentFilter = document.getElementById('relationshipDepartmentFilter');
+        if (relationshipSearchInput) {
+            relationshipSearchInput.addEventListener('input', () => {
+                clearTimeout(relationshipSearchTimer);
+                relationshipSearchTimer = setTimeout(searchRelationshipCourses, 220);
+            });
+            relationshipSearchInput.addEventListener('focus', () => {
+                clearTimeout(relationshipSearchTimer);
+                relationshipSearchTimer = setTimeout(searchRelationshipCourses, 80);
+            });
+        }
+        if (relationshipDepartmentFilter) {
+            relationshipDepartmentFilter.addEventListener('change', () => {
+                clearTimeout(relationshipSearchTimer);
+                relationshipSearchTimer = setTimeout(searchRelationshipCourses, 80);
+            });
+        }
         if (!focusCourseId) return;
         const row = document.getElementById(`course-${focusCourseId}`);
         if (!row) return;

@@ -81,7 +81,7 @@
                         </div>
                         <div class="col-md-4 text-end">
                             <div th:if="${isFaculty && (classInfo.get('status') != 'SUBMITTED' || hasApprovedChange)}">
-                                <form th:action="@{/faculty/submit-class}" method="post" onsubmit="return confirm('WARNING: Submitting will lock all grades for this class. Proceed?');">
+                                <form th:action="@{/faculty/submit-class}" method="post" data-confirm="WARNING: Submitting will lock all grades for this class. Proceed?" data-confirm-title="Submit class grades?" data-confirm-tone="danger">
                                     <input type="hidden" name="scheduleId" th:value="${classInfo.get('schedule_id')}">
                                     <button type="submit" class="btn btn-success btn-lg fw-bold shadow"><i class="fas fa-paper-plane me-2"></i> Submit to Registrar</button>
                                 </form>

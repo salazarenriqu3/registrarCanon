@@ -15,8 +15,6 @@
 --   - It intentionally does not rewrite historical section/enlistment/grade rows.
 --     Those records remain tied to the archived legacy row for audit continuity.
 
-USE eacdb;
-
 DROP TEMPORARY TABLE IF EXISTS tmp_legacy_lec_lab_split;
 DROP TEMPORARY TABLE IF EXISTS tmp_legacy_curriculum_refs;
 DROP TEMPORARY TABLE IF EXISTS tmp_legacy_prereq_refs;

@@ -13,14 +13,14 @@
                 <i class="ti ti-chevron-right" aria-hidden="true"></i>
                 <span>Admin</span>
                 <i class="ti ti-chevron-right" aria-hidden="true"></i>
-                <span>Program Fees</span>
+                <span>Program Fee Readiness</span>
             </div>
 
             <div class="page-header">
                 <div>
-                    <h1 class="page-title">Program Fees Read-Only Mirror</h1>
-                    <p class="page-subtitle" style="margin-top:0.35rem;">Registrar can inspect fee readiness here, but official fee authoring lives in Enrollment3 Accounting/Cashier.</p>
-                    <p class="page-subtitle">Official fee rates per academic term, program, year level, and curriculum slot — stored in <span style="font-family: monospace;">program_fee_settings</span> and used by enrollment billing.</p>
+                    <h1 class="page-title">Program Fee Readiness</h1>
+                    <p class="page-subtitle" style="margin-top:0.35rem;">Registrar inspects exact canonical fee rows here only. Fee authoring has been retired from Registrar and stays in Enrollment3 Accounting/Cashier.</p>
+                    <p class="page-subtitle">Official fee rates per academic term, program, year level, and curriculum slot — authored by Enrollment3, stored in <span style="font-family: monospace;">program_fee_settings</span>, and read by Registrar for readiness and display.</p>
                 </div>
             </div>
 
@@ -78,8 +78,8 @@
                             <div style="font-size: 1.3rem; font-weight: 700; color: var(--danger-color);" th:text="${termReadiness.get('missingFeeScopeCount')}">0</div>
                         </div>
                         <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 0.85rem;">
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">Fallback only</div>
-                            <div style="font-size: 1.3rem; font-weight: 700; color: var(--warning-color);" th:text="${termReadiness.get('fallbackFeeScopeCount')}">0</div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">Exact rows ready</div>
+                            <div style="font-size: 1.3rem; font-weight: 700; color: var(--success-color);" th:text="${termReadiness.get('readyFeeScopeCount')}">0</div>
                         </div>
                         <div style="background: var(--bg-tertiary); border-radius: 10px; padding: 0.85rem;">
                             <div style="font-size: 0.75rem; color: var(--text-muted);">Incomplete</div>
@@ -89,18 +89,18 @@
                 </div>
             </div>
 
-            <!-- GLOBAL IMPORT -->
+            <!-- READ-ONLY TERM SNAPSHOT -->
             <div class="card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-world-upload"></i> 1. Global import (entire term)</div>
+                    <div class="card-title"><i class="ti ti-world-upload"></i> 1. Read-only term snapshot</div>
                 </div>
                 <div style="padding: 1.5rem;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
-                        Copy all fee scopes for every active program into the target term, or upload a completed CSV.
+                        Registrar no longer imports, uploads, or edits fee rows here. This section only exposes the canonical fee mirror and readiness status.
                     </p>
 
-                    <form th:action="@{/admin/term-fees/import-global}" method="post"
-                          style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem;">
+                    <form th:if="${!feeOwnershipReadOnly}" th:action="@{/admin/term-fees/import-global}" method="post"
+                           style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end; margin-bottom: 1.5rem;">
                         <div class="form-group" style="margin: 0; min-width: 200px;">
                             <label>Target term</label>
                             <select name="targetTermId" required>
@@ -132,6 +132,11 @@
                         — use only if prior-term fees are official.
                     </div>
 
+                    <div th:if="${feeOwnershipReadOnly}" class="status-badge pending" style="margin: 0.75rem 0 1rem; display: inline-flex;">
+                        <div class="status-dot"></div>
+                        <span>Registrar fee configuration is retired. Canonical fee rows are read only from Enrollment3-owned shared data and this page no longer authors fees.</span>
+                    </div>
+
                     <div style="display: flex; flex-wrap: wrap; gap: 0.75rem; margin-bottom: 1rem;">
                         <a class="btn btn-outline" th:href="@{/admin/term-fees/import-template(termId=${termId})}">
                             <i class="ti ti-table-plus"></i> Download CSV template
@@ -141,7 +146,7 @@
                         </a>
                     </div>
 
-                    <form th:action="@{/admin/term-fees/import-template}" method="post" enctype="multipart/form-data"
+                    <form th:if="${!feeOwnershipReadOnly}" th:action="@{/admin/term-fees/import-template}" method="post" enctype="multipart/form-data"
                           style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; padding-top: 1rem; border-top: 1px solid var(--border-color);">
                         <input type="hidden" name="termId" th:value="${termId}">
                         <input type="hidden" name="programCode" th:value="${programCode}">
@@ -155,17 +160,15 @@
                             <i class="ti ti-upload"></i> Upload CSV
                         </button>
                     </form>
-                    </fieldset>
                 </div>
             </div>
 
-            <!-- SCOPED IMPORT + EDIT -->
+            <!-- READ-ONLY SCOPE INSPECTION -->
             <div class="card" style="margin-bottom: 1.5rem;">
                 <div class="card-header">
-                    <div class="card-title"><i class="ti ti-adjustments"></i> 2. Scoped import &amp; edit (one program)</div>
+                    <div class="card-title"><i class="ti ti-adjustments"></i> 2. Read-only scope inspection (one program)</div>
                 </div>
                 <div style="padding: 1.5rem;">
-                    <fieldset th:disabled="${feeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
                     <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem;">
                         <b>Curriculum slot</b> (S1/S2) is the year-level progression semester — not the calendar 1st/2nd sem label on the term name.
                     </p>
@@ -205,38 +208,11 @@
                         <button class="btn btn-primary" type="submit"><i class="ti ti-search"></i> Load</button>
                     </form>
 
-                    <fieldset th:disabled="${feeOwnershipReadOnly}" style="border:0; padding:0; margin:0;">
-                    <form th:action="@{/admin/term-fees/import-scope}" method="post"
-                          style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border-color);">
-                        <input type="hidden" name="targetTermId" th:value="${termId}">
-                        <input type="hidden" name="programCode" th:value="${programCode}">
-                        <input type="hidden" name="yearLevel" th:value="${yearLevel}">
-                        <input type="hidden" name="semester" th:value="${semester}">
-                        <div class="form-group" style="margin: 0; min-width: 200px;">
-                            <label>Import this scope from</label>
-                            <select name="sourceTermId" required>
-                                <option th:each="t : ${terms}" th:value="${t.term_id}"
-                                        th:selected="${previousTermId != null and t.term_id == previousTermId}"
-                                        th:text="${t.term_name != null ? t.term_name : t.term_code}"></option>
-                            </select>
-                        </div>
-                        <button class="btn btn-outline" type="submit" th:disabled="${termId == null}">
-                            <i class="ti ti-arrow-right"></i> Import this scope only
-                        </button>
-                    </form>
-
                     <div th:if="${missingFeeCodes != null and !missingFeeCodes.isEmpty()}" class="status-badge inactive" style="margin-bottom: 1rem; display: inline-flex;">
-                        <div class="status-dot"></div> No exact rates for this scope yet.
-                    </div>
-                    <div th:if="${fallbackFeeCodes != null and !fallbackFeeCodes.isEmpty()}" class="status-badge pending" style="margin-bottom: 1rem; display: inline-flex;">
-                        <div class="status-dot"></div> Showing fallback template values — import or save to make exact.
+                        <div class="status-dot"></div> No exact canonical rates for this scope yet.
                     </div>
 
-                    <form th:action="@{/admin/term-fees/save}" method="post" th:if="${feeTypes != null and !feeTypes.isEmpty()}">
-                        <input type="hidden" name="termId" th:value="${termId}">
-                        <input type="hidden" name="programCode" th:value="${programCode}">
-                        <input type="hidden" name="yearLevel" th:value="${yearLevel}">
-                        <input type="hidden" name="semester" th:value="${semester}">
+                    <div th:if="${feeTypes != null and !feeTypes.isEmpty()}">
                         <table class="table-eac">
                             <thead>
                             <tr>
@@ -255,22 +231,15 @@
                                     th:text="${ft.kind + (ft.unit_basis != null ? ' (' + ft.unit_basis + ')' : '')}"></td>
                                 <td>
                                     <span th:if="${rateSources != null and rateSources.get(ft.fee_code) == 'EXACT_TERM'}" class="status-badge enrolled" style="display:inline-flex;"><div class="status-dot"></div>Exact</span>
-                                    <span th:if="${rateSources != null and rateSources.get(ft.fee_code) == 'FALLBACK'}" class="status-badge pending" style="display:inline-flex;"><div class="status-dot"></div>Fallback</span>
                                     <span th:if="${rateSources == null or !rateSources.containsKey(ft.fee_code)}" class="status-badge inactive" style="display:inline-flex;"><div class="status-dot"></div>Missing</span>
                                 </td>
-                                <td style="text-align: right;">
-                                    <input type="text" th:name="${'rate_' + ft.fee_code}"
-                                           th:value="${currentRates != null and currentRates.containsKey(ft.fee_code) ? currentRates.get(ft.fee_code) : ''}"
-                                           placeholder="0.00" style="text-align: right; width: 100%; font-family: monospace;">
+                                <td style="text-align: right; font-family: monospace;">
+                                    <span th:text="${currentRates != null and currentRates.containsKey(ft.fee_code) ? '₱' + currentRates.get(ft.fee_code) : '—'}"></span>
                                 </td>
                             </tr>
                             </tbody>
                         </table>
-                        <div style="margin-top: 1rem;">
-                            <button class="btn btn-primary" type="submit"><i class="ti ti-device-floppy"></i> Save this scope</button>
-                        </div>
-                    </form>
-                    </fieldset>
+                    </div>
                 </div>
             </div>
 

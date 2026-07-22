@@ -19,6 +19,9 @@
         .usage-chip { display:inline-flex; align-items:center; gap:.25rem; border-radius:999px; border:1px solid var(--border-color); background:var(--bg-tertiary); color:var(--text-secondary); font-size:.74rem; font-weight:700; padding:.18rem .5rem; }
         .usage-chip.warn { border-color:rgba(217,119,6,.25); background:rgba(217,119,6,.08); color:#b45309; }
         .row-actions { display:flex; gap:.35rem; justify-content:flex-end; flex-wrap:wrap; }
+        .pager { display:flex; justify-content:space-between; align-items:center; gap:.75rem; flex-wrap:wrap; padding:1rem 1.25rem; border-top:1px solid var(--border-color); color:var(--text-muted); font-size:.86rem; }
+        .pager-links { display:flex; gap:.5rem; align-items:center; }
+        .pager-disabled { opacity:.45; pointer-events:none; }
         .modal { display:none; position:fixed; z-index:1050; inset:0; background:rgba(0,0,0,.48); backdrop-filter:blur(4px); align-items:center; justify-content:center; padding:1rem; }
         .modal.show { display:flex; }
         .modal-dialog { width:min(680px,100%); max-height:92vh; overflow-y:auto; background:white; border-radius:var(--radius-lg); box-shadow:var(--shadow-lg); }
@@ -76,6 +79,7 @@
 
             <div class="filter-card">
                 <form th:action="@{/admin/programs}" method="get" class="filter-row">
+                    <input type="hidden" name="page" value="1">
                     <div class="grow"><label class="form-label">Search</label><input name="search" class="form-control" th:value="${search}" placeholder="Code or name"></div>
                     <div><label class="form-label">Department</label>
                         <select name="departmentId" class="form-control">
@@ -88,6 +92,13 @@
                             <option value="active" th:selected="${selectedStatus == null or selectedStatus == 'active'}">Active</option>
                             <option value="inactive" th:selected="${selectedStatus == 'inactive'}">Inactive</option>
                             <option value="all" th:selected="${selectedStatus == 'all'}">All</option>
+                        </select>
+                    </div>
+                    <div><label class="form-label">Rows</label>
+                        <select name="size" class="form-control">
+                            <option value="25" th:selected="${pageSize == 25}">25</option>
+                            <option value="50" th:selected="${pageSize == 50}">50</option>
+                            <option value="100" th:selected="${pageSize == 100}">100</option>
                         </select>
                     </div>
                     <button type="submit" class="btn btn-primary"><i class="ti ti-filter" aria-hidden="true"></i> Apply</button>
@@ -136,8 +147,12 @@
                                         <input type="hidden" name="returnSearch" th:value="${search}">
                                         <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                                         <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
+                                        <input type="hidden" name="returnPage" th:value="${page}">
+                                        <input type="hidden" name="returnSize" th:value="${pageSize}">
                                         <button type="submit" class="btn btn-outline" style="padding:.3rem .55rem;"
-                                                th:onclick="${p.active_status == 1} ? 'return confirm(''Deactivate this program? It will disappear from Admissions active lists.'')' : null">
+                                                th:data-confirm="${p.active_status == 1} ? 'Deactivate this program? It will disappear from Admissions active lists.' : null"
+                                                th:data-confirm-title="${p.active_status == 1} ? 'Deactivate program?' : null"
+                                                th:data-confirm-tone="${p.active_status == 1} ? 'warning' : null">
                                             <i class="ti" th:classappend="${p.active_status == 1} ? 'ti-eye-off' : 'ti-eye'" aria-hidden="true"></i>
                                         </button>
                                     </form>
@@ -146,7 +161,9 @@
                                         <input type="hidden" name="returnSearch" th:value="${search}">
                                         <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                                         <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
-                                        <button type="submit" class="btn btn-outline" style="padding:.3rem .55rem;" onclick="return confirm('Delete this unused program?')"><i class="ti ti-trash" aria-hidden="true"></i></button>
+                                        <input type="hidden" name="returnPage" th:value="${page}">
+                                        <input type="hidden" name="returnSize" th:value="${pageSize}">
+                                        <button type="submit" class="btn btn-outline" style="padding:.3rem .55rem;" data-confirm="Delete this unused program?" data-confirm-title="Delete program?" data-confirm-tone="danger"><i class="ti ti-trash" aria-hidden="true"></i></button>
                                     </form>
                                 </div>
                             </td>
@@ -156,6 +173,16 @@
                         </tr>
                         </tbody>
                     </table>
+                </div>
+                <div class="pager" th:if="${totalRows > 0}">
+                    <span th:text="|Showing ${pageStart}-${pageEnd} of ${totalRows} programs|">Showing 1-50 of 50 programs</span>
+                    <div class="pager-links">
+                        <a class="btn btn-outline" th:classappend="${page == 1} ? 'pager-disabled'"
+                           th:href="@{/admin/programs(search=${search},departmentId=${selectedDepartmentId},status=${selectedStatus},page=${page - 1},size=${pageSize})}">Previous</a>
+                        <span th:text="|Page ${page} of ${totalPages}|">Page 1 of 1</span>
+                        <a class="btn btn-outline" th:classappend="${page >= totalPages} ? 'pager-disabled'"
+                           th:href="@{/admin/programs(search=${search},departmentId=${selectedDepartmentId},status=${selectedStatus},page=${page + 1},size=${pageSize})}">Next</a>
+                    </div>
                 </div>
             </div>
         </main>
@@ -174,6 +201,8 @@
                 <input type="hidden" name="returnSearch" th:value="${search}">
                 <input type="hidden" name="returnDepartmentId" th:value="${selectedDepartmentId}">
                 <input type="hidden" name="returnStatus" th:value="${selectedStatus}">
+                <input type="hidden" name="returnPage" th:value="${page}">
+                <input type="hidden" name="returnSize" th:value="${pageSize}">
                 <div class="form-grid">
                     <div><label class="form-label">Program Code</label><input name="programCode" id="programCode" class="form-control" required placeholder="BSIT"></div>
                     <div><label class="form-label">Duration (years)</label><input name="durationYears" id="durationYears" type="number" min="1" max="12" class="form-control" value="4" required></div>
@@ -189,7 +218,7 @@
                         <select name="active" id="active" class="form-control"><option value="true">Active</option><option value="false">Inactive</option></select>
                     </div>
                 </div>
-                <div class="hint-box">Active programs appear in Admissions and curriculum pickers. Curriculum mapping is managed separately under Curriculum.</div>
+                <div class="hint-box">Active programs appear in Admissions and curriculum pickers. Registrar currently saves Program Builder entries as college-level shared programs for Admission compatibility. Curriculum mapping is managed separately under Curriculum.</div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-outline" onclick="closeProgramModal()">Cancel</button>

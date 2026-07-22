@@ -1,6 +1,6 @@
 package com.iuims.registrar.security;
 
-import com.iuims.registrar.core.SysUser;
+import com.iuims.registrar.entity.SysUser;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;

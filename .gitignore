@@ -1,4 +1,5 @@
 target/
+bin/
 
 # Generated handoff archives; commit their unpacked, reviewable contents instead.
 /handoffNew/*.zip
@@ -11,6 +12,9 @@ target/
 .vscode/
 
 # Runtime / temporary files
+.env
+.env.*
+!.env.example
 *.log
 *.tmp
 *.swp

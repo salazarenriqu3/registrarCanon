@@ -52,14 +52,6 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-icon-row">
-                        <div class="stat-icon red-soft"><i class="ti ti-clock" aria-hidden="true"></i></div>
-                        <span class="stat-trend down" th:text="${pendingApps != null ? 'Pending: ' + pendingApps : 'Pending'}">Pending</span>
-                    </div>
-                    <div class="stat-value" th:text="${pendingApps != null ? pendingApps : '0'}">34</div>
-                    <div class="stat-label">Awaiting admission</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-icon-row">
                         <div class="stat-icon red-soft"><i class="ti ti-award" aria-hidden="true"></i></div>
                         <span class="stat-trend up">Active</span>
                     </div>
@@ -68,25 +60,25 @@
                 </div>
             </div>
 
-            <div class="two-col">
-                <!-- Student Profile Card -->
-                <div class="card">
-                    <div class="card-header">
-                        <div class="card-title"><i class="ti ti-users" aria-hidden="true"></i> Student profiles</div>
-                        <a class="card-link" th:href="@{/admin/student-manager}" role="button" tabindex="0">View profiles -></a>
-                    </div>
-                    <form class="search-bar" role="search" method="get" action="/admin/student-manager">
-                        <i class="ti ti-search" aria-hidden="true"></i>
-                        <input type="text" name="username" placeholder="Search by name, ID, or year level..." aria-label="Search student profiles"/>
-                    </form>
-                    <div class="filter-pills" role="group" aria-label="Filter students">
-                        <div class="pill active" role="button" tabindex="0">All</div>
-                        <div class="pill" role="button" tabindex="0">1st Year</div>
-                        <div class="pill" role="button" tabindex="0">2nd Year</div>
-                        <div class="pill" role="button" tabindex="0">3rd Year</div>
-                        <div class="pill" role="button" tabindex="0">4th Year</div>
-                    </div>
-                    
+            <!-- Student Profile Card -->
+            <div class="card">
+                <div class="card-header">
+                    <div class="card-title"><i class="ti ti-users" aria-hidden="true"></i> Student profiles</div>
+                    <a class="card-link" th:href="@{/admin/student-manager}" role="button" tabindex="0">View profiles -></a>
+                </div>
+                <form class="search-bar" role="search" method="get" action="/admin/student-manager">
+                    <i class="ti ti-search" aria-hidden="true"></i>
+                    <input type="text" name="username" placeholder="Search by name, ID, or year level..." aria-label="Search student profiles"/>
+                </form>
+                <div class="filter-pills" role="group" aria-label="Filter students">
+                    <div class="pill active" role="button" tabindex="0">All</div>
+                    <div class="pill" role="button" tabindex="0">1st Year</div>
+                    <div class="pill" role="button" tabindex="0">2nd Year</div>
+                    <div class="pill" role="button" tabindex="0">3rd Year</div>
+                    <div class="pill" role="button" tabindex="0">4th Year</div>
+                </div>
+                
+                <div class="table-responsive">
                     <table class="table-eac" aria-label="Student profiles">
                         <thead>
                             <tr>
@@ -111,7 +103,7 @@
                                 </td>
                                 <td th:text="${student.year_level}">1</td>
                                 <td><span class="status-badge" th:classappend="${student.admission_status == 'Admitted' ? 'success' : 'warning'}" th:text="${student.admission_status}">Admitted</span></td>
-                                <td th:text="${student.admission_date != null ? #temporals.format(student.admission_date, 'MMM dd, yyyy') : '-'}">Oct 24, 2025</td>
+                                <td th:text="${student.admission_date != null ? #dates.format(student.admission_date, 'MMM dd, yyyy') : '-'}">Oct 24, 2025</td>
                                 <td>
                                     <a class="btn btn-ghost" style="padding: 0.25rem 0.5rem;" th:href="@{/admin/student-manager(username=${student.student_number})}">
                                         <i class="ti ti-eye" aria-hidden="true"></i> View
@@ -121,130 +113,11 @@
                         </tbody>
                     </table>
                 </div>
-                
-                <!-- Side Panel (Calendar + Quick Actions) -->
-                <div class="side-panel">
-                    <div class="card">
-                        <div class="calendar-widget">
-                            <div class="cal-header">
-                                <span class="cal-month" id="calMonthLabel">Loading...</span>
-                                <div class="cal-nav">
-                                    <button aria-label="Previous month" onclick="changeMonth(-1)"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
-                                    <button aria-label="Next month" onclick="changeMonth(1)"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
-                                </div>
-                            </div>
-                            <div class="cal-grid" id="calGrid">
-                                <div class="cal-day-label">Su</div><div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div><div class="cal-day-label">We</div><div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div><div class="cal-day-label">Sa</div>
-                                <!-- Dynamically populated by JS -->
-                            </div>
-                        </div>
-                        <div class="event-list" id="eventList">
-                            <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
-                                <i class="ti ti-calendar-off" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.5"></i>
-                                No upcoming events today.
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="card">
-                        <div class="quick-actions-grid">
-
-                            <a th:href="@{/admin/admission-acceptance}" class="qa-item" role="button" tabindex="0" style="text-decoration:none;">
-                                <i class="ti ti-file-certificate" aria-hidden="true"></i>
-                                <span>Admissions</span>
-                            </a>
-                            <a th:href="@{/admin/approvals}" class="qa-item" role="button" tabindex="0" style="text-decoration:none;">
-                                <i class="ti ti-check" aria-hidden="true"></i>
-                                <span>Grade Approvals</span>
-                            </a>
-                        </div>
-                    </div>
-                </div>
             </div>
 
         </main>
     </div>
 </div>
-
-<script th:inline="javascript">
-    const rawEvents = /*[[${calendarEventsJson}]]*/ '[]';
-    const events = JSON.parse(rawEvents || '[]');
-    
-    let currentDate = new Date();
-    
-    function changeMonth(delta) {
-        currentDate.setMonth(currentDate.getMonth() + delta);
-        renderCalendar();
-    }
-    
-    function renderCalendar() {
-        const year = currentDate.getFullYear();
-        const month = currentDate.getMonth();
-        
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        document.getElementById('calMonthLabel').innerText = monthNames[month] + " " + year;
-        
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const prevMonthDays = new Date(year, month, 0).getDate();
-        
-        let html = '<div class="cal-day-label">Su</div><div class="cal-day-label">Mo</div><div class="cal-day-label">Tu</div><div class="cal-day-label">We</div><div class="cal-day-label">Th</div><div class="cal-day-label">Fr</div><div class="cal-day-label">Sa</div>';
-        
-        // Previous month days
-        for (let i = firstDay - 1; i >= 0; i--) {
-            html += `<div class="cal-day other-month">${prevMonthDays - i}</div>`;
-        }
-        
-        // Current month days
-        let today = new Date();
-        for (let i = 1; i <= daysInMonth; i++) {
-            let isToday = (i === today.getDate() && month === today.getMonth() && year === today.getFullYear());
-            
-            let dateStr = `${year}-${String(month+1).padStart(2, '0')}-${String(i).padStart(2, '0')}`;
-            let hasEvent = events.some(e => e.date === dateStr);
-            
-            html += `<div class="cal-day ${isToday ? 'today' : ''} ${hasEvent ? 'has-event' : ''}">${i}</div>`;
-        }
-        
-        // Next month days
-        const totalCells = firstDay + daysInMonth;
-        const remainder = totalCells % 7;
-        if (remainder !== 0) {
-            for (let i = 1; i <= 7 - remainder; i++) {
-                html += `<div class="cal-day other-month">${i}</div>`;
-            }
-        }
-        
-        document.getElementById('calGrid').innerHTML = html;
-        
-        // Render events
-        let eventsHtml = '';
-        const monthEvents = events.filter(e => {
-            const d = new Date(e.date);
-            return d.getMonth() === month && d.getFullYear() === year;
-        });
-        
-        if (monthEvents.length === 0) {
-            eventsHtml = `
-            <div style="text-align: center; color: var(--text-muted); padding: 2rem 1rem;">
-                <i class="ti ti-calendar-off" style="font-size: 2rem; margin-bottom: 0.5rem; display: block; opacity: 0.5"></i>
-                No upcoming events this month.
-            </div>`;
-        } else {
-            monthEvents.forEach(e => {
-                const d = new Date(e.date);
-                eventsHtml += `
-                <div class="event-item" style="padding: 1rem; border-bottom: 1px solid var(--border-color);">
-                    <div style="font-weight: 500;">${e.title}</div>
-                    <div style="font-size: 0.85rem; color: var(--text-muted);">${d.toLocaleDateString()}</div>
-                </div>`;
-            });
-        }
-        document.getElementById('eventList').innerHTML = eventsHtml;
-    }
-    
-    renderCalendar();
-</script>
 
 </body>
 </html>

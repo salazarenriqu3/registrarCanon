@@ -4,6 +4,37 @@
     <title>Faculty Teaching Load — EAC Registrar</title>
     <th:block th:replace="~{fragments/layout :: head}"></th:block>
     <style>
+        .faculty-page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .faculty-filter-card {
+            margin-bottom: 2rem;
+        }
+        .faculty-filter-form {
+            margin: 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            align-items: flex-end;
+        }
+        .faculty-filter-form > div {
+            flex: 1;
+            min-width: 200px;
+        }
+        .faculty-stats-bar {
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+        .faculty-table-wrap {
+            overflow-x: auto;
+        }
         .stats-bar { margin-bottom: 2rem; display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; }
         .stat-card { background: white; border: 1px solid var(--border-color); border-radius: var(--radius-lg); padding: 1.5rem; box-shadow: var(--shadow-sm); display: flex; flex-direction: column; }
         .stat-card .val { font-size: 2rem; font-weight: 800; color: var(--text-primary); line-height: 1.2; }
@@ -74,6 +105,47 @@
         .section-item .s-name { font-weight: 600; font-size: 0.95rem; color: var(--text-primary); margin-top: 0.25rem; }
         .section-item .s-units { font-size: 0.9rem; font-weight: 700; color: var(--primary-color); background: rgba(59, 130, 246, 0.1); padding: 0.25rem 0.75rem; border-radius: 99px; }
         .section-item .s-code  { font-size: 0.8rem; color: var(--text-muted); font-weight: 600; }
+        @media (max-width: 920px) {
+            .faculty-page-header {
+                align-items: flex-start;
+            }
+            .faculty-filter-form {
+                gap: 1rem;
+            }
+            .faculty-filter-form > div {
+                min-width: 0;
+            }
+            .faculty-stats-bar {
+                gap: 1rem;
+            }
+        }
+        @media (max-width: 720px) {
+            .faculty-page-header {
+                gap: 0.75rem;
+            }
+            .faculty-filter-form {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .faculty-filter-form > div,
+            .faculty-filter-form button {
+                width: 100%;
+            }
+            .faculty-stats-bar {
+                grid-template-columns: 1fr;
+            }
+            .faculty-table-wrap table {
+                min-width: 920px;
+            }
+            .modal-body .section-item {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.75rem;
+            }
+            .modal-body .section-item .s-units {
+                align-self: flex-start;
+            }
+        }
     </style>
 </head>
 <body>
@@ -85,7 +157,7 @@
         
         <div class="main">
             
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+            <div class="faculty-page-header">
                 <div>
                     <h1 class="page-title">Faculty Teaching Load</h1>
                     <p class="page-subtitle">Load equals each assigned section's total catalog credit units (lecture plus laboratory), unless a coordinator-equivalent load is configured.</p>
@@ -127,7 +199,7 @@
                     </div>
                     <form th:if="${assignmentAudit.suspicious_assignment_concentration}" th:action="@{/admin/faculty-load/repair-suspicious}" method="post" style="margin: 0;">
                         <input type="hidden" name="termId" th:value="${selectedTermId}">
-                        <button type="submit" class="btn btn-outline" onclick="return confirm('Clear suspicious faculty assignments for this term? This resets faculty_id on affected sections and schedule rows.');">
+                        <button type="submit" class="btn btn-outline" data-confirm="Clear suspicious faculty assignments for this term? This resets faculty_id on affected sections and schedule rows." data-confirm-title="Clear suspicious assignments?" data-confirm-tone="danger">
                             <i class="ti ti-shield-x" aria-hidden="true"></i> Clear Suspicious Assignments
                         </button>
                     </form>
@@ -135,8 +207,8 @@
             </div>
 
             <!-- Filters -->
-            <div class="card" style="margin-bottom: 2rem;">
-                <form method="get" th:action="@{/admin/faculty-load}" style="margin: 0; display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end;">
+            <div class="card faculty-filter-card">
+                <form method="get" th:action="@{/admin/faculty-load}" class="faculty-filter-form">
                     <div style="flex: 1; min-width: 200px;">
                         <label class="form-label">Academic Term</label>
                         <select name="termId" id="termSelect" class="form-control">
@@ -157,7 +229,7 @@
             </div>
 
             <!-- Stats Summary -->
-            <div class="stats-bar" th:if="${loads != null}">
+            <div class="faculty-stats-bar" th:if="${loads != null}">
                 <div class="stat-card">
                     <div class="val" th:text="${#lists.size(loads)}">0</div>
                     <div class="lbl">Total Faculty</div>
@@ -178,7 +250,7 @@
 
             <!-- Table -->
             <div class="card" style="padding: 0; overflow: hidden;">
-                <div style="overflow-x: auto;">
+                <div class="faculty-table-wrap">
                     <table class="table-eac">
                         <thead>
                             <tr>

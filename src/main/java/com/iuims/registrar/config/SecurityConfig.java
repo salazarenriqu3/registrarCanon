@@ -1,4 +1,5 @@
 package com.iuims.registrar.config;
+import com.iuims.registrar.entity.Student;
 
 import com.iuims.registrar.security.SessionCurrentUserBridgeFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,8 +34,10 @@ public class SecurityConfig {
                 .requestMatchers("/login", "/error", "/css/**", "/js/**", "/images/**",
                     "/webjars/**", "/favicon.ico").permitAll()
                 .requestMatchers("/admin/admission-acceptance", "/admin/approve-admission",
-                    "/admin/pre-reg/**", "/api/search-applicants")
+                    "/admin/pre-reg/**", "/api/search-applicants", "/api/term-rollover/**")
                     .hasAnyRole("ADMIN", "REGISTRAR", "ADMISSION")
+                .requestMatchers("/admin/demo-grades", "/admin/demo-grades/**")
+                    .hasAnyRole("DEAN", "REGISTRAR")
                 .requestMatchers("/admin/users", "/create-user", "/admin/update-user",
                     "/admin/delete-user", "/admin/toggle-status", "/admin/reset-password")
                     .hasRole("ADMIN")

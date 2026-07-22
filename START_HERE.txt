@@ -1,4 +1,0 @@
-CAPSS documentation: registrar\handoff\
-CAPSS demo SQL:     registrar\db\capss-demo-required\
-
-Open: registrar\handoff\START_HERE.txt

@@ -66,6 +66,50 @@
             padding: 0.3rem 0.5rem;
             font-size: 0.8rem;
         }
+        .scholarship-policy-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+        }
+        .scholarship-policy-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2rem;
+            align-items: center;
+            border-top: 1px solid var(--border-color);
+            padding-top: 1.5rem;
+        }
+        @media (max-width: 720px) {
+            .scholarship-policy-grid {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+            .scholarship-policy-grid > div,
+            .scholarship-policy-grid > .form-control {
+                grid-column: auto !important;
+            }
+            .scholarship-policy-actions {
+                gap: 1rem;
+                align-items: stretch;
+                flex-direction: column;
+            }
+            .scholarship-policy-actions > div,
+            .scholarship-policy-actions > button {
+                width: 100%;
+            }
+            .scholarship-action-stack {
+                justify-content: flex-start;
+                width: 100%;
+            }
+            .scholarship-note-input {
+                width: 100%;
+            }
+            .scholarship-table-wrap {
+                margin-top: 0.25rem;
+            }
+        }
     </style>
     
     <div class="body-wrapper">
@@ -96,7 +140,7 @@
                 <div style="padding: 1.5rem;">
                     <form th:action="@{/admin/scholarships/policies}" method="post" style="margin: 0;">
                         <input type="hidden" name="termId" th:value="${selectedTermId}">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; align-items: flex-start; margin-bottom: 1.5rem;">
+                        <div class="scholarship-policy-grid">
                             <div style="grid-column: span 2;">
                                 <label class="form-label">Academic Term</label>
                                 <select id="termIdSelect" class="form-control">
@@ -132,7 +176,7 @@
                                 <input type="number" min="1" step="1" class="form-control" name="SCHOLARSHIP_MIN_COMPLETED_UNITS" th:value="${policy.get('SCHOLARSHIP_MIN_COMPLETED_UNITS')}">
                             </div>
                         </div>
-                        <div style="display: flex; flex-wrap: wrap; gap: 2rem; align-items: center; border-top: 1px solid var(--border-color); padding-top: 1.5rem;">
+                        <div class="scholarship-policy-actions">
                             <div style="flex: 1 1 320px; color: var(--text-muted); font-size: 0.85rem; line-height: 1.5;">
                                 Registrar grants academic scholarship only. The fallback unit value is used only when a student's assigned curriculum load cannot be resolved. Finance effect starts only after a review is posted.
                             </div>

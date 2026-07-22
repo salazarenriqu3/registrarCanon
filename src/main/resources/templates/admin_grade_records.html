@@ -5,17 +5,72 @@
 <script th:inline="javascript">const contextPath = /*[[@{/}]]*/ '';</script>
 <div class="app">
     <div th:replace="~{fragments/layout :: topbar}"></div>
+    <style>
+        .grade-page-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+            gap:1rem;
+            flex-wrap:wrap;
+            margin-bottom:2rem;
+        }
+        .grade-header-actions {
+            display:flex;
+            gap:.75rem;
+            flex-wrap:wrap;
+        }
+        .grade-filter-form {
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+            gap:0.9rem;
+            align-items:end;
+        }
+        .grade-summary-grid {
+            display:grid;
+            grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));
+            gap:1rem;
+            margin-bottom:1.5rem;
+        }
+        .grade-table-wrap {
+            overflow-x:auto;
+        }
+        @media (max-width: 720px) {
+            .grade-page-header {
+                align-items:flex-start;
+            }
+            .grade-header-actions,
+            .grade-header-actions .btn {
+                width:100%;
+            }
+            .grade-header-actions .btn {
+                justify-content:center;
+            }
+            .grade-filter-form {
+                grid-template-columns:1fr;
+            }
+            .grade-filter-form .btn {
+                width:100%;
+            }
+            .grade-summary-grid {
+                grid-template-columns:1fr;
+            }
+            .grade-table-wrap table {
+                min-width: 960px;
+            }
+        }
+    </style>
 
     <div class="body-wrapper">
         <nav th:replace="~{fragments/layout :: sidebar(activeLink='grade-records')}"></nav>
 
         <main class="main" role="main" id="main-content">
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; flex-wrap:wrap; gap:1rem; margin-bottom:2rem;">
+            <div class="grade-page-header">
                 <div>
                     <h1 class="page-title">Grade Records</h1>
                     <p class="page-subtitle">Registrar-side grade keeping, monitoring, and official record reporting.</p>
                 </div>
-                <div style="display:flex; gap:0.75rem; flex-wrap:wrap;">
+                <div class="grade-header-actions">
+                    <a th:href="@{/admin/demo-grades}" class="btn btn-outline"><i class="ti ti-clipboard-text"></i> Open Demo Entry</a>
                     <a th:href="@{/admin/approvals}" class="btn btn-outline"><i class="ti ti-checkup-list"></i> Open Approvals</a>
                     <a th:href="@{/admin/classes}" class="btn btn-outline"><i class="ti ti-school"></i> Open Class Records</a>
                 </div>
@@ -23,7 +78,7 @@
 
             <div class="card" style="margin-bottom:1.5rem;">
                 <div style="padding:1rem 1.5rem 1.5rem;">
-                    <form method="get" th:action="@{/admin/grade-records}" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.9rem; align-items:end;">
+                    <form method="get" th:action="@{/admin/grade-records}" class="grade-filter-form">
                         <div>
                             <label class="form-label">Academic Term</label>
                             <select name="termId" class="form-select">
@@ -69,7 +124,7 @@
                 </div>
             </div>
 
-            <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+            <div class="grade-summary-grid">
                 <div class="card"><div style="padding:1.25rem;"><div class="page-subtitle">Official Rows</div><div class="page-title" th:text="${summary['official_rows']}">0</div></div></div>
                 <div class="card"><div style="padding:1.25rem;"><div class="page-subtitle">Finalized</div><div class="page-title" th:text="${summary['finalized_rows']}">0</div></div></div>
                 <div class="card"><div style="padding:1.25rem;"><div class="page-subtitle">Pending Requests</div><div class="page-title" th:text="${summary['pending_requests']}">0</div></div></div>
@@ -82,7 +137,7 @@
                 <div class="card-header" style="border-bottom:none; padding-bottom:0;">
                     <h4 class="card-title" style="color: var(--primary-color);"><i class="ti ti-book-2"></i> Official Grade Registry</h4>
                 </div>
-                <div style="padding:1rem 1.5rem 1.5rem; overflow-x:auto;">
+                <div class="grade-table-wrap" style="padding:1rem 1.5rem 1.5rem;">
                     <table class="table-eac">
                         <thead>
                             <tr>
@@ -137,7 +192,7 @@
                 <div class="card-header" style="border-bottom:none; padding-bottom:0;">
                     <h4 class="card-title" style="color: var(--warning-color);"><i class="ti ti-history-toggle"></i> Grade Event Ledger</h4>
                 </div>
-                <div style="padding:1rem 1.5rem 1.5rem; overflow-x:auto;">
+                <div class="grade-table-wrap" style="padding:1rem 1.5rem 1.5rem;">
                     <table class="table-eac">
                         <thead>
                             <tr>

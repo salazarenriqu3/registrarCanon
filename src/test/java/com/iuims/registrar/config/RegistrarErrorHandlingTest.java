@@ -1,4 +1,7 @@
 package com.iuims.registrar.config;
+import com.iuims.registrar.entity.Course;
+import com.iuims.registrar.entity.Program;
+import com.iuims.registrar.entity.Student;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.Test;

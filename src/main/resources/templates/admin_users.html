@@ -4,6 +4,61 @@
 <body>
 <div class="app">
     <div th:replace="~{fragments/layout :: topbar}"></div>
+    <style>
+        .users-page-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:flex-end;
+            gap:1rem;
+            flex-wrap:wrap;
+            margin-bottom:1.5rem;
+        }
+        .users-table-wrap {
+            overflow-x:auto;
+        }
+        .users-row-actions {
+            display:flex;
+            gap:0.5rem;
+            justify-content:flex-end;
+            flex-wrap:wrap;
+        }
+        .users-modal {
+            border:none;
+            border-radius:8px;
+            padding:2rem;
+            box-shadow:0 10px 25px rgba(0,0,0,0.1);
+            width:400px;
+            max-width:90vw;
+            margin:auto;
+        }
+        @media (max-width: 720px) {
+            .users-page-header {
+                align-items:flex-start;
+            }
+            .users-page-header .btn {
+                width:100%;
+            }
+            .users-row-actions {
+                justify-content:flex-start;
+                flex-direction:column;
+                align-items:stretch;
+            }
+            .users-row-actions .btn,
+            .users-row-actions form {
+                width:100%;
+            }
+            .users-row-actions .btn {
+                justify-content:center;
+            }
+            .users-table-wrap table {
+                min-width: 920px;
+            }
+            .users-modal {
+                width: calc(100vw - 1rem);
+                padding: 1.25rem;
+            }
+        }
+    </style>
 
     <div class="body-wrapper">
         <nav th:replace="~{fragments/layout :: sidebar(activeLink='users')}"></nav>
@@ -17,7 +72,7 @@
                 <span>Users & Access</span>
             </div>
 
-            <div class="page-header">
+            <div class="page-header users-page-header">
                 <div>
                     <h1 class="page-title">User Management</h1>
                     <p class="page-subtitle">Manage system users, roles, and permissions.</p>
@@ -29,11 +84,14 @@
                 </div>
             </div>
 
+            <div th:if="${successMsg}" class="alert success" th:text="${successMsg}"></div>
+            <div th:if="${errorMsg}" class="alert danger" th:text="${errorMsg}"></div>
+
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title" style="margin: 0; color: var(--primary-color);"><i class="ti ti-users-cog" aria-hidden="true"></i> System Users</h5>
                 </div>
-                <div style="overflow-x: auto;">
+                <div class="users-table-wrap">
                     <table class="table-eac" style="margin: 0;">
                         <thead style="background: var(--bg-tertiary);">
                             <tr>
@@ -55,17 +113,17 @@
                                     <span class="status-badge" th:classappend="${u.is_active == 1 ? 'enrolled' : 'inactive'}" th:text="${u.is_active == 1 ? 'Active' : 'Inactive'}"></span>
                                 </td>
                                 <td style="text-align: right;">
-                                    <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                    <div class="users-row-actions">
                                         <button class="btn btn-ghost" style="padding: 0.25rem 0.5rem; font-size: 0.85rem;" th:onclick="'document.getElementById(\'editUserModal-' + ${u.user_id} + '\').showModal()'"><i class="ti ti-edit"></i> Edit</button>
                                         
-                                        <form th:action="@{/admin/reset-password}" method="post" style="margin: 0;" onsubmit="return confirm('Reset password to 1234?');">
+                                        <form th:action="@{/admin/reset-password}" method="post" style="margin: 0;" data-confirm="Reset password to the configured temporary password?" data-confirm-title="Reset password?" data-confirm-tone="warning">
                                             <input type="hidden" name="userId" th:value="${u.user_id}">
                                             <button type="submit" class="btn btn-primary" style="background: #D97706; border-color: #D97706; padding: 0.25rem 0.5rem; font-size: 0.85rem;" title="Reset Password">
                                                 <i class="ti ti-key"></i> Reset
                                             </button>
                                         </form>
 
-                                        <form th:action="@{/admin/delete-user}" method="post" style="margin: 0;" onsubmit="return confirm('Permanently delete this user?');">
+                                        <form th:action="@{/admin/delete-user}" method="post" style="margin: 0;" data-confirm="Permanently delete this user?" data-confirm-title="Delete user?" data-confirm-tone="danger">
                                             <input type="hidden" name="userId" th:value="${u.user_id}">
                                             <button type="submit" class="btn btn-primary" style="background: #DC2626; border-color: #DC2626; padding: 0.25rem 0.5rem; font-size: 0.85rem;" title="Delete User">
                                                 <i class="ti ti-trash"></i> Delete
@@ -73,7 +131,7 @@
                                         </form>
                                     </div>
 
-                                    <dialog th:id="'editUserModal-'+${u.user_id}" style="border: none; border-radius: 8px; padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; max-width: 90vw; margin: auto;">
+                                    <dialog th:id="'editUserModal-'+${u.user_id}" class="users-modal">
                                         <form th:action="@{/admin/update-user}" method="post">
                                             <h3 style="margin-top: 0; margin-bottom: 1rem; color: var(--text-color);"><i class="ti ti-edit"></i> Edit User</h3>
                                             <input type="hidden" name="userId" th:value="${u.user_id}">
@@ -106,7 +164,7 @@
     </div>
 </div>
 
-<dialog id="addUserModal" style="border: none; border-radius: 8px; padding: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 400px; max-width: 90vw; margin: auto;">
+<dialog id="addUserModal" class="users-modal">
     <form th:action="@{/create-user}" method="post">
         <h3 style="margin-top: 0; margin-bottom: 1.5rem; color: var(--text-color);"><i class="ti ti-user-plus"></i> Create New User</h3>
         
@@ -140,7 +198,7 @@
         </div>
         
         <div style="background: var(--bg-tertiary); padding: 1rem; border-radius: 6px; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1.5rem; border-left: 3px solid var(--primary-color); text-align: left;">
-            Default password will be set to: <strong style="color: var(--text-color);">1234</strong>
+            Default password is read from the configured environment secret.
         </div>
         
         <div style="display: flex; gap: 1rem; justify-content: flex-end;">
